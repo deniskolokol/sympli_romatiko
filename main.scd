@@ -1,0 +1,1404 @@
+(
+// Constants:
+// f_ile management, p_arameters, a_udio,
+// o_SC, c_ontrol, w_orld.
+var f_SETTINGS_FILENAME = "settings.conf";
+var f_TEMP_DIR = PathName.tmp +/+ "SuperCollider/sounds/";
+var p_FACTORY_SETTINGS = Dictionary[
+    // Audio parameters.
+    \audioIn ->          false,
+    \inbus ->            20, // bus for external input
+    \outbus ->           0, // main output starts from
+    \confSurround ->     "Ambisonic4",
+    \synthdefFile ->     "synthdef.scd",
+    \fieldDepth ->       5, // how "far" sound travels beyond the circle of speakers
+    \master ->           1, // master volume
+    // Physics parameters.
+    \worldGrav ->        0.98,
+    \worldMaxVel ->      30,
+    \worldDamping ->     0.8,
+    \worldDim ->         800, // World dimensions in pixels
+    \starMass ->         120, // the heaviest object's mass
+    \heavy ->            5, // heavy objects hang on springs, no gravity
+    \initMass ->         5, // initial mass with which object is created
+    \objAttract ->       true, // do objects attract each other
+    \repulsiveForce ->   1, // behavior on collision (no repulsion if 1)
+    \particles ->        0, // run particles or not
+    \partFreq ->         0.5, // generate a new particle \partFreq times per second
+    \partAgeThresh ->    50, // maximum particle age in cycles (fps)
+    \partGuide ->        "object", // which object guides Particle System
+    // Visualisation.
+    \visualize ->        true,
+    \showCoords ->       false,
+    // Aux
+    \synthForm ->        1,
+    \synthSaw ->         1];
+var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
+var a_BUS_PULL = [30, 52]; // lowest and highest number of bus used for objects' synths
+var c_KEY_OBJ = #[29, 18, 19, 20, 21, 23, 22, 26, 28, 25]; // keycodes for tracing objects 0-9. ORDER MATTERS!!!
+var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different kinds
+    12: ["a RedObject", \sr__g__regu],	// q
+    13: ["a RedObject", \sr__g__dron],	// w
+    14: ["a RedObject", \sr__g__gust],	// e
+    15: ["a RedBoid",   \sr__g__slid],	// r
+    17: ["a RedBoid",   \sr__g__loop],	// t
+    16: ["a RedObject", \sr__p__humm],	// y
+    32: ["a RedObject", \sr__e__probe],	// u
+    34: ["a RedObject", \sr__e__cmb],	// i
+    31: ["a RedObject", \sr__e__lowe],  // o
+    35: ["a RedObject", \sr__e__melo],	// p
+    33: ["a RedBoid",   \sr__e__ringz],	// [
+    30: ["a RedBoid",   \sr__e__pulse],	// ]
+    42: ["a RedObject", \sr__e__analog]); //\ (the answer to the ultimate question ))
+var c_CTRL_SYNTH_ARGS = #[ //[\synthName, kr_bus]
+    [\kr_ml0, 0],
+    [\kr_mg2, 1],
+    [\kr_mg0, 2],
+    [\kr_ml1, 3],
+    [\kr_mg1, 4],
+    [\kr_mh0, 5]];
+var o_SCHEDULER_ADDR = NetAddr.new("127.0.0.1", 57120);
+var o_SKELETON_ADDR = NetAddr("192.168.0.11", nil); // NetAddr("192.168.1.104", nil);
+var w_ZERO_2D_VECTOR = #[0, 0], w_ZERO_3D_VECTOR = #[0, 0, 0];
+
+var skelLimit=1, theHeaviest=5000, massSpec=ControlSpec(1, 11, \lin, 1);
+var speakerArr, speakerBuff;
+var w, world, width, height, depth, margin=0;
+var skeletonCoords=Dictionary.new, skeletonObject=Dictionary.new; // Dictionaries for skeletons' coordinates and objects
+var worldCapacity=10;
+var synths, objects, objectsProp,
+currObj=0, currSynth=0, objInd, mass, pos,
+objGuide=nil, synGuide=nil, posGuide, objAudioIn=nil, synAudioIn=nil, posAudioIn,
+wind, springs, hand, applyForses=1;
+
+var fps=60;
+var rectimeRep, midinote, channels;
+var synForm=nil, synSaw=nil, posFeet=[nil, nil], synthCtrl, currFormCtl=nil, currSawCtl=nil, startFeetSynths;
+var loadBufRout, guideNodeID=0;
+var fillStream, streamList= [nil], runTask1, runTask2, isActiveTask1= 0, isActiveTask2= 0;
+var arrBase= #[0, 2, 3, 6], arrDer0= #[ 2, 3, 6, 7 ];
+var keyObjType;
+var cvObjCtrl, cvAux, cvAudio, cvParticles, cvVisual,
+ezkObjCtrl= Array.fill(worldCapacity, {nil});
+var cvSkeletonObject, skeletonObjectText;
+var objColors= Array.fill(worldCapacity, {Color.rand});
+
+// Useful environment variables.
+var currentDir;
+
+// Global parameters.
+var params, paramsFilename, paramsFile;
+var getParam = { |n| params.atFail(n, {p_FACTORY_SETTINGS[n]})};
+
+// OSC communication.
+var oscObjScheduler, oscParmScheduler, oscActScheduler;
+var oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost;
+var oscRemoveFunc;
+
+// Routing Audio.
+var currBusRoute, rootNodeID, groupAux;
+
+// Groups and synths management.
+var startSynth, initGroup, removeGroup;
+
+// Buffers.
+var cyclicBuf, cyclicSynth, recBufStart, recBufStop, recSynth, isRecording, recProgress, currFilename, currBufnum;
+
+// Objects management.
+var initObject, removeObject;
+
+// Particles.
+var sys, newPart, posPart, partSynths=Dictionary.new, partGuideItems= [\wind, \feet, \object];
+
+// A center of the World.
+var worldStar, cvWorld;
+
+// Interface elements.
+var layoutHColor=Color.new255(100, 100, 100), layoutHFontColor=Color.new255(200, 200, 200);
+var labelFont=Font("Helvetica", 9), layoutHFont=Font("Helvetica", 11);
+var ezElements=List.new;
+
+// System related.
+var shutDown;
+
+// Utils and helper functions.
+var planeCoords, planeDot, clipInc;
+
+// Initial.
+currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
+
+// Global Params.
+"\nTrying to open settings file...".postln;
+paramsFilename = currentDir +/+ f_SETTINGS_FILENAME;
+try { // to load from settings file
+    params = File(paramsFilename, "r").readAllString.interpret;
+    "OK".postln
+} { |err| // unsuccessful
+    params = p_FACTORY_SETTINGS; // load factory settings
+    postf( // report error
+        "ERROR\nFailed to open file %!\nUsing factory settings, will be written to the file on exit.\n"
+        ++ "The error is:\n%\n",
+        paramsFilename, err)
+};
+
+// Load synthDefs.
+"\nLoading synth definitions...".postln;
+if (PathName(params[\synthdefFile]).pathOnly == "") {
+    params[\synthdefFile] = currentDir +/+ params[\synthdefFile];
+};
+if (this.executeFile(params[\synthdefFile]).isNil.not) {
+    "OK".postln
+};
+
+depth = width = height = getParam.(\worldDim);
+objects = Array.fill(worldCapacity, {nil}); // container for physical objects
+objectsProp = Dictionary.new; // properties of objects
+synths = Dictionary.new; // container for synths connected to objects
+springs = Dictionary.new; // container for springs
+
+rootNodeID = s.nextNodeID; // root group Id for objects' synths
+s.sendMsg("/g_new", rootNodeID);
+groupAux = Group.new(s);
+synthCtrl = Array.fill(c_CTRL_SYNTH_ARGS.size, { nil });
+keyObjType= c_KEY_OBJ_SYNTH.keys().asArray; // for easy access to keycodes
+cyclicBuf = Buffer.alloc(s, s.sampleRate, 1); // 1s single channel Buffer
+isRecording = false;
+recProgress = 0;
+channels = (0..29);
+
+// Particle system.
+sys = RedParticleSystem.new;
+// When particle is dead, release its synth.
+sys.removeAction = { |o|
+    partSynths.at(o.hash).set(\rel, 1.0.rand, \gate, 0);
+    partSynths.removeAt(o.hash)
+};
+
+loadBufRout = Routine({
+    inf.do({ |j|
+        if(cyclicBuf.numChannels != nil, {
+            cyclicSynth= Synth.head(groupAux, \syninbuff, [ //recording synth
+                \bufnum, cyclicBuf.bufnum, \busnum, getParam.(\inbus), \volIn, 1, \gate, 1, \dur, 1]);
+            loadBufRout.stop;
+        });
+        0.01.wait;
+    });
+}).play(AppClock);
+
+// Speakers setup.
+//speakerArr= #[-0.25pi, -0.5pi, -0.75pi, -pi, 0.75pi, 0.5pi, 0.25pi, 2pi]; // 8 channel ring
+speakerArr= #[-0.5pi, 0.5pi, 1.5pi, -1.5pi];
+speakerBuff= Buffer.loadCollection(s, speakerArr);
+
+// OSC communication.
+oscSkeletonLost = OSCFunc({ arg msg, time, addr, recvPort;
+    postf("from % received %\n", addr, msg);
+    skeletonCoords.removeAt(msg[1].asInteger);
+}, '/lost_skel', o_SKELETON_ADDR);
+
+oscSkeletonNew = OSCFunc({ arg msg, time, addr, recvPort;
+    postf("from % received %\n", addr, msg);
+    if (skeletonCoords.size < skelLimit) {
+        skeletonCoords.put(msg[1].asInteger, (
+            \update: Date.getDate.secStamp,
+            \r_hand: w_ZERO_3D_VECTOR, \l_hand: w_ZERO_3D_VECTOR,
+            \r_elbow: w_ZERO_3D_VECTOR, \l_elbow: w_ZERO_3D_VECTOR,
+            \r_foot: w_ZERO_3D_VECTOR, \l_foot: w_ZERO_3D_VECTOR,
+            \neck: w_ZERO_3D_VECTOR
+            )
+        )
+    }
+}, '/new_skel', o_SKELETON_ADDR);
+
+oscSkeletonJoint = OSCFunc({ arg msg, time, addr, recvPort;
+    var skel=nil, joint, x, y, z;
+    //postf("from % received %\n", addr, msg);
+    joint = msg[1];
+    #x, y, z = [
+        msg[3].linlin(-0.1, 1.1, margin, width - margin).round,
+        msg[5].linlin(0.3, 3.4, margin, height - margin).round,
+        // WARNING! Height range shifted by -0.15 in the top and 0.1 in the bottom!
+        msg[4].linlin(-0.15, 0.99, depth - margin, margin).round
+    ];
+    skel = skeletonCoords[msg[2].asInteger];
+    if (skel.isNil) {
+        if (skeletonCoords.size < skelLimit) { // Don't add a skeleton if the limit is reached.
+            skel = (\update: Date.getDate.secStamp); // Putting only update timestamp,
+            skeletonCoords.put(msg[2].asInteger, skel); // the rest will be filled out on the next iteration.
+
+            // WARNING!
+            // Not an elegant solution - to mix world objects with a skeleton.
+            // Invent a smart way of checking if the skeleton has changed,
+            // and put it into the world "animation".
+            springs = Dictionary.new; // Clear all springs, that were potentially connected to a "ghost" skeleton.
+        }
+    } {
+        skel[joint] = [x, y, z];
+        skel[\update] = Date.getDate.secStamp;
+    }
+}, '/joint', o_SKELETON_ADDR);
+
+// OSC function that catches scheduling and sequencing messages.
+// Message format:
+// [/worldobj, synthType, objectType, lifetime, initPos_X, initPos_Y, initPos_Z]
+oscObjScheduler = OSCFunc({ arg msg, time, addr, recvPort;
+    postf("from % received %\n", addr, msg);
+    initObject.value(
+        msg[7] ? getParam.(\initMass),
+        objectType: msg[2],
+        objectAge: msg[3],
+        objectPos: if (msg[4..6] == [0, 0, 0]) {[width, height, depth].rand} {msg[4..6]}
+    );
+    startSynth.value(synthName:msg[1], parm:msg[8..]); // [8..] are synth parameters
+}, '/worldobj', o_SCHEDULER_ADDR);
+
+oscParmScheduler = OSCFunc({ arg msg, time, addr, recvPort;
+    postf("from % received %\n", addr, msg);
+    try {
+        params.put(msg[1], msg[2])
+    } { |err|
+        postf("Error updating parameter %:\n%\n", msg[1], err)
+    }
+}, '/worldpar', o_SCHEDULER_ADDR);
+
+oscActScheduler = OSCFunc({ arg msg, time, addr, recvPort;
+    postf("from % received %\n", addr, msg);
+    msg[1].switch(
+        \remove, {
+            if (msg[2] == \all) {
+                objects.do({|o| removeObject.value(o)})
+            }
+        },
+        \add, {
+            // What other acts can be sent to the World?
+        }
+    );
+}, '/worldact', o_SCHEDULER_ADDR);
+
+oscRemoveFunc = {
+    /* Remove all OSC functions. */
+    oscObjScheduler.free;
+    oscParmScheduler.free;
+    oscActScheduler.free;
+    oscSkeletonNew.free;
+    oscSkeletonLost.free;
+    oscSkeletonJoint.free;
+};
+
+// World.
+world = RedWorld3(RedVector3D[width, height, depth], RedVector3D[0, 0, 0], 30, 0.8);
+
+// Windows.
+w = RedQWindow("tracking", Rect(800, 300, width, height)).background_(Color.black).front;
+u = Window("controls", Rect(1520, 50, 160, 1050)).front;
+u.view.decorator = FlowLayout(u.view.bounds);
+
+// Visualization.
+cvVisual = VLayoutView(u, 150@50);
+StaticText(cvVisual, 150@20).background_(layoutHColor).font_(layoutHFont)
+.string_(" Visualization ").stringColor_(layoutHFontColor);
+// Visualization takes ~7% of CPU, so, it's vital to keep it off when not necessary.
+// Warning! It's only about Pen drawing, RedQWindow should be animated!
+CheckBox(cvVisual).font_(labelFont).string_("Display Visualization")
+.value_(getParam.(\visualize))
+.action_({ |cb| params.put(\visualize, cb.value)});
+CheckBox(cvVisual).font_(labelFont).string_("Display coordinates")
+.value_(getParam.(\showCoords))
+.action_({ |bt| params.put(\showCoords, bt.value)});
+
+// World params (including the Star).
+cvWorld = VLayoutView(u, 150@180);
+StaticText(cvWorld, 150@20).background_(layoutHColor).font_(layoutHFont)
+.string_(" World parameters ").stringColor_(layoutHFontColor);
+// Do objects attract each other?
+CheckBox(cvWorld).font_(labelFont).string_("Objects attract each other")
+.value_(getParam.(\objAttract))
+.action_({ |cb| params.put(\objAttract, cb.value)});
+ezElements = ezElements ++ [
+    // World gravity.
+    EZNumber(cvWorld, 150@20, "World gravity", [0, 2].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
+    .value_(getParam.(\worldGrav))
+    .action_({|ez| params.put(\worldGrav, ez.value)}),
+
+    // World dimensions.
+    EZNumber(cvWorld, 150@20, "World dimensions", [1, 10000].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
+    .enabled_(false)
+    .value_(getParam.(\worldDim))
+    .action_({|ez| params.put(\worldDim, ez.value)}),
+
+    // World damping.
+    EZNumber(cvWorld, 150@20, "World damping", [0.01, 2.00].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
+    .value_(getParam.(\worldDamping))
+    .action_.action_({|ez| params[\worldDamping] = ez.value}),
+
+    // World max velocity.
+    EZNumber(cvWorld, 150@20, "Max objects velocity", [1, 100].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
+    .value_(getParam.(\worldMaxVel))
+    .action_({|ez| params[\worldMaxVel] = ez.value}),
+
+    // Repulsive force.
+    EZNumber(cvWorld, 150@20, "Repulsive force", [1, 1000].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
+    .value_(getParam.(\repulsiveForce))
+    .action_({|ez| params.put(\repulsiveForce, ez.value)}),
+
+    // Star mass.
+    EZNumber(cvWorld, 150@20, "Star mass", [5, 2147483647].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
+    .value_(getParam.(\starMass))
+    .action_({|ez| params.put(\starMass, ez.value)}),
+
+    // How much is "heavy".
+    EZNumber(cvWorld, 150@20, "Heavy objects", massSpec, unitWidth:0, numberWidth:50, margin:1@1)
+    .value_(getParam.(\heavy))
+    .action_({|ez| params.put(\heavy, ez.value)})
+];
+
+// Audio settings.
+cvAudio = VLayoutView(u, 150@220);
+StaticText(cvAudio, 150@20).background_(layoutHColor).font_(layoutHFont)
+.string_(" Audio settings ").stringColor_(layoutHFontColor);
+CheckBox(cvAudio).font_(labelFont).string_("Audio in")
+.value_(getParam.(\audioIn))
+.action_({ |bt| params.put(\audioIn, bt.value)});
+PopUpMenu(cvAudio).font_(layoutHFont).background_(Color.white)
+.items_(channels).value_(getParam.(\inbus))
+.action_({ |pm|
+    try {synAudioIn.set(\inbus, pm.value)};
+    params.put(\inbus, pm.value)
+});
+// Surround sound configuration.
+EZListView(cvAudio, 150@90, " Spatialization engine ", items: a_SURROUND_CONFIG,
+    globalAction: { |l| params.put(\confSurround, a_SURROUND_CONFIG.at(l.value ? 0))},
+    initVal: a_SURROUND_CONFIG.indexOf(getParam.(\confSurround)),
+    layout: \vert, gap: 1@1)
+.font_(layoutHFont);
+// How deep is the aural field.
+ezElements = ezElements ++ [
+    EZNumber(cvAudio, 150@20, "Aural field depth", [0.5, 10, \lin, 0.5].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
+    .value_(getParam.(\fieldDepth))
+    .action_({|ez| params.put(\fieldDepth, ez.value)})
+];
+// Record button
+Button(cvAudio).font_(labelFont)
+.states_([
+    ["RECORD", Color.black, Color.new(0.8,0.8,0.8)],
+    ["Stop", Color.red, Color.new(0.8,0.8,0.8)]
+])
+.action_({ |bt|
+    if (bt.value == 1) {
+        Dialog.savePanel({ |path|
+            var recordPath;
+            s.recChannels = 8;
+            s.recHeaderFormat = "AIFF";
+            s.recSampleFormat = "int16";
+            recordPath= path ++ ".aif";
+            AppClock.sched(0, {fork{s.prepareForRecord(recordPath); s.sync; s.record}})
+            }, {
+                "Cancelled".postln
+            }
+        )
+    } {
+        s.stopRecording
+    }
+});
+// Master control.
+ezElements = ezElements ++ [
+    EZSlider(cvAudio, 150@25, " master ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
+    .value_(getParam.(\master))
+    .action_({ |ezk| params.put(\master, ezk.value)})
+];
+
+// Particles.
+cvParticles = VLayoutView(u, 150@150);
+StaticText(cvParticles, 150@20).background_(layoutHColor).font_(layoutHFont)
+.string_(" Particles system ").stringColor_(layoutHFontColor);
+CheckBox(cvParticles).font_(labelFont).string_("Run particles")
+.value_(getParam.(\particles))
+.action_({ |cb| params.put(\particles, cb.value.asInteger)});
+ezElements = ezElements ++ [
+    // Emit particles with frequency.
+    EZNumber(cvParticles, 150@20, "Freq", [0.01, 5.00, \lin, 0.01].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
+    .value_(getParam.(\partFreq))
+    .action_({|ez| params.put(\partFreq, ez.value)}),
+
+    // Particles age threshold.
+    EZNumber(cvParticles, 150@20, "Age threshold", [10, 100, \lin, 5].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
+    .value_(getParam.(\partAgeThresh))
+    .action_({|ez| params.put(\partAgeThresh, ez.value)})
+];
+// Particles are being lead by
+EZListView(cvParticles, 150@70, " Lead by ", items: partGuideItems,
+    globalAction: { |l| params.put(\partGuide, partGuideItems.at(l.value ? 0))},
+    initVal: partGuideItems.indexOf(getParam.(\partGuide)),
+    layout: \vert, gap: 1@1)
+.font_(layoutHFont);
+
+// Objects' controls.
+cvObjCtrl = VLayoutView(u, 150@(worldCapacity * 25 + 50));
+StaticText(cvObjCtrl, 150@20).background_(layoutHColor).font_(layoutHFont)
+.string_(" Objects mass control ").stringColor_(layoutHFontColor);
+ezElements = ezElements ++ [
+    EZSlider(cvObjCtrl, 150@25, " new ", massSpec, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
+    .value_(getParam.(\initMass))
+    .action_({ |ez| params.put(\initMass, ez.value)});
+];
+// Mass control of individual objects.
+// Not included to ezElements for its colorful appearance.
+worldCapacity.do{ |i|
+    ezkObjCtrl[i]= EZSlider(cvObjCtrl, 150@25," "++i.asString, massSpec, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
+    .enabled_(false)
+    .setColors(Color.grey(alpha:0.1), layoutHColor, objColors[i],
+        Color.grey(alpha:0.1), Color.black, nil, nil, objColors[i]).font_(labelFont)
+    .action_({ |ez| objects[i].mass = ez.value });
+};
+
+// SkeletonObject status.
+cvSkeletonObject = VLayoutView(u, 150@40);
+StaticText(cvSkeletonObject, 150@20).background_(layoutHColor).font_(layoutHFont)
+.string_(" Skel monitor ").stringColor_(layoutHFontColor);
+skeletonObjectText= StaticText(cvSkeletonObject, 37@15)
+.string_("").font_(layoutHFont);
+
+// Auxiliary controls.
+cvAux= VLayoutView(u, 150@80);
+StaticText(cvAux, 150@20).background_(layoutHColor).font_(layoutHFont)
+.string_(" Auxiliary ").stringColor_(layoutHFontColor);
+// Formant & saw synths ctrls (hard connected to legs).
+ezElements = ezElements ++ [
+    EZSlider(cvAux, 150@25, " form ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
+    .value_(getParam.(\synthForm))
+    .action_({ |ezk| params.put(\synthForm, ezk.value) }),
+
+    EZSlider(cvAux, 150@25, " lsaw ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
+    .value_(getParam.(\synthSaw))
+    .action_({ |ezk| params.put(\synthSaw, ezk.value) });
+];
+
+// All EZElements must look the same.
+ezElements.do{ arg elem;
+    elem.setColors(Color.grey(alpha:0.1), layoutHColor, Color.white, Color.grey(alpha:0.1),
+        Color.black, nil, nil, Color.black)
+    .font_(labelFont)
+};
+
+// Constant objects.
+// rec guide
+objGuide = RedBoid(world,
+    RedVector3D[width, height, depth].rand,
+    RedVector3D[1,1,1],
+    RedVector3D[0,0,0],
+    mass:10, size:10)
+.maxForce_(1).wdistance_(3.rrand(13)).wchange_(0.75).wradius_(10.rrand(50));
+// Center of the World.
+worldStar = RedObject(world,
+    RedVector3D[height/2, width/3, depth/2],
+    RedVector3D[0, 0, 0],
+    RedVector3D[0, 0, 0],
+    mass:getParam.(\starMass), size:10);
+
+// World engine.
+w.draw{
+    if (getParam.(\visualize).booleanValue) {
+        // Draw the floor.
+        Pen.strokeColor= Color.grey(0.5);
+        Pen.strokeRect(Rect.aboutRedVector3D(RedVector[width*0.5, height*0.5, depth], width*0.5, width, height, depth));
+
+        // Report if no forces.
+        if (applyForses.booleanValue.not) {
+            Pen.fillColor= Color.white;
+            Pen.stringAtPoint("NO FORCES!", [width-60, height-20].asPoint);
+        };
+
+        // Show coordinates (all objects).
+        if (getParam.(\showCoords).booleanValue) {
+            world.objects.do { |o, i|
+                planeDot = [5, height - ((i+1) * 22)].asPoint;
+                Pen.fillColor= Color.white;
+                try { // Skeletons can be lost.
+                    Pen.stringAtPoint([o.loc[0], o.loc[1], o.loc[2]].round(10).asString, planeDot);
+                    Pen.strokeColor = Color.white;
+                    Pen.line(
+                        planeCoords.value(o.loc, width, height, depth).asPoint,
+                        planeDot + [110, 8]
+                    );
+                    Pen.stroke;
+                }
+            }
+        }
+    };
+
+    // Measure the length of rec.
+    if(isRecording, {recProgress = recProgress + 1});
+
+    // Force: wind blowing (trig it every 30s).
+    wind = sin(2pi * ((w.frame % (30*fps))/width));
+
+    // World parameters.
+    world.maxVel = getParam.(\worldMaxVel);
+    world.damping = getParam.(\worldDamping);
+    // World's gravity depends on the presence of skeletons.
+    try {
+        world.gravity = RedVector3D.newFrom( // Head's position defines vector of gravity
+            skeletonObject.at(skeletonObject.keys.minItem)[2].loc/([width, height, depth])-0.5)
+    } {
+        world.gravity = RedVector3D[1, 1, 1] * (getParam.(\worldGrav));
+    };
+
+    // Render skeletons.
+    if (skeletonCoords.size > 0) {
+        // Skeleton "trash cleaner" (if a skel stuck for more than 5sec, clear it out).
+        skeletonCoords.keys.do{ |k|
+            if ((Date.getDate.secStamp.asInteger - skeletonCoords[k][\update].asInteger) >= 5) {
+                skeletonObject[k].do{|so|
+                    world.remove(so); so.free; so= nil;
+                };
+                skeletonObject.removeAt(k);
+                skeletonCoords.removeAt(k);
+            };
+        };
+        skeletonCoords.keysValuesDo { |k, v|
+            // Check if the objects for current skeleton id are out there.
+            if (skeletonObject.keys.includes(k).not) {
+                skeletonObject.put(k, Dictionary.new);
+                5.do{|i| // 5 are hands, elbows and neck.
+                    skeletonObject[k].put(i,
+                        RedAgent(world, RedVector3D[height, width, depth].rand,
+                            RedVector3D[0,0,0], RedVector3D[0,0,0],
+                            getParam.(\starMass), 10
+                        ).state_(Dictionary.new)
+                    );
+                };
+                skeletonCoords[k].put(\color, Color.rand);
+            };
+            // Update all skeletons' locations.
+            skeletonObject[k].keysValuesDo {|i, sk|
+                try {
+                    sk.loc = switch(i,
+                        0, {RedVector3D.newFrom(v[\l_hand])},
+                        1, {RedVector3D.newFrom(v[\l_elbow])},
+                        2, {RedVector3D.newFrom(v[\neck])},
+                        3, {RedVector3D.newFrom(v[\r_elbow])},
+                        4, {RedVector3D.newFrom(v[\r_hand])}
+                    );
+                    sk.mass = getParam.(\starMass);
+                    sk.update;
+                    world.contain(sk);
+                    if (getParam.(\visualize).booleanValue) {
+                        // Render objects.
+                        Pen.fillColor = skeletonCoords[k].at(\color);
+                        Pen.strokeColor = Color.blue;
+                        Pen.fillOval(Rect.aboutRedObject3D(sk));
+                        // Draw feet (no objects).
+                        Pen.fillOval(Rect.aboutRedVector3D(v[\r_foot], v[\r_foot][2].linlin(0,depth, 5,30), width, height, depth));
+                        Pen.fillOval(Rect.aboutRedVector3D(v[\l_foot], v[\l_foot][2].linlin(0,depth, 5,30), width, height, depth));
+                    }
+                }
+            };
+
+            // Synths attached to FEET are controlled
+            // not by objects, but skeleton coordinates.
+            try {
+                posFeet[0]= Complex(
+                    v[\l_foot][1].linlin(0, width, 1, -1), // y
+                    v[\l_foot][0].linlin(0, height, -1, 1) // x
+                );
+                posFeet[1]= Complex(
+                    v[\r_foot][1].linlin(0, width, 1, -1), // y
+                    v[\r_foot][0].linlin(0, height, -1, 1) // x
+                )
+            };
+
+            if (synForm.isNil.not) {
+                synForm.set( // right controls \formant
+                    \azimuth, posFeet[1].theta,
+                    \distance, posFeet[1].magnitude,
+                    \elevation, v[\r_foot][2].linlin(0, depth, -0.5pi, 0.5pi),
+                    \amp, v[\r_foot][2].clip(0.4, 0.7),
+                    \master, getParam.(\synthForm),
+                    \mod, "c"++(currFormCtl ? "").asString,
+                    \depth, getParam.(\fieldDepth));
+                synSaw.set(	// left controls \saw
+                    \azimuth, posFeet[0].theta,
+                    \distance, posFeet[0].magnitude,
+                    \elevation, v[\lFoot][2].linlin(0, depth, -0.5pi, 0.5pi),
+                    \amp, v[\lFoot][2].clip(0.4, 0.7),
+                    \master, getParam.(\synthSaw),
+                    \mod, "c"++(currFormCtl ? "").asString,
+                    \depth, getParam.(\fieldDepth));
+            };
+        };
+        // Report skeletons.
+        try {
+            skeletonObjectText.string= skeletonObject.keys.asArray.asString
+            .replace("[ ","").replace(" ]","");
+        }
+    } {
+        // World Star.
+        worldStar.mass = getParam.(\starMass);
+        if (w.mouse != RedVector2D[0, 0]) {
+            try {
+                worldStar.loc = [w.mouse[0]] ++ [w.mouse[1]] ++ [w.mouse.mean]
+            } {
+                worldStar.loc = RedVector3D[width/2, height/3, depth/3]
+            }
+        } {
+            worldStar.loc = RedVector3D[width/2, height/3, depth/3]
+        };
+        worldStar.update;
+        world.contain(worldStar);
+
+        if (getParam.(\visualize).booleanValue) {
+            Pen.fillColor = Color.new(*[0.71, 0.99, 0.99] * worldStar.loc[2].linlin(0, height, 1, 0.3));
+            Pen.fillOval(Rect.aboutRedObject3D(worldStar));
+        }
+    };
+
+    // Render objects.
+    world.objects.do { |o, i|
+        if (getParam.(\objAttract).booleanValue && (skeletonObject.size == 0)) {
+            // Everybody attracts each other, regardless of the object type or function
+            // and even when the World's forces switched off. This helps keeping objects
+            // in swarm, while at the same time slowly affects position of the Star.
+            world.objects.do { |oo, j|
+                if (i != j) {
+                    o.addForce(o.gravityForce(oo));
+                    if (o.loc.distance(oo.loc) < (o.size*2)) {
+                        o.addForce(o.gravityForce(oo).neg * getParam.(\repulsiveForce));
+                    }
+                }
+            }
+        };
+
+        // Process only synth objects (skeleton objects must always be the haviest ones).
+        if ([objGuide, objAudioIn].includes(o).not && (o.mass < theHeaviest)) {
+            if (objects.indexOf(o) == nil) {
+                // Hot trash cleaner.
+                world.remove(o); o.free; o= nil;
+            } {
+                if (objectsProp.keys.includes(o.hash)) {
+                    // control object's age!
+                    objectsProp[o.hash].put(\age, objectsProp[o.hash].at(\age) - (1/fps));
+                    if (objectsProp[o.hash].at(\age) <= 0) {
+                        // Time to die.
+                        removeObject.value(o)
+                    } {
+                        // The havier the object the fatter it is, linearly.
+                        o.size = o.mass * 5;
+
+                        if (applyForses.booleanValue) {
+
+                            if (skeletonObject.size == 0) {
+                                // In the absence of skeletons place a Star in the World.
+                                springs = Dictionary.new; // Clear all springs, that were potentially connected to a "ghost" skeleton.
+                                o.addForce(o.gravityForce(worldStar));
+                            } {
+                                // Sceleton gravity or springs.
+                                // Pick up the first recognized sceleton.
+                                m = skeletonObject[skeletonObject.keys.asArray.minItem];
+                                o.asString.switch(
+                                    "a RedBoid", {
+                                        o.addForceArrive(m[0].loc);
+                                        o.addForceArrive(m[4].loc);
+                                    },
+                                    "a RedObject", {
+                                        if (o.mass >= getParam.(\heavy)) {
+                                            // Springs are being created for heavy objects.
+                                            // Springs _tend_ to stick to the "freer" hand, i.e. the one that have objects
+                                            // on springs, whose total mass is lighter than the other (thus the .reverse).
+                                            // .pow(2) increases chances of the "lighter" hand to be picked up.
+                                            hand = [m[0], m[4]].wchoose([
+                                                m[0].state.atFail(\totalmass, {0}),
+                                                m[4].state.atFail(\totalmass, {0})
+                                            ].pow(2).reverse.normalizeSum);
+                                            if (springs.keys.includes(o.identityHash).not) {
+                                                springs.put(o.identityHash, hand);
+                                                hand.state[\totalmass] = hand.state.atFail(\totalmass, {0}) + o.mass;
+                                            } {
+                                                //Spring params: target, stiffness, damping, length.
+                                                try {
+                                                    o.spring(springs[o.identityHash], 0.8, 0.1, 2)
+                                                } { |err|
+                                                    ("Error attaching spring to object: " ++ err).postln;
+                                                }
+                                            };
+
+                                            // Render springs.
+                                            // Works only here, since in any other place it's difficult to find the proper object.
+                                            if (getParam.(\visualize).booleanValue) {
+                                                Pen.strokeColor= Color.cyan;
+                                                springs.keysValuesDo { |sp, h|
+                                                    try {
+                                                        Pen.line(
+                                                            planeCoords.value(o.loc, width, height, depth).asPoint,
+                                                            planeCoords.value(springs[o.identityHash].loc, width, height, depth).asPoint
+                                                        );
+                                                        Pen.stroke;
+                                                    }
+                                                }
+                                            }
+                                        } { // Remove springs, if any, and take the mass off from hand.
+                                            o.addForce(o.gravityForce(m[0]));
+                                            o.addForce(o.gravityForce(m[4]));
+                                            hand= if(springs[o.identityHash] == m[0].identityHash, {m[0]}, {m[4]});
+                                            hand.state[\totalmass]= (hand.state.atFail(\totalmass, {0}) - o.mass).max(0);
+                                            springs.removeAt(o.identityHash);
+                                        }
+                                    }
+                                )
+                            };
+                            // The World's forces.
+                            o.addForce(world.gravity);
+                            o.addForce(wind);
+                        };
+                        o.update;
+                        world.contain(o);
+                    }
+                };
+                // Render objects.
+                if (getParam.(\visualize).booleanValue) {
+                    try {
+                        Pen.fillColor = objColors[objects.indexOf(o)].alpha_(o.loc[2].linlin(0, height, 1.0, 0.3));
+                    } {
+                        Pen.fillColor = Color.rand;
+                    };
+                    Pen.fillOval(Rect.aboutRedObject3D(o));
+                    Pen.fillColor = Color.white;
+                    Pen.stringAtPoint(
+                        objects.indexOf(o).asString,
+                        (planeCoords.value(o.loc, width, height, depth, scale:1, focal:0.5) - [5, 5]).asPoint
+                    );
+                };
+                // Control object's synth.
+                if (synths.at(o.hash).isNil.not) {
+                    pos = Complex(
+                        o.loc[1].linlin(0, width, 1, -1), // y
+                        o.loc[0].linlin(0, height, -1, 1) // x
+                    );
+
+                    // bookmark
+                    // rewrite this: manage params in a separate func, which should send them to all synths in a group.
+                    s.sendMsg("/n_set", synths.at(o.identityHash).asInteger,
+                        \azimuth, pos.theta, \distance, pos.magnitude, // Distance from the center.
+                        // Warning! Elevation is obsolete, get rid of it!
+                        \elevation, o.loc[2].linlin(0, depth, 0.5pi, -0.5pi), // How high the object is (inverse).
+                        \amp, o.mass.linlin(1,11, 0.01,0.8) + (o.vel.abs.maxItem * 0.01), // The faster the louder.
+                        \ax, o.loc[0]/width, \ay, o.loc[1]/height, \az, o.loc[2]/depth,
+                        \velocity, o.vel.abs.maxItem,
+                        \master, getParam.(\master),
+                        \depth, getParam.(\fieldDepth),
+                        \maxVel, getParam.(\worldMaxVel)
+                    )
+                }
+            }
+        }
+    };
+
+    // Guide obj and synth.
+    if (objGuide.isNil.not) {
+        // Guidance source (free float affected by wind only, feet, hands).
+        if (applyForses.booleanValue) {
+            getParam.(\partGuide).switch(
+                \wind, {objGuide.addForce(wind)},
+                \feet, {
+                    try {
+                        objGuide.addForceArrive(skeletonCoords.at(skeletonCoords.keys.minItem)[[\r_foot, \l_foot].choose]);
+                    };
+                    objGuide.addForce(world.gravity);
+                },
+                \object, {
+                    try {
+                        skeletonObject.keysValuesDo { |id, obj|
+                            objGuide.addForceArrive(obj.at(0).loc).addForceArrive(obj.at(4).loc);
+                        };
+                    };
+                    objGuide.addForce(world.gravity);
+                    objGuide.addForce(wind);
+                }
+            );
+            // Apply only world's forces.
+            objGuide.addForce(world.gravity);
+            objGuide.addForce(wind);
+            try {
+                objGuide.addForce(objGuide.gravityForce(worldStar))
+            };
+        };
+        objGuide.update;
+        world.contain(objGuide);
+        if (getParam.(\visualize).booleanValue) {
+            try {
+                Pen.fillColor = Color.white.alpha_(objGuide.loc[2].linlin(0, height, 1.0, 0.3));
+                Pen.fillOval(Rect.aboutRedObject3D(objGuide));
+            }
+        };
+        posGuide= Complex(
+            objGuide.loc[1].linlin(0, width, 1, -1), // x
+            objGuide.loc[0].linlin(0, height, -1, 1) // y
+        );
+        if (guideNodeID != 0) {
+            s.sendMsg("/n_set", guideNodeID, \azimuth, posGuide.theta, \distance, posGuide.magnitude,
+                \elevation, objGuide.loc[2].linlin(0, depth, -0.5pi, 0.5pi), \master, getParam.(\master))
+        }
+    };
+
+    // Audio through object and synth.
+    if (getParam.(\audioIn).booleanValue) {
+        if (objAudioIn.isNil) {
+            objAudioIn = RedBoid(world,
+                RedVector3D[width, height, depth].rand,
+                RedVector3D[1, 1, 1],
+                RedVector3D[0, 0, 0],
+                10, 10)
+            .maxForce_(1).wdistance_(3.rrand(13))
+            .wchange_(0.75).wradius_(10.rrand(50));
+
+            synAudioIn = Synth.head(groupAux,
+                "audioin_1"++"_"++getParam.(\confSurround).toLower,
+                [\speakerAzim, speakerArr, \inbus, getParam.(\inbus)]);
+        }
+    } {
+        objAudioIn.free; objAudioIn= nil;
+        synAudioIn.free; synAudioIn= nil;
+    };
+
+    if (objAudioIn.isNil.not) {
+        if (applyForses.booleanValue) {
+            objAudioIn.addForce(wind);
+            objAudioIn.addForce(world.gravity);
+            // try {
+            //     objGuide.addForceArrive(skeletonCoords.at(skeletonCoords.keys.minItem)[[\r_foot, \l_foot].choose]);
+            // };
+            skeletonObject.do { |obj|
+                try {
+                    objAudioIn.addForceArrive(obj[0].loc).addForceArrive(obj[4].loc);
+                }
+            };
+            try {
+                objAudioIn.addForce(objAudioIn.gravityForce(worldStar))
+            };
+        };
+        objAudioIn.update;
+        world.contain(objAudioIn);
+
+        // Render Object Audio in.
+        if (getParam.(\visualize).booleanValue) {
+            try {
+                Pen.fillColor= Color.blue(0.7, 0.8).alpha_(objAudioIn.loc[2].linlin(0, height, 1.0, 0.3));
+                Pen.fillOval(Rect.aboutRedObject3D(objAudioIn));
+            }
+        };
+
+        // Parameters for synths.
+        posAudioIn = Complex(
+            objAudioIn.loc[1].linlin(0, width, 1, -1), // y
+            objAudioIn.loc[0].linlin(0, height, -1, 1) // x
+        );
+        if (synAudioIn.isNil.not) {
+            synAudioIn.set(
+                \azimuth, posAudioIn.theta, \distance, posAudioIn.magnitude,
+                \elevation, objAudioIn.loc[2].linlin(0, depth, -0.5pi, 0.5pi),
+                \master, getParam.(\master),
+                \depth, getParam.(\fieldDepth)
+            )
+        }
+    };
+
+    // Particles.
+    if (getParam.(\particles).booleanValue) {
+        // A new particle every second.
+        if ((w.frame % (fps * (getParam.(\partFreq))).round) == 0) {
+            newPart = RedParticle(world, objGuide.loc, 0, RedVector3D[2.rand2, 10.rand, 10.rand], 5, 5)
+            .age_(getParam.(\partAgeThresh) + 10.0.rand2);
+            sys.add(newPart);
+            partSynths[newPart.hash] = Synth(\sr__g__dron,
+                [\speakerAzim, speakerArr, \busnum, 0, \bufnum, cyclicBuf.bufnum]
+            )
+        }
+    };
+
+    // Control Particles synths and render.
+    sys.addForce(world.gravity);
+    sys.update;
+    sys.do{ |p|
+        if(p.alive) {
+            // Particles should "sprinkle" around, thus they are
+            // driven not by attraction, but by repulsive force.
+            skeletonObject.do { |obj|
+                try {
+                    newPart.addForce(newPart.gravityForce(obj[0]).neg);
+                    newPart.addForce(newPart.gravityForce(obj[4]).neg);
+                }
+            };
+            try {
+                newPart.addForce(newPart.gravityForce(worldStar).neg)
+            };
+            posPart= Complex(
+                p.loc[1].linlin(0, width, 1, -1), // y
+                p.loc[0].linlin(0, height, -1, 1) // x
+            );
+            partSynths.at(p.hash).set( // Find corresponding synth and set params.
+                \azimuth, posPart.theta,
+                \distance, posPart.magnitude,
+                \elevation, p.loc[2].linlin(0, depth, 0pi, 0.5pi),
+                // Volume being decreased by age, increased by accel.
+                \amp, (1 / 10) * (p.age / getParam.(\partAgeThresh)) * (p.vel.mag / 10),
+                \ax, p.loc[0]/width,
+                \master, getParam.(\master),
+                \depth, getParam.(\fieldDepth)
+            );
+        };
+        if (getParam.(\visualize).booleanValue) {
+            try {
+                Pen.fillColor= Color.grey(p.age / getParam.(\partAgeThresh), 1)
+                .alpha_(p.loc[2].linlin(0, height, 1.0, 0.3));
+                Pen.fillOval(Rect.aboutRedObject3D(p));
+            } { |err|
+                err.postln;
+            }
+        }
+    }
+};
+w.animate = true;
+
+// Helper functions.
+
+// Increments integers with a limit: resets to `lo` every time in + step reaches `hi`.
+clipInc = { |in=0, step=1, lo=0, hi=inf| ((in + step).clip(lo, hi) % hi).clip(lo, hi)};
+
+// Project 3D coordinates on the plane.
+planeCoords = { arg vector, width, height, depth, scale=1, focal=0.5;
+    var x, y, z, ox, oy;
+    z = (depth - vector[2] / (depth * scale)).linlin(0, 1, focal, 1);
+    x = vector[0] * z;
+    y = vector[1] * z;
+    ox = 1 - z * (width * 0.5) + x;
+    oy = 1 - z * (height * 0.5) + y;
+    [ox, oy]
+};
+
+recBufStart = { arg bnum, inbus, numchannels, path, headformat= 'aiff', bitdepth= 'int16';
+    var bufnum;
+    bufnum = bnum ? s.bufferAllocator.alloc(1);
+    s.sendMsg("/b_alloc", bufnum, 32768 * numchannels, numchannels,
+        ["/b_write", bufnum, path, headformat, bitdepth, 0, 0, 1]
+    );
+    recSynth = Synth.tail(RootNode(Server.default), "recsyn_" ++ numchannels, [\inbus, inbus, \bufnum, bufnum]);
+    isRecording = true;
+    recProgress = 0;
+    bufnum // returns bufnum
+};
+
+recBufStop = { |bnum|
+    try{recSynth.free};
+    s.sendMsg("/b_close", bnum, ["/b_free", bnum]);
+    isRecording = false;
+};
+
+// Remove object from the world, release the corresponding synth.
+removeObject= { |o|
+    var objInd;
+    if(objects.includes(o), {
+        objInd= objects.indexOf(o);
+        { ezkObjCtrl[objInd].enabled_(false) }.defer; // Disable mass ctrl.
+        if(springs.keys.includes(o.identityHash), {springs.removeAt(o.identityHash)}); // Free the springs, if any.
+        if(synths.at(o.identityHash).isNil.not, {
+            // Release corresponding group.
+            removeGroup.(synths.at(o.identityHash), 2.0.rand);
+            synths.removeAt(o.identityHash);
+            // Wipe out object properties.
+            objectsProp.removeAt(o.identityHash);
+        });
+        objects[objInd]= nil;
+        world.remove(o); o.free; o = nil;
+    });
+};
+
+// Init new object, record its properties, control stack index.
+initObject = {
+    arg objectMass=5, objectType="a RedObject", objectAge=inf, objectPos= nil;
+    var newObject, initPos;
+    if(currObj == objects.size, {currObj= 0}); // Objects are in FIFO stack.
+    if(objects.at(currObj).isNil.not, { // Is currObj index already occupied?
+        if(objects.indexOf(nil) != nil, {currObj = objects.indexOf(nil)});
+    });
+
+    // Try to determine the initial position of the object.
+    if (objectPos.isNil) {
+        initPos = RedVector3D[width, height, depth].rand;
+    } { arg error; // Random if unsuccessful.
+        initPos = RedVector3D.newFrom(objectPos);
+    };
+    // Create new object.
+    newObject = switch(objectType.asString,
+        "a RedBoid", {
+            RedBoid(world, initPos, w_ZERO_3D_VECTOR, w_ZERO_3D_VECTOR, objectMass, objectMass * 5)
+            .maxForce_(1).wdistance_(3.rrand(13)).wchange_(0.75).wradius_(10.rrand(50))
+        },
+        "a RedObject", {
+            RedObject(world, initPos, w_ZERO_3D_VECTOR, w_ZERO_3D_VECTOR, objectMass, objectMass * 5)
+        }
+    );
+    objects.put(currObj, newObject); // Place new object to the stack.
+    objectsProp[newObject.identityHash] = (age: objectAge);
+    currSynth = currObj;
+    currObj = currObj + 1; // Increase stack index.
+    newObject // Return newly created object.
+};
+
+// Create a new object's group and insert synth and spatializer into it.
+initGroup = { |synth, bufnum, parm=nil|
+    var spatial, groupID, synthID, spatlID;
+    spatial = "\sr__s__" ++ getParam.(\confSurround).toLower; // spatializer's name
+    groupID = s.nextNodeID;
+    synthID = s.nextNodeID;
+    spatlID = s.nextNodeID;
+    #l, h = a_BUS_PULL;
+    currBusRoute = clipInc.(currBusRoute ?? l, lo:l, hi:h); // internal bus for routing
+    i = objects[currSynth].identityHash; // register synth (currSynth, because currObj is incremented already)
+    synths.put(i, groupID);
+    s.sendBundle(0.1,
+        ["/g_new", groupID, 1, rootNodeID], // add new group to root's tail
+        ["/s_new", spatial, spatlID, 1, groupID, // add spatializer to new group's tail
+            \inbus, currBusRoute, // getting signal from synth
+            \outbus, getParam.(\outbus)], // to main output
+        ["/s_new", synth, synthID, 0, groupID, // add synth to new group's head
+            \inbus, getParam.(\inbus), // getting signal from external input
+            \outbus, currBusRoute, // feeding into spatilizer
+            \bufnum, bufnum] ++ (parm ? [])
+    )
+};
+
+// Release from the server all synths from the group, and then the group's node.
+removeGroup = { |groupID, release=2|
+    {
+        s.sendMsg("/n_set", groupID, \rel, release, \gate, 0); // release all group synths
+        (release * 2).wait; // delay for letting all synths to be released safely
+        s.sendMsg("/n_free", groupID) // release group itself
+    }.fork
+};
+
+// Prepare the buffer and start the synth.
+startSynth = { arg synthName='sr__e__silencio', updateBuf=false, parm=nil;
+    var buff;
+    recBufStop.value(currBufnum); // stop recording
+    if(updateBuf) { // load buffer
+        buff = Buffer.read(s, currFilename);
+        loadBufRout = Task({
+            inf.do({ |j|
+                if(buff.numChannels != nil, {
+                    recProgress = 0;
+                    initGroup.(synthName, buff.bufnum, parm);
+                    loadBufRout.stop;
+                });
+                0.01.wait;
+            });
+        }).start;
+    } { // only granular synths require buffer with sound
+        buff = if (synthName.asString.find("__g__").isNil.not) {cyclicBuf.bufnum};
+        initGroup.(synthName, buff, parm);
+    };
+    synGuide= nil; // to prevent msg FAILURE /n_set Node not found
+};
+
+startFeetSynths= { |gate, tFormAttRel, tSawAttRel|
+    // synths controlled by feet enter slowly and remain quiet
+    // Warning! master volume is separate from the rest synths master
+    if(gate != 0, {
+        if(synForm == nil, {
+            synForm= Synth.head(rootNodeID, \sr__e__form,
+                [\att, tFormAttRel, \amp, 0.4, \master, getParam.(\synthForm),
+                    \azimuth, pi.bilinrand, \spread, 10.rrand(50), \mod, "c"]);
+            synSaw= Synth.head(rootNodeID, \sr__e__lsaw,
+                [\att, tSawAttRel, \amp, 0.4, \master, getParam.(\synthSaw),
+                    \azimuth, pi.bilinrand, \spread, 10.rrand(50), \mod, "c"]);
+            c_CTRL_SYNTH_ARGS.size.do({ |i|
+                synthCtrl[i]= s.nextNodeID;
+                s.sendBundle(0.1, ["/s_new", c_CTRL_SYNTH_ARGS[i][0].asString, synthCtrl[i]],
+                    ["/n_set", synthCtrl[i], "outbus", c_CTRL_SYNTH_ARGS[i][1]]);
+            });
+        });
+        }, {
+            if(synForm != nil, {
+                synForm.set(\gate, 0, \done, 2, \rel, tFormAttRel);
+                synSaw.set(\gate, gate, \done, 2, \rel, tSawAttRel);
+                synForm= nil; synSaw= nil;
+                synthCtrl.size.do({ |i|
+                    s.sendMsg("/n_free", synthCtrl[i]); // clear if the synth is "stuck"
+                    synthCtrl[i]= nil;
+                });
+            });
+    });
+};
+
+// Tasks.
+fillStream= { |curr|
+    streamList[curr]= Prout({
+        loop {
+            rrand(2,10).do({
+                0.yield;
+                arrBase.choose.yield;
+                2.yield;
+                arrDer0.choose.yield;
+            });
+            rrand(3,6).do({
+                (arrDer0.choose + #[12, 24].choose).yield;
+            });
+        }
+    }).asStream
+};
+
+runTask1= { |on|
+    if(on.booleanValue) {
+        fillStream.value(0); // create the stream
+        {
+            streamList[0].do{ |val|
+                var dur;
+                synForm.set(\mnote, val.midicps);
+                synSaw.set(\mnote, (val * 0.2).midicps, \mod, val.linlin(0,32, 0, -1));
+                dur= if(val < 18, {0.25}, {2.0.rand});
+                dur.wait;
+            }
+        }.fork(TempoClock());
+    } {
+        streamList[0].stop; streamList[0]= nil;
+    }
+};
+
+runTask2= { |on|
+    if(on.booleanValue) {
+        fillStream.value(0); // create the stream
+        {
+            streamList[0].do{ |val|
+                var dur;
+                synForm.set(\mnote, val.midicps, \mod, 0);
+                synSaw.set(\mnote, (val * 0.2).midicps);
+                synForm.set(\gate, 1, \att, 0.5);
+                synSaw.set(\gate, 0, \done, 0, \rel, 0.5);
+                if(val < 18, {
+                    synSaw.set(\gate, 1, \att, 0.5);
+                    2.0.rand.wait;
+                    synSaw.set(\gate, 0, \done, 0, \rel, 0.1);
+                    if(0.3.coin, {
+                        synForm.set(\mnote, val.midicps-12, \mod, val.linexp(0,18, 0.1, 0.6));
+                        [0.15, 0.5].choose.wait;
+                    });
+                    }, {
+                        synSaw.set(\gate, 0, \done, 0, \rel, 0.75);
+                        [0.25, 0.75].choose.wait;
+                        synSaw.set(\gate, 1, \att, 0.5);
+                });
+                dur= if(val < 18, {0.25}, {rrand(0.5, 1.5)});
+                dur.wait;
+            }
+        }.fork(TempoClock());
+    } {
+        streamList[0].stop; streamList[0]= nil;
+    }
+};
+
+//--keyboard control
+w.view.keyUpAction= { arg view, char, modifiers, unicode, keycode;
+    case
+    {keyObjType.includes(keycode)} { // stop rec, create obj, etc.
+        if ([0, 256].includes(modifiers)) {
+            initObject.(getParam.(\initMass), c_KEY_OBJ_SYNTH.matchAt(keycode)[0]);
+            startSynth.(c_KEY_OBJ_SYNTH.matchAt(keycode)[1], recProgress > 30);
+            // Enable interface for mass control and set the label.
+            ezkObjCtrl[currSynth].enabled_(true).value = getParam.(\initMass);
+            ezkObjCtrl[currSynth].set(
+                currSynth.asString ++ " " ++
+                c_KEY_OBJ_SYNTH.matchAt(keycode)[1].asString.split($_).at(1)
+            )
+        }
+    }
+    {keycode == 1} { // S - release \noisy
+        if([0, 256].includes(modifiers),{ // no modifiers
+            if(guideNodeID != 0, {s.sendMsg("/n_set", guideNodeID, "gate", 0, "rel", 2.0.rand); guideNodeID= 0;});
+        });
+    };
+};
+
+w.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
+    var checkRout;
+    //[char, modifiers, unicode, keycode].postln;
+    case
+    {keycode == 45} { // N - new object (???)
+        checkRout= Routine({
+            inf.do({
+                if(rectimeRep != nil, {
+                    (rectimeRep+0.1).wait;
+                    checkRout.stop
+                });
+                0.01.wait;
+            });
+        }).play(AppClock);
+    }
+    {keycode == 7} { // X - clean all objects and synths
+        if([0, 256].includes(modifiers), {objects.do({|o| removeObject.value(o)})});
+    }
+    {keycode == 45} { a.setn(\freq, [700, 705, 890]); }
+
+    // bookmark
+    {keycode == 8} {  // C -
+        synths.keys.do{ |k|
+            s.sendMsg("/n_setn", synths[k].asInteger, \scale, 7, 0,1,3,5,7,8,10);
+        }
+    }
+    {keycode == 9} { // V - remove all forces
+        if( [0, 256].includes(modifiers), {applyForses= (1 - applyForses).abs});
+    }
+    {keycode == 6} { // Z - info
+        if( [0, 256].includes(modifiers), {
+            postf("skeleton objects: %\nworld.objects (%): %\nobjects: %\nobjects Properties: %\nsynths: %\nparticle system: %\nparticle synths: %\nsprings: %\n\ntracking window: left %, top %, width %, height %\ncontrol window: left %, top %, width %, height %\n",
+                skeletonObject, world.objects.size,
+                world.objects, objects, objectsProp, synths,
+                sys.objects, partSynths, springs,
+                w.bounds.left, w.bounds.top, w.bounds.width, w.bounds.height,
+                u.bounds.left, u.bounds.top, u.bounds.width, u.bounds.height);
+            "\nparams:\n------".postln;
+            params.order.do{ |k| postf("%: %\n", k, params[k])};
+        });
+    }
+    {keycode == 37} { // L - start/stop "feet" synths
+        case
+        {[0, 256].includes(modifiers)} { // synths controlled by feet enter slowly and remain quiet
+            if(synForm == nil,
+                {startFeetSynths.value(1, 120, 240)},
+                {startFeetSynths.value(0, 30, 30)}
+            );
+        }
+        {[524576, 524608].includes(modifiers)} {
+            if(synForm == nil,
+                {startFeetSynths.value(1, 0.1, 0.1)},
+                {startFeetSynths.value(0, 0.1, 0.1)}
+            );
+        }
+    }
+    {keycode == 4} { // H - run/stop Task 1
+        if( [0, 256].includes(modifiers), {
+            if(synForm != nil, {
+                if(isActiveTask2.booleanValue, { // clear opposite task
+                    isActiveTask2= 0;
+                    runTask2.value( isActiveTask2 );
+                });
+                isActiveTask1= 1-isActiveTask1;
+                runTask1.value( isActiveTask1 );
+            });
+        });
+    }
+    {keycode == 38} { // J - run/stop Task 2
+        if( [0, 256].includes(modifiers), {
+            if(synForm != nil, {
+                if(isActiveTask1.booleanValue, { // clear opposite task
+                    isActiveTask1= 0;
+                    runTask1.value( isActiveTask1 );
+                });
+                isActiveTask2= 1-isActiveTask2;
+                runTask2.value( isActiveTask2 );
+            });
+        });
+    }
+    {keycode == 40} { // K - reset synForm & synSaw after Tasks
+        if( [0, 256].includes(modifiers), {
+            if(synForm != nil, {
+                synForm.set(\mnote, 0);
+                synSaw.set(\mnote, 0);
+            });
+        });
+    }
+    {keycode == 0} { // A - trigger \ev_start
+        if( [0, 256].includes(modifiers), {
+            Synth.head(groupAux, \ev_start, [ // single blip
+                \speakerAzim, speakerArr, \note, 10.rrand(80), \azimuth, 180.bilinrand, \spread, 10.rrand(50)
+            ]);
+        });
+    }
+    {keycode == 123} { //[<-] prev ctrl for synSaw
+        if(currSawCtl == nil, {
+            currSawCtl= c_CTRL_SYNTH_ARGS.size-1
+            },
+            {
+                currSawCtl= currSawCtl-1;
+                if(currSawCtl < 0, {currSawCtl= nil});
+        });
+    }
+    {keycode == 124} { //[->] next ctrl for synSaw
+        if(currSawCtl == nil, {
+            currSawCtl= 0
+            },
+            {
+                currSawCtl= currSawCtl+1;
+                if(currSawCtl == c_CTRL_SYNTH_ARGS.size, {currSawCtl= nil});
+        });
+    }
+    {keycode == 125} { // [down] next ctrl for synForm
+        if(currFormCtl == nil, {
+            currFormCtl= 0
+            },
+            {
+                currFormCtl= currFormCtl+1;
+                if(currFormCtl == c_CTRL_SYNTH_ARGS.size, {currFormCtl= nil});
+        });
+    }
+    {keycode == 126} { // [up] prev ctrl for synForm
+        if(currFormCtl == nil, {
+            currFormCtl= c_CTRL_SYNTH_ARGS.size-1
+            },
+            {
+                currFormCtl= currFormCtl-1;
+                if(currFormCtl < 0, {currFormCtl= nil});
+        });
+    }
+    {keycode == 51} { // [return] - delete last created object
+        if( [0, 256].includes(modifiers), {
+            removeObject.value(objects.at(if(currObj > 0, {currObj-1}, {9})));
+        })
+    }
+    {keyObjType.includes(keycode)} { // start rec
+        if ([0, 256].includes(modifiers)) {
+            if (isRecording.not && // only if there's no current rec
+                c_KEY_OBJ_SYNTH[keycode][1].asString.find("__g__").isNil.not // and granular synths is being created
+            ) {
+                currFilename = f_TEMP_DIR +/+ ("kin_"++Date.getDate.stamp.asString++".aif");
+                currBufnum = recBufStart.value(inbus: getParam.(\inbus), numchannels: 1, path: currFilename);
+            }
+        };
+    }
+    {c_KEY_OBJ.includes(keycode)} { // delete object with given index
+        if ([0, 256].includes(modifiers)) {
+            if(objects.at(c_KEY_OBJ.indexOf(keycode)) != nil, {
+                removeObject.value(objects[c_KEY_OBJ.indexOf(keycode)]);
+            })
+        }
+    }
+};
+
+// Shutting down.
+shutDown = {
+    // Clean OSP responders.
+    oscRemoveFunc.value();
+    // Free buffers.
+    cyclicBuf.free;
+    cyclicSynth.free;
+    speakerBuff.free;
+    // Release objects and particles synths.
+    synths.keys.do { |k| s.sendMsg("/n_free", synths[k])};
+    partSynths.keys.do { |k| partSynths[k].free};
+    // Release specific synths.
+    synAudioIn.free; synForm.free; synSaw.free;
+    // Close windows.
+    if (w.isClosed.not) {w.close};
+    if (u.isClosed.not) {u.close};
+    // Write params into file.
+    "Saving settings!".postln;
+    try {
+        paramsFile= File.new(paramsFilename, "w");
+        paramsFile.write(params.asCompileString);
+        paramsFile.close;
+    } {
+        "WARNING! Cannot write params file!".postln;
+    };
+    "Good bye...".postln;
+};
+u.onClose = shutDown;
+CmdPeriod.doOnce({shutDown.value()});
+\
+)

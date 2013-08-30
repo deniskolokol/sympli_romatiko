@@ -13,15 +13,19 @@ when sending to the whole group. Update corresponding functions.
 
 ----------
 
+Control World parameters (gravity, viscosity, Star mass, etc) and trigger
+creation of objects and particles with MIDI.
+
+----------
+
 get rid of groupAux, everything should get inserted to the root group. Change
 aux synths creation from objects to Server messages, add to the head of
 rootNodeID.
 
 ----------
 
-Figure out currBusAr (in fillSynthGroup) not by incrementing every time it's
-required, but by looking for the first free slot from the ceil threshold of
-a_BUS_PULL.
+Figure out currBusAr (in fillSynthGroup) not by incrementing current index, but
+by looking for the first free slot in a_BUS_PULL.
 
 ----------
 

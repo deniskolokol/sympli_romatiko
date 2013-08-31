@@ -102,7 +102,30 @@ Synths:
 narrow spectrum of notes.
 - \sr__e__melo - make somehow sharper, it's way too pretty now. More emphasis on
 its Impulse rather than on Saw.
-- \sr__e__lfsaw - make it more interesting or resign from it at all, it is too simple.
+- \sr__e__lfsaw - make it more interesting or resign from it at all, it is too
+simple.
+
+----------
+
+Every object should be accopmpanied by the information of the forces that affect
+it (dictionary or a binary vector with 1 indicating force and 0 - its
+absence). Example: 
+
+[World gravity, World viscosity, World friction, other objects attraction,
+collision with other objects, other objects repulsion]
+
+can be represended as [110011]
+
+How will this affect mutual behavior?
+
+----------
+
+Re-work interface:
+- QT paradigm
+- drag and drop panels
+- new panels for:
+-- object vs. guide assignment
+
 
 
 ## scheduler.scd

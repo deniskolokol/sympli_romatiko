@@ -1,6 +1,6 @@
 TO CONSIDER
 
-fir future development
+for future development
 
 
 ----------

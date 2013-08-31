@@ -8,13 +8,30 @@ specific  internal audio bus. Map internal buses to spatialization synths
 
 ----------
 
-Rename \outbus to \mainout in al spatializers to keep it in the different params
+Rename \outbus to \mainout in all spatializers to keep it in the different params
 when sending to the whole group. Update corresponding functions.
+
+----------
+
+Every object should be accopmpanied by the information of the forces that affect
+it (dictionary or a binary vector with 1 indicating force and 0 - its
+absence). Example: 
+
+[World gravity, World viscosity, World friction, other objects attraction,
+collision with other objects, other objects repulsion]
+
+can be represended as [110011]
+
+How will this affect mutual behavior of the objects?
 
 ----------
 
 Control World parameters (gravity, viscosity, Star mass, etc) and trigger
 creation of objects and particles with MIDI.
+
+This WILL affect params, so, there should be a command 'Revert to factory
+settings' available in the interface for both each param and (with warning!)
+all params.
 
 ----------
 
@@ -24,12 +41,8 @@ rootNodeID.
 
 ----------
 
-Figure out currBusAr (in fillSynthGroup) not by incrementing current index, but
-by looking for the first free slot in a_BUS_PULL.
-
-----------
-
-Add SoundScratcher to Gran synths (refer to XiiSynthDefs.sc for example).
+Obtain currBusAr (in fillSynthGroup) not by incrementing current index, but by
+looking for the first free slot in a_BUS_PULL.
 
 ----------
 
@@ -37,8 +50,8 @@ Infrastructure for changing synth's scale (via NamedControl).
 
 ----------
 
-All conversions should be done on the lang side. Standardize the synth params,
-each of which should fall in scope either 0..1, or 0..pi, or 0..2pi.
+All conversions should be done on the lang side. Standardize synth params, each 
+of which should fall in scope either 0..1, or 0..pi, or 0..2pi.
 
 ----------
 
@@ -52,9 +65,9 @@ OSC communication after change.
 
 ----------
 
-Replace params[\worldDim] (World dimensions) with params[\windowSize] related to
-Visualisation. Visualization should get scaled to windowSize, not the World
-dimensions.
+Visualization should get scaled to windowSize, not the World dimensions. Replace
+params[\worldDim] (World dimensions) with params[\windowSize] related to
+Visualisation.
 
 ----------
 
@@ -64,11 +77,7 @@ fuction and do everything needed in fillSynthGroup.
 
 ----------
 
-Implement synths INSERTs (such as compander).
-
-----------
-
-Clean out all Synth objects. Move Server communication to Server messages.
+Get rid of all Synth objects. Move Server communication to Server messages entirely.
 
 ----------
 
@@ -77,7 +86,6 @@ sounding, convert into ordinary electronic synth and make available for use (for
 example, instead of _doors, which is useless). 
 
 ----------
-
 
 There should not be a limitation of the World capasity. Manage objects in a
 separate panel / window, allow for any number of objects, dynamically create
@@ -97,35 +105,53 @@ World.
 
 ----------
 
-Synths:
-- \sr__e__lowe to work with harmonic scale along entire Y axis, but with a very
+Re-work interface:
+
+* QT paradigm
+
+* drag and drop panels
+
+* new panels for:
+
+** object vs. guide assignment
+
+** internal bus vs. synth vs. object monitoring
+
+----------
+
+On the opening check required files (settings.conf, synthdefs.scd, etc.). If not
+found, propose to choose using a dialog.
+
+----------
+
+settings.conf - create a real editable conf file, not just Dictionary
+params.asCompileString 
+
+----------
+
+Move TOFIX to git Issues
+
+
+## synthdef.scd
+
+Add SoundScratcher to Gran synths (there is a good example in XiiSynthDefs.sc).
+
+----------
+
+* \sr__e__lowe to work with harmonic scale along entire Y axis, but with a very
 narrow spectrum of notes.
-- \sr__e__melo - make somehow sharper, it's way too pretty now. More emphasis on
+
+* \sr__e__melo - make somehow sharper, it's way too pretty now. More emphasis on
 its Impulse rather than on Saw.
-- \sr__e__lfsaw - make it more interesting or resign from it at all, it is too
+
+* \sr__e__lfsaw - make it more interesting or resign from it at all, it is too
 simple.
 
 ----------
 
-Every object should be accopmpanied by the information of the forces that affect
-it (dictionary or a binary vector with 1 indicating force and 0 - its
-absence). Example: 
-
-[World gravity, World viscosity, World friction, other objects attraction,
-collision with other objects, other objects repulsion]
-
-can be represended as [110011]
-
-How will this affect mutual behavior?
+Implement synths INSERTs (such as compander).
 
 ----------
-
-Re-work interface:
-- QT paradigm
-- drag and drop panels
-- new panels for:
--- object vs. guide assignment
-
 
 
 ## scheduler.scd

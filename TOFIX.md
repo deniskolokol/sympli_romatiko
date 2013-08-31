@@ -12,10 +12,10 @@ cleared on shundown
 
 ----------
 
-Creation of any synth results in a buffer allocation! Use this only in case of
-granular synths.
+For objects and sceleton "ceiling" and "floor" are messed up in the
+visualization (while being correct in sound processing).
 
 ----------
 
-For objects and sceleton "ceiling" and "floor" are messed up in the
-visualization (while being correct in sound processing).
+DONE: Creation of any synth results in a buffer allocation! Use this only in case of
+granular synths.

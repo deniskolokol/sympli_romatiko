@@ -81,9 +81,6 @@ ezkObjCtrl= Array.fill(worldCapacity, {nil});
 var cvSkeletonObject, skeletonObjectText;
 var objColors= Array.fill(worldCapacity, {Color.rand});
 
-// Useful environment variables.
-var currentDir;
-
 // Global parameters.
 var params, paramsFilename, paramsFile;
 var getParam = { |n| params.atFail(n, {p_FACTORY_SETTINGS[n]})};
@@ -123,11 +120,12 @@ var shutDown;
 var planeCoords, planeDot, clipInc;
 
 // Initial.
-currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
+// Useful environment variables.
+~currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
 
 // Global Params.
 "\nTrying to open settings file...".postln;
-paramsFilename = currentDir +/+ f_SETTINGS_FILENAME;
+paramsFilename = ~currentDir +/+ f_SETTINGS_FILENAME;
 try { // to load from settings file
     params = File(paramsFilename, "r").readAllString.interpret;
     postf("OK\n\n")
@@ -142,9 +140,9 @@ try { // to load from settings file
 // Load synthDefs.
 "Loading synth definitions...".postln;
 if (PathName(params[\synthdefFile]).pathOnly == "") {
-    params[\synthdefFile] = currentDir +/+ params[\synthdefFile];
+    params[\synthdefFile] = ~currentDir +/+ params[\synthdefFile];
 };
-if (this.executeFile(params[\synthdefFile]).isNil.not) {
+if (this.executeFile((params[\synthdefFile])).isNil.not) {
     postf("OK\n\n")
 };
 

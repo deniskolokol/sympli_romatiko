@@ -1,38 +1,36 @@
 (
-// Constants:
-// f_ile management, p_arameters, a_udio,
-// o_SC, c_ontrol, w_orld.
+// Constants: f_ile management, p_arameters, a_udio, o_SC, c_ontrol, w_orld.
 var f_SETTINGS_FILENAME = "settings.conf";
-var f_TEMP_DIR = PathName.tmp +/+ "SuperCollider/sounds/";
-var p_FACTORY_SETTINGS = Dictionary[
+var p_FACTORY_SETTINGS = (
     // Audio parameters.
-    \audioIn ->          false,
-    \inbus ->            20, // bus for external input
-    \outbus ->           0, // main output starts from
-    \confSurround ->     "Ambisonic4",
-    \synthdefFile ->     "synthdef.scd",
-    \fieldDepth ->       5, // how "far" sound travels beyond the circle of speakers
-    \master ->           1, // master volume
+    audioIn:           false,
+    inbus:             20, // bus for external input
+    outbus:            0, // main output starts from
+    confSurround:      "Ambisonic4",
+    synthdefFile:      "synthdef.scd",
+    tempDir:           "~/tmp/SuperCollider/sounds/",
+    fieldDepth:        5, // how "far" sound travels beyond the circle of speakers
+    master:            1, // master volume
     // Physics parameters.
-    \worldGrav ->        0.98,
-    \worldMaxVel ->      30,
-    \worldDamping ->     0.8,
-    \worldDim ->         800, // World dimensions in pixels
-    \starMass ->         120, // the heaviest object's mass
-    \heavy ->            5, // heavy objects hang on springs, no gravity
-    \initMass ->         5, // initial mass with which object is created
-    \objAttract ->       true, // do objects attract each other
-    \repulsiveForce ->   1, // behavior on collision (no repulsion if 1)
-    \particles ->        0, // run particles or not
-    \partFreq ->         0.5, // generate a new particle \partFreq times per second
-    \partAgeThresh ->    50, // maximum particle age in cycles (fps)
-    \partGuide ->        "object", // which object guides Particle System
+    worldGrav:         0.98,
+    worldMaxVel:       30,
+    worldDamping:      0.8,
+    worldDim:          800, // World dimensions in pixels
+    starMass:          120, // the heaviest object's mass
+    heavy:             5, // heavy objects hang on springs, no gravity
+    initMass:          5, // initial mass with which object is created
+    objAttract:        true, // do objects attract each other
+    repulsiveForce:    1, // behavior on collision (no repulsion if 1)
+    particles:         0, // run particles or not
+    partFreq:          0.5, // generate a new particle \partFreq times per second
+    partAgeThresh:     50, // maximum particle age in cycles (fps)
+    partGuide:         "object", // which object guides Particle System
     // Visualisation.
-    \visualize ->        true,
-    \showCoords ->       false,
+    visualize:         true,
+    showCoords:        false,
     // Aux
-    \synthForm ->        1,
-    \synthSaw ->         1];
+    synthForm:         1,
+    synthSaw:          1);
 var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
 var a_BUS_PULL = [30, 52]; // lowest and highest number of bus used for objects' synths
 var c_KEY_OBJ = #[29, 18, 19, 20, 21, 23, 22, 26, 28, 25]; // keycodes for tracing objects 0-9. ORDER MATTERS!!!
@@ -132,22 +130,33 @@ currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
 paramsFilename = currentDir +/+ f_SETTINGS_FILENAME;
 try { // to load from settings file
     params = File(paramsFilename, "r").readAllString.interpret;
-    "OK".postln
+    postf("OK\n\n")
 } { |err| // unsuccessful
     params = p_FACTORY_SETTINGS; // load factory settings
-    postf( // report error
-        "ERROR\nFailed to open file %!\nUsing factory settings, will be written to the file on exit.\n"
-        ++ "The error is:\n%\n",
-        paramsFilename, err)
+    format(
+        "Failed to open file %!\nUsing factory settings, will be written to the file on exit.\n",
+        paramsFilename
+    ).warn
 };
 
 // Load synthDefs.
-"\nLoading synth definitions...".postln;
+"Loading synth definitions...".postln;
 if (PathName(params[\synthdefFile]).pathOnly == "") {
     params[\synthdefFile] = currentDir +/+ params[\synthdefFile];
 };
 if (this.executeFile(params[\synthdefFile]).isNil.not) {
-    "OK".postln
+    postf("OK\n\n")
+};
+
+// Find or create tmp dir.
+~tempDir = getParam.(\tempDir).asAbsolutePath;
+if (File.type(~tempDir) != \directory) {File.mkdir(~tempDir)};
+if (File.type(~tempDir) == \not_found) { // error!
+    format(
+        "Failed to find or create temp directory %!\nBuffer recording will not work!",
+        ~tempDir
+    ).error;
+    ~tempDir = nil;
 };
 
 depth = width = height = getParam.(\worldDim);
@@ -1001,7 +1010,7 @@ removeObject= { |o|
         if(springs.keys.includes(o.identityHash), {springs.removeAt(o.identityHash)}); // Free the springs, if any.
         if(synths.at(o.identityHash).isNil.not, {
             // Release corresponding group.
-            removeGroup.(synths.at(o.identityHash), 2.0.rand);
+            removeGroup.(synths[o.identityHash], 2.0.rand);
             synths.removeAt(o.identityHash);
             // Wipe out object properties.
             objectsProp.removeAt(o.identityHash);
@@ -1012,8 +1021,7 @@ removeObject= { |o|
 };
 
 // Init new object, record its properties, control stack index.
-initObject = {
-    arg objectMass=5, objectType="a RedObject", objectAge=inf, objectPos= nil;
+initObject = { |objectMass=5, objectType="a RedObject", objectAge=inf, objectPos= nil|
     var newObject, initPos;
     if(currObj == objects.size, {currObj= 0}); // Objects are in FIFO stack.
     if(objects.at(currObj).isNil.not, { // Is currObj index already occupied?
@@ -1043,9 +1051,9 @@ initObject = {
     newObject // Return newly created object.
 };
 
-// Create a new object's group and insert synth and spatializer into it.
+// Create new object's group, insert synth and spatializer into it.
 initGroup = { |synth, bufnum, parm=nil|
-    var spatial, groupID, synthID, spatlID;
+    var spatial, groupID, synthID, spatlID, l, h;
     spatial = "\sr__s__" ++ getParam.(\confSurround).toLower; // spatializer's name
     groupID = s.nextNodeID;
     synthID = s.nextNodeID;
@@ -1076,7 +1084,7 @@ removeGroup = { |groupID, release=2|
 };
 
 // Prepare the buffer and start the synth.
-startSynth = { arg synthName='sr__e__silencio', updateBuf=false, parm=nil;
+startSynth = { |synthName='sr__e__silencio', updateBuf=false, parm=nil|
     var buff;
     recBufStop.value(currBufnum); // stop recording
     if(updateBuf) { // load buffer
@@ -1357,8 +1365,10 @@ w.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
             if (isRecording.not && // only if there's no current rec
                 c_KEY_OBJ_SYNTH[keycode][1].asString.find("__g__").isNil.not // and granular synths is being created
             ) {
-                currFilename = f_TEMP_DIR +/+ ("kin_"++Date.getDate.stamp.asString++".aif");
-                currBufnum = recBufStart.value(inbus: getParam.(\inbus), numchannels: 1, path: currFilename);
+                if (~tempDir.isNil.not) {
+                    currFilename = ~tempDir +/+ (format("sr_%.aif", Date.getDate.stamp.asString));
+                    currBufnum = recBufStart.(inbus: getParam.(\inbus), numchannels: 1, path: currFilename);
+                }
             }
         };
     }

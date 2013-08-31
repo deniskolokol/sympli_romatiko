@@ -35,12 +35,12 @@ var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
 var a_BUS_PULL = [30, 52]; // lowest and highest number of bus used for objects' synths
 var c_KEY_OBJ = #[29, 18, 19, 20, 21, 23, 22, 26, 28, 25]; // keycodes for tracing objects 0-9. ORDER MATTERS!!!
 var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different kinds
-    12: ["a RedObject", \sr__g__regu],	// q
-    13: ["a RedObject", \sr__g__dron],	// w
+    12: ["a RedObject", \sr__g__reg],	// q
+    13: ["a RedObject", \sr__g__drone],	// w
     14: ["a RedObject", \sr__g__gust],	// e
-    15: ["a RedBoid",   \sr__g__slid],	// r
+    15: ["a RedBoid",   \sr__g__slic],	// r
     17: ["a RedBoid",   \sr__g__loop],	// t
-    16: ["a RedObject", \sr__p__humm],	// y
+    16: ["a RedObject", \sr__g__chunk],	// y
     32: ["a RedObject", \sr__e__probe],	// u
     34: ["a RedObject", \sr__e__cmb],	// i
     31: ["a RedObject", \sr__e__lowe],  // o
@@ -184,7 +184,7 @@ sys.removeAction = { |o|
 loadBufRout = Routine({
     inf.do({ |j|
         if(cyclicBuf.numChannels != nil, {
-            cyclicSynth= Synth.head(groupAux, \syninbuff, [ //recording synth
+            cyclicSynth= Synth.head(groupAux, \sr__r__buffloop, [ //recording synth
                 \bufnum, cyclicBuf.bufnum, \busnum, getParam.(\inbus), \volIn, 1, \gate, 1, \dur, 1]);
             loadBufRout.stop;
         });
@@ -781,8 +781,6 @@ w.draw{
                         o.loc[0].linlin(0, height, -1, 1) // x
                     );
 
-                    // bookmark
-                    // rewrite this: manage params in a separate func, which should send them to all synths in a group.
                     s.sendMsg("/n_set", synths.at(o.identityHash).asInteger,
                         \azimuth, pos.theta, \distance, pos.magnitude, // Distance from the center.
                         // Warning! Elevation is obsolete, get rid of it!
@@ -857,9 +855,12 @@ w.draw{
             .maxForce_(1).wdistance_(3.rrand(13))
             .wchange_(0.75).wradius_(10.rrand(50));
 
-            synAudioIn = Synth.head(groupAux,
-                "audioin_1"++"_"++getParam.(\confSurround).toLower,
-                [\speakerAzim, speakerArr, \inbus, getParam.(\inbus)]);
+            // bookmark
+            synAudioIn = Synth.head(groupAux, \sr__r__authro, [
+                \speakerAzim, speakerArr,
+                \inbus, getParam.(\inbus),
+                \outbus, a_BUS_PULL[1]]); // last bus number from the pull is dedicated to auidio in
+            // WARNING! Add spatializer here!
         }
     } {
         objAudioIn.free; objAudioIn= nil;
@@ -987,7 +988,7 @@ recBufStart = { arg bnum, inbus, numchannels, path, headformat= 'aiff', bitdepth
     s.sendMsg("/b_alloc", bufnum, 32768 * numchannels, numchannels,
         ["/b_write", bufnum, path, headformat, bitdepth, 0, 0, 1]
     );
-    recSynth = Synth.tail(RootNode(Server.default), "recsyn_" ++ numchannels, [\inbus, inbus, \bufnum, bufnum]);
+    recSynth = Synth.tail(RootNode(Server.default), "sr__r__rec" ++ numchannels, [\inbus, inbus, \bufnum, bufnum]);
     isRecording = true;
     recProgress = 0;
     bufnum // returns bufnum

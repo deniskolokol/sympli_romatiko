@@ -64,12 +64,11 @@ var skelLimit=1, theHeaviest=5000, massSpec=ControlSpec(1, 11, \lin, 1);
 var w, world, width, height, depth, margin=0;
 var skeletonCoords=Dictionary.new, skeletonObject=Dictionary.new; // Dictionaries for skeletons' coordinates and objects
 var worldCapacity=10;
-var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide=nil, synGuide=nil, posGuide, objAudioIn=nil, posAudioIn;
+var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide=nil, posGuide, objAudioIn=nil, posAudioIn;
 var mass, pos, wind, springs, hand, applyForses=1;
 
 var rectimeRep;
 var synForm=nil, synSaw=nil, posFeet=[nil, nil], synthCtrl, currFormCtl=nil, currSawCtl=nil, startFeetSynths;
-var loadBufRout, guideNodeID=0;
 var fillStream, streamList= [nil], runTask1, runTask2, isActiveTask1= 0, isActiveTask2= 0;
 var keyObjType;
 var cvObjCtrl, cvAux, cvAudio, cvParticles, cvVisual;
@@ -93,7 +92,8 @@ var currBusRoute, rootNodeID, audioThroughID;
 var startSynth, initGroup, removeGroup;
 
 // Buffers.
-var cyclicBuf, cyclicSynthID, recBufStart, recBufStop, recSynth, isRecording, recProgress;
+var cyclicBuf, cyclicSynthID, loadBufRout, recBufStart, recBufStop, recSynth;
+var isRecording, recProgress;
 var currFilename, currBufnum;
 
 // Objects management.
@@ -788,7 +788,7 @@ w.draw{
         }
     };
 
-    // Guide obj and synth.
+    // Guide obj.
     if (objGuide.isNil.not) {
         // Guidance source (free float affected by wind only, feet, hands).
         if (applyForses.booleanValue) {
@@ -829,10 +829,6 @@ w.draw{
             objGuide.loc[1].linlin(0, width, 1, -1), // x
             objGuide.loc[0].linlin(0, height, -1, 1) // y
         );
-        if (guideNodeID != 0) {
-            s.sendMsg("/n_set", guideNodeID, \azimuth, posGuide.theta, \distance, posGuide.magnitude,
-                \elevation, objGuide.loc[2].linlin(0, depth, -0.5pi, 0.5pi), \master, getParam.(\master))
-        }
     };
 
     // Audio through object and synth.
@@ -862,9 +858,6 @@ w.draw{
         if (applyForses.booleanValue) {
             objAudioIn.addForce(wind);
             objAudioIn.addForce(world.gravity);
-            // try {
-            //     objGuide.addForceArrive(skeletonCoords.at(skeletonCoords.keys.minItem)[[\r_foot, \l_foot].choose]);
-            // };
             skeletonObject.do { |obj|
                 try {
                     objAudioIn.addForceArrive(obj[0].loc).addForceArrive(obj[4].loc);
@@ -1101,7 +1094,6 @@ startSynth = { |synthName='sr__e__silencio', updateBuf=false, parm=nil|
         group = initGroup.(synthName, buff, parm:parm);
         synths.put(objects[currSynth].identityHash, group); // register synth
     };
-    synGuide = nil; // to prevent msg FAILURE /n_set Node not found
 };
 
 startFeetSynths= { |gate, tFormAttRel, tSawAttRel|
@@ -1216,11 +1208,6 @@ w.view.keyUpAction= { arg view, char, modifiers, unicode, keycode;
             )
         }
     }
-    {keycode == 1} { // S - release \noisy
-        if([0, 256].includes(modifiers),{ // no modifiers
-            if(guideNodeID != 0, {s.sendMsg("/n_set", guideNodeID, "gate", 0, "rel", 2.0.rand); guideNodeID= 0;});
-        });
-    };
 };
 
 w.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;

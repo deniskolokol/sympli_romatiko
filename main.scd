@@ -26,13 +26,14 @@ var p_FACTORY_SETTINGS = (
     partAgeThresh:     50, // maximum particle age in cycles (fps)
     partGuide:         "object", // which object guides Particle System
     // Visualisation.
+    fps:               60, // frames per second
     visualize:         true,
     showCoords:        false,
     // Aux
     synthForm:         1,
     synthSaw:          1);
 var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
-var a_BUS_PULL = [30, 52]; // lowest and highest number of bus used for objects' synths
+var a_BUS_POOL = [30, 52]; // lowest and highest number of bus used for objects' synths
 var c_KEY_OBJ = #[29, 18, 19, 20, 21, 23, 22, 26, 28, 25]; // keycodes for tracing objects 0-9. ORDER MATTERS!!!
 var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different kinds
     12: ["a RedObject", \sr__g__reg],	// q
@@ -60,24 +61,19 @@ var o_SKELETON_ADDR = NetAddr("192.168.0.11", nil); // NetAddr("192.168.1.104", 
 var w_ZERO_2D_VECTOR = #[0, 0], w_ZERO_3D_VECTOR = #[0, 0, 0];
 
 var skelLimit=1, theHeaviest=5000, massSpec=ControlSpec(1, 11, \lin, 1);
-var speakerArr, speakerBuff;
 var w, world, width, height, depth, margin=0;
 var skeletonCoords=Dictionary.new, skeletonObject=Dictionary.new; // Dictionaries for skeletons' coordinates and objects
 var worldCapacity=10;
-var synths, objects, objectsProp,
-currObj=0, currSynth=0, objInd, mass, pos,
-objGuide=nil, synGuide=nil, posGuide, objAudioIn=nil, synAudioIn=nil, posAudioIn,
-wind, springs, hand, applyForses=1;
+var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide=nil, synGuide=nil, posGuide, objAudioIn=nil, posAudioIn;
+var mass, pos, wind, springs, hand, applyForses=1;
 
-var fps=60;
-var rectimeRep, midinote, channels;
+var rectimeRep;
 var synForm=nil, synSaw=nil, posFeet=[nil, nil], synthCtrl, currFormCtl=nil, currSawCtl=nil, startFeetSynths;
 var loadBufRout, guideNodeID=0;
 var fillStream, streamList= [nil], runTask1, runTask2, isActiveTask1= 0, isActiveTask2= 0;
-var arrBase= #[0, 2, 3, 6], arrDer0= #[ 2, 3, 6, 7 ];
 var keyObjType;
-var cvObjCtrl, cvAux, cvAudio, cvParticles, cvVisual,
-ezkObjCtrl= Array.fill(worldCapacity, {nil});
+var cvObjCtrl, cvAux, cvAudio, cvParticles, cvVisual;
+var ezkObjCtrl=Array.fill(worldCapacity, {nil});
 var cvSkeletonObject, skeletonObjectText;
 var objColors= Array.fill(worldCapacity, {Color.rand});
 
@@ -91,13 +87,14 @@ var oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost;
 var oscRemoveFunc;
 
 // Routing Audio.
-var currBusRoute, rootNodeID, groupAux;
+var currBusRoute, rootNodeID, audioThroughID;
 
 // Groups and synths management.
 var startSynth, initGroup, removeGroup;
 
 // Buffers.
-var cyclicBuf, cyclicSynth, recBufStart, recBufStop, recSynth, isRecording, recProgress, currFilename, currBufnum;
+var cyclicBuf, cyclicSynthID, recBufStart, recBufStop, recSynth, isRecording, recProgress;
+var currFilename, currBufnum;
 
 // Objects management.
 var initObject, removeObject;
@@ -164,14 +161,12 @@ synths = Dictionary.new; // container for synths connected to objects
 springs = Dictionary.new; // container for springs
 
 rootNodeID = s.nextNodeID; // root group Id for objects' synths
-s.sendMsg("/g_new", rootNodeID);
-groupAux = Group.new(s);
+s.sendMsg("/g_new", rootNodeID, 0, 1); // root group at the head of group 1
 synthCtrl = Array.fill(c_CTRL_SYNTH_ARGS.size, { nil });
 keyObjType= c_KEY_OBJ_SYNTH.keys().asArray; // for easy access to keycodes
 cyclicBuf = Buffer.alloc(s, s.sampleRate, 1); // 1s single channel Buffer
 isRecording = false;
 recProgress = 0;
-channels = (0..29);
 
 // Particle system.
 sys = RedParticleSystem.new;
@@ -184,18 +179,14 @@ sys.removeAction = { |o|
 loadBufRout = Routine({
     inf.do({ |j|
         if(cyclicBuf.numChannels != nil, {
-            cyclicSynth= Synth.head(groupAux, \sr__r__buffloop, [ //recording synth
-                \bufnum, cyclicBuf.bufnum, \busnum, getParam.(\inbus), \volIn, 1, \gate, 1, \dur, 1]);
+            cyclicSynthID = s.nextNodeID;
+            s.sendMsg("/s_new", \sr__r__buffloop, cyclicSynthID, 0, rootNodeID,
+                \bufnum, cyclicBuf.bufnum, \busnum, getParam.(\inbus), \volIn, 1, \gate, 1, \dur, 1);
             loadBufRout.stop;
         });
         0.01.wait;
     });
 }).play(AppClock);
-
-// Speakers setup.
-//speakerArr= #[-0.25pi, -0.5pi, -0.75pi, -pi, 0.75pi, 0.5pi, 0.25pi, 2pi]; // 8 channel ring
-speakerArr= #[-0.5pi, 0.5pi, 1.5pi, -1.5pi];
-speakerBuff= Buffer.loadCollection(s, speakerArr);
 
 // OSC communication.
 oscSkeletonLost = OSCFunc({ arg msg, time, addr, recvPort;
@@ -282,8 +273,8 @@ oscActScheduler = OSCFunc({ arg msg, time, addr, recvPort;
     );
 }, '/worldact', o_SCHEDULER_ADDR);
 
+// Remove all OSC functions.
 oscRemoveFunc = {
-    /* Remove all OSC functions. */
     oscObjScheduler.free;
     oscParmScheduler.free;
     oscActScheduler.free;
@@ -367,9 +358,9 @@ CheckBox(cvAudio).font_(labelFont).string_("Audio in")
 .value_(getParam.(\audioIn))
 .action_({ |bt| params.put(\audioIn, bt.value)});
 PopUpMenu(cvAudio).font_(layoutHFont).background_(Color.white)
-.items_(channels).value_(getParam.(\inbus))
+.items_((0..29)).value_(getParam.(\inbus))
 .action_({ |pm|
-    try {synAudioIn.set(\inbus, pm.value)};
+    s.sendMsg("/n_set", audioThroughID, \inbus, pm.value);
     params.put(\inbus, pm.value)
 });
 // Surround sound configuration.
@@ -537,7 +528,7 @@ w.draw{
     if(isRecording, {recProgress = recProgress + 1});
 
     // Force: wind blowing (trig it every 30s).
-    wind = sin(2pi * ((w.frame % (30*fps))/width));
+    wind = sin(2pi * ((w.frame % (30 * getParam.(\fps))) / width));
 
     // World parameters.
     world.maxVel = getParam.(\worldMaxVel);
@@ -683,7 +674,7 @@ w.draw{
             } {
                 if (objectsProp.keys.includes(o.hash)) {
                     // control object's age!
-                    objectsProp[o.hash].put(\age, objectsProp[o.hash].at(\age) - (1/fps));
+                    objectsProp[o.hash].put(\age, objectsProp[o.hash].at(\age) - (1/getParam.(\fps)));
                     if (objectsProp[o.hash].at(\age) <= 0) {
                         // Time to die.
                         removeObject.value(o)
@@ -855,16 +846,16 @@ w.draw{
             .maxForce_(1).wdistance_(3.rrand(13))
             .wchange_(0.75).wradius_(10.rrand(50));
 
-            // bookmark
-            synAudioIn = Synth.head(groupAux, \sr__r__authro, [
-                \speakerAzim, speakerArr,
-                \inbus, getParam.(\inbus),
-                \outbus, a_BUS_PULL[1]]); // last bus number from the pull is dedicated to auidio in
-            // WARNING! Add spatializer here!
+            audioThroughID = initGroup.(\sr__r__authro,
+                busnum: a_BUS_POOL[1], // last bus number from pool dedicated to audio through.
+                parm: [\inbus, getParam.(\inbus)])
         }
     } {
-        objAudioIn.free; objAudioIn= nil;
-        synAudioIn.free; synAudioIn= nil;
+        if (audioThroughID.isNil.not) {
+            removeGroup.(audioThroughID);
+            audioThroughID = nil
+        };
+        objAudioIn.free; objAudioIn = nil;
     };
 
     if (objAudioIn.isNil.not) {
@@ -899,25 +890,24 @@ w.draw{
             objAudioIn.loc[1].linlin(0, width, 1, -1), // y
             objAudioIn.loc[0].linlin(0, height, -1, 1) // x
         );
-        if (synAudioIn.isNil.not) {
-            synAudioIn.set(
-                \azimuth, posAudioIn.theta, \distance, posAudioIn.magnitude,
-                \elevation, objAudioIn.loc[2].linlin(0, depth, -0.5pi, 0.5pi),
-                \master, getParam.(\master),
-                \depth, getParam.(\fieldDepth)
-            )
-        }
+        s.sendMsg("/n_set", audioThroughID,
+            \azimuth, posAudioIn.theta,
+            \distance, posAudioIn.magnitude,
+            \elevation, objAudioIn.loc[2].linlin(0, depth, -0.5pi, 0.5pi),
+            \master, getParam.(\master),
+            \depth, getParam.(\fieldDepth)
+        )
     };
 
     // Particles.
     if (getParam.(\particles).booleanValue) {
         // A new particle every second.
-        if ((w.frame % (fps * (getParam.(\partFreq))).round) == 0) {
+        if ((w.frame % (getParam.(\fps) * (getParam.(\partFreq))).round) == 0) {
             newPart = RedParticle(world, objGuide.loc, 0, RedVector3D[2.rand2, 10.rand, 10.rand], 5, 5)
             .age_(getParam.(\partAgeThresh) + 10.0.rand2);
             sys.add(newPart);
             partSynths[newPart.hash] = Synth(\sr__g__dron,
-                [\speakerAzim, speakerArr, \busnum, 0, \bufnum, cyclicBuf.bufnum]
+                [\busnum, 0, \bufnum, cyclicBuf.bufnum]
             )
         }
     };
@@ -982,18 +972,20 @@ planeCoords = { arg vector, width, height, depth, scale=1, focal=0.5;
     [ox, oy]
 };
 
-recBufStart = { arg bnum, inbus, numchannels, path, headformat= 'aiff', bitdepth= 'int16';
-    var bufnum;
-    bufnum = bnum ? s.bufferAllocator.alloc(1);
-    s.sendMsg("/b_alloc", bufnum, 32768 * numchannels, numchannels,
-        ["/b_write", bufnum, path, headformat, bitdepth, 0, 0, 1]
-    );
-    recSynth = Synth.tail(RootNode(Server.default), "sr__r__rec" ++ numchannels, [\inbus, inbus, \bufnum, bufnum]);
+
+// Allocate a buffer and start recording into file.
+recBufStart = { arg bufnum, inbus, numchannels, path, headformat= 'aiff', bitdepth= 'int16';
+    bufnum = bufnum ?? s.bufferAllocator.alloc(1);
+    s.sendMsg("/b_alloc", bufnum, 32768 * numchannels, numchannels, [
+            "/b_write", bufnum, path, headformat, bitdepth, 0, 0, 1]);
+    recSynth = Synth.tail(RootNode(Server.default), "sr__r__rec" ++ numchannels,
+        [\inbus, inbus, \bufnum, bufnum]);
     isRecording = true;
     recProgress = 0;
     bufnum // returns bufnum
 };
 
+// Release recording synth.
 recBufStop = { |bnum|
     try{recSynth.free};
     s.sendMsg("/b_close", bnum, ["/b_free", bnum]);
@@ -1002,19 +994,18 @@ recBufStop = { |bnum|
 
 // Remove object from the world, release the corresponding synth.
 removeObject= { |o|
-    var objInd;
+    var objInd, objId;
     if(objects.includes(o), {
-        objInd= objects.indexOf(o);
+        objInd = objects.indexOf(o);
+        objId = o.identityHash;
         { ezkObjCtrl[objInd].enabled_(false) }.defer; // Disable mass ctrl.
-        if(springs.keys.includes(o.identityHash), {springs.removeAt(o.identityHash)}); // Free the springs, if any.
-        if(synths.at(o.identityHash).isNil.not, {
-            // Release corresponding group.
-            removeGroup.(synths[o.identityHash], 2.0.rand);
-            synths.removeAt(o.identityHash);
-            // Wipe out object properties.
-            objectsProp.removeAt(o.identityHash);
+        if(springs.keys.includes(objId), {springs.removeAt(objId)}); // free springs
+        if(synths.at(objId).isNil.not, {
+            removeGroup.(synths[objId], 2.0.rand); // release corresponding group
+            synths.removeAt(objId);
+            objectsProp.removeAt(objId); // wipe out object properties
         });
-        objects[objInd]= nil;
+        objects[objInd] = nil;
         world.remove(o); o.free; o = nil;
     });
 };
@@ -1051,58 +1042,66 @@ initObject = { |objectMass=5, objectType="a RedObject", objectAge=inf, objectPos
 };
 
 // Create new object's group, insert synth and spatializer into it.
-initGroup = { |synth, bufnum, parm=nil|
+initGroup = { |synth, bufnum, busnum, parm|
     var spatial, groupID, synthID, spatlID, l, h;
-    spatial = "\sr__s__" ++ getParam.(\confSurround).toLower; // spatializer's name
+    spatial = "sr__s__" ++ getParam.(\confSurround).toLower; // spatializer's name
     groupID = s.nextNodeID;
     synthID = s.nextNodeID;
     spatlID = s.nextNodeID;
-    #l, h = a_BUS_PULL;
-    currBusRoute = clipInc.(currBusRoute ?? l, lo:l, hi:h); // internal bus for routing
-    i = objects[currSynth].identityHash; // register synth (currSynth, because currObj is incremented already)
-    synths.put(i, groupID);
-    s.sendBundle(0.1,
+    if (busnum.isNil) { // internal bus for routing
+        #l, h = a_BUS_POOL;
+        busnum = clipInc.(currBusRoute ?? l, lo:l, hi:h);
+        currBusRoute = busnum;
+    };
+    s.sendBundle(0.001,
         ["/g_new", groupID, 1, rootNodeID], // add new group to root's tail
         ["/s_new", spatial, spatlID, 1, groupID, // add spatializer to new group's tail
-            \inbus, currBusRoute, // getting signal from synth
+            \inbus, busnum, // getting signal from synth
             \outbus, getParam.(\outbus)], // to main output
         ["/s_new", synth, synthID, 0, groupID, // add synth to new group's head
             \inbus, getParam.(\inbus), // getting signal from external input
-            \outbus, currBusRoute, // feeding into spatilizer
+            \outbus, busnum, // feeding into spatilizer
             \bufnum, bufnum] ++ (parm ? [])
-    )
+    );
+    groupID // return ID of the Group created
 };
 
-// Release from the server all synths from the group, and then the group's node.
+// Release all synths from group, wait until released, then remove group node from server.
 removeGroup = { |groupID, release=2|
-    {
-        s.sendMsg("/n_set", groupID, \rel, release, \gate, 0); // release all group synths
-        (release * 2).wait; // delay for letting all synths to be released safely
-        s.sendMsg("/n_free", groupID) // release group itself
-    }.fork
+    Routine({
+        [
+            ["/n_set", groupID, \rel, release, \gate, 0],
+            ["/n_free", groupID]
+        ].do { |l|
+            s.listSendMsg(l);
+            release.wait;
+        }
+    }).play;
 };
 
 // Prepare the buffer and start the synth.
 startSynth = { |synthName='sr__e__silencio', updateBuf=false, parm=nil|
-    var buff;
+    var buff, group, taskLoadBuf;
     recBufStop.value(currBufnum); // stop recording
     if(updateBuf) { // load buffer
         buff = Buffer.read(s, currFilename);
-        loadBufRout = Task({
+        taskLoadBuf = Task({
             inf.do({ |j|
                 if(buff.numChannels != nil, {
                     recProgress = 0;
-                    initGroup.(synthName, buff.bufnum, parm);
-                    loadBufRout.stop;
+                    group = initGroup.(synthName, buff.bufnum, parm:parm);
+                    synths.put(objects[currSynth].identityHash, group); // register synth
+                    taskLoadBuf.stop;
                 });
                 0.01.wait;
             });
         }).start;
     } { // only granular synths require buffer with sound
         buff = if (synthName.asString.find("__g__").isNil.not) {cyclicBuf.bufnum};
-        initGroup.(synthName, buff, parm);
+        group = initGroup.(synthName, buff, parm:parm);
+        synths.put(objects[currSynth].identityHash, group); // register synth
     };
-    synGuide= nil; // to prevent msg FAILURE /n_set Node not found
+    synGuide = nil; // to prevent msg FAILURE /n_set Node not found
 };
 
 startFeetSynths= { |gate, tFormAttRel, tSawAttRel|
@@ -1136,7 +1135,8 @@ startFeetSynths= { |gate, tFormAttRel, tSawAttRel|
 };
 
 // Tasks.
-fillStream= { |curr|
+fillStream = { |curr|
+    var arrBase= #[0, 2, 3, 6], arrDer0= #[ 2, 3, 6, 7 ];
     streamList[curr]= Prout({
         loop {
             rrand(2,10).do({
@@ -1152,7 +1152,7 @@ fillStream= { |curr|
     }).asStream
 };
 
-runTask1= { |on|
+runTask1 = { |on|
     if(on.booleanValue) {
         fillStream.value(0); // create the stream
         {
@@ -1311,13 +1311,6 @@ w.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
             });
         });
     }
-    {keycode == 0} { // A - trigger \ev_start
-        if( [0, 256].includes(modifiers), {
-            Synth.head(groupAux, \ev_start, [ // single blip
-                \speakerAzim, speakerArr, \note, 10.rrand(80), \azimuth, 180.bilinrand, \spread, 10.rrand(50)
-            ]);
-        });
-    }
     {keycode == 123} { //[<-] prev ctrl for synSaw
         if(currSawCtl == nil, {
             currSawCtl= c_CTRL_SYNTH_ARGS.size-1
@@ -1386,13 +1379,13 @@ shutDown = {
     oscRemoveFunc.value();
     // Free buffers.
     cyclicBuf.free;
-    cyclicSynth.free;
-    speakerBuff.free;
+    s.sendMsg("/n_free", cyclicSynthID);
+    s.sendMsg("/n_free", audioThroughID);
     // Release objects and particles synths.
     synths.keys.do { |k| s.sendMsg("/n_free", synths[k])};
     partSynths.keys.do { |k| partSynths[k].free};
     // Release specific synths.
-    synAudioIn.free; synForm.free; synSaw.free;
+    synForm.free; synSaw.free;
     // Close windows.
     if (w.isClosed.not) {w.close};
     if (u.isClosed.not) {u.close};

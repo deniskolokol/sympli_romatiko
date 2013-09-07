@@ -382,6 +382,33 @@ SynthDef(\sr__e__analog, {
 }).add;
 
 
+SynthDef(\sr__e__noisy, {
+    arg bufnum=0, inbus=30, outbus=20,
+        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=10,
+        offset=36, cutoff=0, maxVel=30;
+	var in, out, signal;
+    var freq, scale;
+    // Conversion.
+    scale = NamedControl.kr(\scale, FloatArray[0, 3, 7, 10]);
+    freq = DegreeToKey.kr(LocalBuf.newFrom(scale), az * 15, 24, 1, 15).cpsmidi;
+    // Synthesis.
+	in = RLPF.ar(
+        Impulse.ar(freq, 0.0, 0.7.rand) + WhiteNoise.ar(0.8.rand),
+        LFDClipNoise.ar(az, 34, 78).midicps, 0.1 // bookmark - broad the spectrum
+        //LFNoise1.kr(1, 38, 115)
+    );
+ 	in = [in, DelayN.ar(in, 0.04, 0.04) ];
+	4.do({in = AllpassN.ar(in, 0.05, [0.05.rand, 0.05.rand], 4, amp)});
+    signal = RLPF.ar(
+        FreeVerb.ar(LeakDC.ar(Mix.ar(in) * 0.03), distance, distance/3.44, 0.5),
+        distance.linlin(0, 1, 10000, 500), 0.5);
+    //Envelope.
+    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(outbus, out);
+}).send(s);
+
+
 SynthDef(\sr__e__humm, {
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,

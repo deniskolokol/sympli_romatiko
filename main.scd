@@ -41,7 +41,7 @@ var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different
     14: ["a RedObject", \sr__g__gust],	// e
     15: ["a RedBoid",   \sr__g__slic],	// r
     17: ["a RedBoid",   \sr__g__loop],	// t
-    16: ["a RedObject", \sr__g__chunk],	// y
+    16: ["a RedObject", \sr__e__noisy],	// y
     32: ["a RedObject", \sr__e__probe],	// u
     34: ["a RedObject", \sr__e__cmb],	// i
     31: ["a RedObject", \sr__e__lowe],  // o

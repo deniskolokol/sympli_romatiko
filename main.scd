@@ -1,5 +1,7 @@
 (
-// Constants: f_ile management, p_arameters, a_udio, o_SC, c_ontrol, w_orld.
+// CONSTANTS
+// f_ile management, p_arameters, a_udio, o_SC, c_ontrol, w_orld.
+//
 var f_SETTINGS_FILENAME = "settings.conf";
 var p_FACTORY_SETTINGS = (
     // Audio parameters.
@@ -7,14 +9,12 @@ var p_FACTORY_SETTINGS = (
     inbus:             20, // bus for external input
     outbus:            0, // main output starts from
     confSurround:      "Ambisonic4",
-    synthdefFile:      "synthdef.scd",
-    tempDir:           "~/tmp/SuperCollider/sounds/",
     fieldDepth:        5, // how "far" sound travels beyond the circle of speakers
     master:            1, // master volume
     // Physics parameters.
     worldGrav:         0.98,
     worldMaxVel:       30,
-    worldDamping:      0.8,
+    worldDamp:         0.8,
     worldDim:          800, // World dimensions in pixels
     starMass:          120, // the heaviest object's mass
     heavy:             5, // heavy objects hang on springs, no gravity
@@ -29,9 +29,48 @@ var p_FACTORY_SETTINGS = (
     fps:               60, // frames per second
     visualize:         true,
     showCoords:        false,
+    // System
+    synthdefFile:      "synthdef.scd",
+    tempDir:           "~/tmp/SuperCollider/sounds/",
     // Aux
     synthForm:         1,
     synthSaw:          1);
+// Interface descriptor.
+// Based on panels, each of which consist of a collection of elements.
+// Each element either sets a param (using getParam and setParam functions)
+// or triggers something special, i which case a function should exist to describe an action.
+var p_INTRFACE = (
+    visualization: (
+        title: "Visualization",
+        visible: true,
+        params: [
+            (param: \fps, title: "FPS", spec: ControlSpec(20, 60, \lin, 1)),
+            (param: \visualize, title: "Display Visualization"),
+            (param: \showCoords, title: "Display coordinates")]),
+    world: (
+        title: "World parameters",
+        visible: true,
+        params: [
+            (param: \worldGrav, title: "World gravity", spec: ControlSpec(0, 2)),
+            (param: \worldDim, title: "World dimensions", spec: ControlSpec(1, 2000)),
+            (param: \worldDamp, title: "World damping", spec: ControlSpec(0.01, 2.00)),
+            (param: \worldMaxVel, title: "Max objects velocity", spec: ControlSpec(1, 100)),
+            (param: \repulsiveForce, title: "Repulsive force", spec: ControlSpec(1, 1000)),
+            (param: \starMass, title: "Star mass", spec: ControlSpec(5, 2147483647)),
+            (param: \heavy, title: "Heavy objects", spec: ControlSpec(1, 11, \lin, 1))]),
+    audio: (
+        title: "Audio settings",
+        visible: true,
+        params: [
+            (param: \audioIn, title: "Audio in"),
+            (param: \inbus, title: "In", element: \dropdown, items: (0..29)),
+            (param: \outbus, title: "Main out", element: \dropdown, items: (0..29)),
+            (param: \confSurround, title: "Main out", element: \list,
+                items: #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8]),
+            (param: \fieldDepth, title: "Aural field depth", spec: ControlSpec(0.5, 10, \lin, 0.5, 4)),
+            (param: \master, title: "Master volume", spec: \amp.asSpec, element: \slider),
+    ]),
+);
 var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
 var a_BUS_POOL = [30, 52]; // lowest and highest number of bus used for objects' synths
 var c_KEY_OBJ = #[29, 18, 19, 20, 21, 23, 22, 26, 28, 25]; // keycodes for tracing objects 0-9. ORDER MATTERS!!!
@@ -60,7 +99,10 @@ var o_SCHEDULER_ADDR = NetAddr.new("127.0.0.1", 57120);
 var o_SKELETON_ADDR = NetAddr("192.168.0.11", nil); // NetAddr("192.168.1.104", nil);
 var w_ZERO_2D_VECTOR = #[0, 0], w_ZERO_3D_VECTOR = #[0, 0, 0];
 
-var skelLimit=1, theHeaviest=5000, massSpec=ControlSpec(1, 11, \lin, 1);
+
+// VARIABLES
+//
+var skelLimit=1, theHeaviest=5000;
 var w, world, width, height, depth, margin=0;
 var skeletonCoords=Dictionary.new, skeletonObject=Dictionary.new; // Dictionaries for skeletons' coordinates and objects
 var worldCapacity=10;
@@ -78,7 +120,8 @@ var objColors= Array.fill(worldCapacity, {Color.rand});
 
 // Global parameters.
 var params, paramsFilename, paramsFile;
-var getParam = { |n| params.atFail(n, {p_FACTORY_SETTINGS[n]})};
+var getParam = { |p| params.atFail(p, {p_FACTORY_SETTINGS[p]})};
+var setParam = { |p, v| params.put(p, v.value)};
 
 // OSC communication.
 var oscObjScheduler, oscParmScheduler, oscActScheduler;
@@ -109,6 +152,7 @@ var worldStar, cvWorld;
 var layoutHColor=Color.new255(100, 100, 100), layoutHFontColor=Color.new255(200, 200, 200);
 var labelFont=Font("Helvetica", 9), layoutHFont=Font("Helvetica", 11);
 var ezElements=List.new;
+var winCtl, drawPanels; // main control interface
 
 // System related.
 var shutDown;
@@ -116,7 +160,9 @@ var shutDown;
 // Utils and helper functions.
 var planeCoords, planeDot, clipInc;
 
-// Initial.
+
+// INITIAL
+//
 // Useful environment variables.
 ~currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
 
@@ -188,7 +234,9 @@ loadBufRout = Routine({
     });
 }).play(AppClock);
 
-// OSC communication.
+
+// OSC COMMUNICATION
+//
 oscSkeletonLost = OSCFunc({ arg msg, time, addr, recvPort;
     postf("from % received %\n", addr, msg);
     skeletonCoords.removeAt(msg[1].asInteger);
@@ -283,26 +331,142 @@ oscRemoveFunc = {
     oscSkeletonJoint.free;
 };
 
-// World.
+
+// WORLD
+//
 world = RedWorld3(RedVector3D[width, height, depth], RedVector3D[0, 0, 0], 30, 0.8);
 
-// Windows.
+// Constant objects.
+objGuide = RedBoid(world,
+    RedVector3D[width, height, depth].rand,
+    RedVector3D[1,1,1],
+    RedVector3D[0,0,0],
+    mass:10, size:10)
+.maxForce_(1).wdistance_(3.rrand(13)).wchange_(0.75).wradius_(10.rrand(50));
+
+// Center of the World.
+worldStar = RedObject(world,
+    RedVector3D[height/2, width/3, depth/2],
+    RedVector3D[0, 0, 0],
+    RedVector3D[0, 0, 0],
+    mass:getParam.(\starMass), size:10);
+
+
+// INTERFACE
+//
 w = RedQWindow("tracking", Rect(800, 300, width, height)).background_(Color.black).front;
 u = Window("controls", Rect(1520, 50, 160, 1050)).front;
 u.view.decorator = FlowLayout(u.view.bounds);
+
+
+//
+// PROBLEMS with this approach:
+// - UGLY! how to align panels?
+// - EZListView has bugs!
+// - list and popups actually don't update params
+//
+// WARNING!
+// ADD THIS TO THE RedQWindow CYCLE!
+// s.sendMsg("/n_set", audioThroughID, \inbus, pm.value)
+//
+//
+
+
+winCtl = Window("controls", Rect(520, 50, 500, 800));
+winCtl.view.decorator = FlowLayout(winCtl.view.bounds);
+winCtl.layout = VLayout();
+
+// Initiate container for ezElements that muct look the same.
+ezElements = List.new;
+
+// Draw panels.
+drawPanels = { |win|
+    var panel, view, element, label, paramVal, items;
+    var stringBackground = Color.grey(alpha:0.1),
+        stringColor = layoutHColor,
+        menuBackground = Color.white,
+        menuStringColor = Color.black,
+        listBackground = Color.white,
+        listStringColor = Color.black,
+        selectedStringColor = nil,
+        hiliteColor = nil,
+        sliderBackground = Color.grey(alpha:0.5),
+        numBackground = Color.white,
+        numStringColor = Color.grey(alpha:0.1),
+        numNormalColor = Color.black,
+        numTypingColor = Color.black,
+        knobColor = Color.black,
+        background = nil;
+
+    p_INTRFACE.keysValuesDo { |key, val|
+        if (val[\visible]) {
+            panel = VLayout(
+                StaticText().string_(format(" % ", val[\title]))
+                    .background_(layoutHColor).stringColor_(layoutHFontColor).font_(layoutHFont));
+            val[\params].do { |pm|
+                view = CompositeView();
+                view.decorator = FlowLayout(view.bounds);
+                paramVal = getParam.(pm[\param]);
+                label = pm[\title] ? pm[\param];
+                // if (pm.keys.asArray.includes(\items)) {
+                //     items = all{:[x -> y], x <- pm[\items], y <- { |i| setParam.(pm[\param], x)}};
+                // };
+                if ([True, False].includes(paramVal.class)) { // boolean parameter
+                    element = CheckBox(view).string_(label).font_(labelFont)
+                } {
+                    element = pm[\element].switch(
+                        \dropdown, {
+                            EZPopUpMenu(view, label:label, items:pm[\items])
+                            .font_(layoutHFont)
+                            .setColors(stringBackground, stringColor, menuBackground, menuStringColor, background)
+                        },
+                        \list, {
+                            EZListView(view, label:label, items:pm[\items],
+                                layout: \vert, gap: 1@1)
+                            .font_(layoutHFont)
+                            .setColors(stringBackground, stringColor, listBackground, listStringColor,
+                                selectedStringColor, hiliteColor, background)
+                        },
+                        \slider, {
+                            EZSlider(view, label:label, controlSpec:pm[\spec],
+                                labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1).font_(layoutHFont)
+                            .setColors(stringBackground, stringColor, sliderBackground, numBackground,
+                                numStringColor, numNormalColor, numTypingColor, knobColor, background)
+                        },
+                        nil, { // Default element is EZNumber
+                            EZNumber(view, label:label, controlSpec:pm[\spec],
+                                unitWidth:0, numberWidth:50, margin:1@1).font_(layoutHFont)
+                            .setColors(stringBackground, stringColor, numBackground, numStringColor,
+                                numNormalColor, numTypingColor, background)
+                        }
+                    );
+                };
+
+                postf("% - %\n", pm[\element], pm[\param]);
+
+                element.value_(paramVal).action_({ |e| setParam.(pm[\param], e.value)});
+                panel.add(view);
+            };
+            win.layout.add(panel);
+        };
+    };
+};
+drawPanels.(winCtl);
+winCtl.front;
 
 // Visualization.
 cvVisual = VLayoutView(u, 150@50);
 StaticText(cvVisual, 150@20).background_(layoutHColor).font_(layoutHFont)
 .string_(" Visualization ").stringColor_(layoutHFontColor);
 // Visualization takes ~7% of CPU, so, it's vital to keep it off when not necessary.
-// Warning! It's only about Pen drawing, RedQWindow should be animated!
+// Warning! It's only about Pen drawing, RedQWindow should anyway be animated!
 CheckBox(cvVisual).font_(labelFont).string_("Display Visualization")
 .value_(getParam.(\visualize))
 .action_({ |cb| params.put(\visualize, cb.value)});
 CheckBox(cvVisual).font_(labelFont).string_("Display coordinates")
 .value_(getParam.(\showCoords))
-.action_({ |bt| params.put(\showCoords, bt.value)});
+.action_({|bt| ~actTest.(\showCoords, bt.value)});
+//.action_({ |bt| params.put(\showCoords, bt.value)});
 
 // World params (including the Star).
 cvWorld = VLayoutView(u, 150@180);
@@ -326,8 +490,8 @@ ezElements = ezElements ++ [
 
     // World damping.
     EZNumber(cvWorld, 150@20, "World damping", [0.01, 2.00].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
-    .value_(getParam.(\worldDamping))
-    .action_.action_({|ez| params[\worldDamping] = ez.value}),
+    .value_(getParam.(\worldDamp))
+    .action_.action_({|ez| params[\worldDamp] = ez.value}),
 
     // World max velocity.
     EZNumber(cvWorld, 150@20, "Max objects velocity", [1, 100].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
@@ -345,7 +509,7 @@ ezElements = ezElements ++ [
     .action_({|ez| params.put(\starMass, ez.value)}),
 
     // How much is "heavy".
-    EZNumber(cvWorld, 150@20, "Heavy objects", massSpec, unitWidth:0, numberWidth:50, margin:1@1)
+    EZNumber(cvWorld, 150@20, "Heavy objects", [1, 11].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
     .value_(getParam.(\heavy))
     .action_({|ez| params.put(\heavy, ez.value)})
 ];
@@ -435,14 +599,14 @@ cvObjCtrl = VLayoutView(u, 150@(worldCapacity * 25 + 50));
 StaticText(cvObjCtrl, 150@20).background_(layoutHColor).font_(layoutHFont)
 .string_(" Objects mass control ").stringColor_(layoutHFontColor);
 ezElements = ezElements ++ [
-    EZSlider(cvObjCtrl, 150@25, " new ", massSpec, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
+    EZSlider(cvObjCtrl, 150@25, " new ", [1, 11].asSpec, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
     .value_(getParam.(\initMass))
     .action_({ |ez| params.put(\initMass, ez.value)});
 ];
 // Mass control of individual objects.
 // Not included to ezElements for its colorful appearance.
 worldCapacity.do{ |i|
-    ezkObjCtrl[i]= EZSlider(cvObjCtrl, 150@25," "++i.asString, massSpec, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
+    ezkObjCtrl[i]= EZSlider(cvObjCtrl, 150@25," "++i.asString, [1, 11].asSpec, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
     .enabled_(false)
     .setColors(Color.grey(alpha:0.1), layoutHColor, objColors[i],
         Color.grey(alpha:0.1), Color.black, nil, nil, objColors[i]).font_(labelFont)
@@ -457,7 +621,7 @@ skeletonObjectText= StaticText(cvSkeletonObject, 37@15)
 .string_("").font_(layoutHFont);
 
 // Auxiliary controls.
-cvAux= VLayoutView(u, 150@80);
+cvAux = VLayoutView(u, 150@80);
 StaticText(cvAux, 150@20).background_(layoutHColor).font_(layoutHFont)
 .string_(" Auxiliary ").stringColor_(layoutHFontColor);
 // Formant & saw synths ctrls (hard connected to legs).
@@ -478,22 +642,9 @@ ezElements.do{ arg elem;
     .font_(labelFont)
 };
 
-// Constant objects.
-// rec guide
-objGuide = RedBoid(world,
-    RedVector3D[width, height, depth].rand,
-    RedVector3D[1,1,1],
-    RedVector3D[0,0,0],
-    mass:10, size:10)
-.maxForce_(1).wdistance_(3.rrand(13)).wchange_(0.75).wradius_(10.rrand(50));
-// Center of the World.
-worldStar = RedObject(world,
-    RedVector3D[height/2, width/3, depth/2],
-    RedVector3D[0, 0, 0],
-    RedVector3D[0, 0, 0],
-    mass:getParam.(\starMass), size:10);
 
-// World engine.
+// WORLD ENGINE
+//
 w.draw{
     if (getParam.(\visualize).booleanValue) {
         // Draw the floor.
@@ -532,7 +683,7 @@ w.draw{
 
     // World parameters.
     world.maxVel = getParam.(\worldMaxVel);
-    world.damping = getParam.(\worldDamping);
+    world.damping = getParam.(\worldDamp);
     // World's gravity depends on the presence of skeletons.
     try {
         world.gravity = RedVector3D.newFrom( // Head's position defines vector of gravity
@@ -1079,21 +1230,21 @@ startSynth = { |synthName='sr__e__silencio', updateBuf=false, parm=nil|
     if(updateBuf) { // load buffer
         buff = Buffer.read(s, currFilename);
         taskLoadBuf = Task({
-            inf.do({ |j|
-                if(buff.numChannels != nil, {
+            inf.do { |j|
+                if(buff.numChannels != nil) {
                     recProgress = 0;
                     group = initGroup.(synthName, buff.bufnum, parm:parm);
                     synths.put(objects[currSynth].identityHash, group); // register synth
                     taskLoadBuf.stop;
-                });
+                };
                 0.01.wait;
-            });
+            };
         }).start;
     } { // only granular synths require buffer with sound
         buff = if (synthName.asString.find("__g__").isNil.not) {cyclicBuf.bufnum};
         group = initGroup.(synthName, buff, parm:parm);
         synths.put(objects[currSynth].identityHash, group); // register synth
-    };
+    }
 };
 
 startFeetSynths= { |gate, tFormAttRel, tSawAttRel|
@@ -1376,6 +1527,7 @@ shutDown = {
     // Close windows.
     if (w.isClosed.not) {w.close};
     if (u.isClosed.not) {u.close};
+    if (winCtl.isClosed.not) {winCtl.close};
     // Write params into file.
     "Saving settings!".postln;
     try {

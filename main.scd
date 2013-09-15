@@ -35,19 +35,14 @@ var p_FACTORY_SETTINGS = (
     // Aux
     synthForm:         1,
     synthSaw:          1);
+// Spec for mass control.
+var p_MASSSPEC = ControlSpec(1, 11, \lin, 1);
 // Interface descriptor.
 // Based on panels, each of which consist of a collection of elements.
 // Each element either sets a param (using getParam and setParam functions)
 // or triggers something special, i which case a function should exist to describe an action.
-var p_INTRFACE = (
-    visualization: (
-        title: "Visualization",
-        visible: true,
-        params: [
-            (param: \fps, title: "FPS", spec: ControlSpec(20, 60, \lin, 1)),
-            (param: \visualize, title: "Display Visualization"),
-            (param: \showCoords, title: "Display coordinates")]),
-    world: (
+var p_INTRFACE = [
+    (
         title: "World parameters",
         visible: true,
         params: [
@@ -57,20 +52,37 @@ var p_INTRFACE = (
             (param: \worldMaxVel, title: "Max objects velocity", spec: ControlSpec(1, 100)),
             (param: \repulsiveForce, title: "Repulsive force", spec: ControlSpec(1, 1000)),
             (param: \starMass, title: "Star mass", spec: ControlSpec(5, 2147483647)),
-            (param: \heavy, title: "Heavy objects", spec: ControlSpec(1, 11, \lin, 1))]),
-    audio: (
+            (param: \heavy, title: "Heavy objects", spec: p_MASSSPEC)]),
+    (
+        title: "Particle system",
+        visible: true,
+        params: [
+            (param: \particles, title: "Run particles"),
+            (param: \partFreq, title: "Particles per sec", spec: ControlSpec(0.01, 5.00, \lin, 0.01)),
+            (param: \partAgeThresh, title: "Age top threshold", spec: ControlSpec(10, 100, \lin, 5)),
+            (param: \partGuide, title: "Guide", element: \dropdown,
+                items: #[\wind, \feet, \object]),
+    ]),
+    (
         title: "Audio settings",
         visible: true,
         params: [
-            (param: \audioIn, title: "Audio in"),
-            (param: \inbus, title: "In", element: \dropdown, items: (0..29)),
+            (param: \audioIn, title: "Audio through", element: \boolean),
+            (param: \inbus, title: "Input bus", element: \dropdown, items: (0..29)),
             (param: \outbus, title: "Main out", element: \dropdown, items: (0..29)),
-            (param: \confSurround, title: "Main out", element: \list,
+            (param: \confSurround, title: "Surround sound", element: \dropdown,
                 items: #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8]),
             (param: \fieldDepth, title: "Aural field depth", spec: ControlSpec(0.5, 10, \lin, 0.5, 4)),
             (param: \master, title: "Master volume", spec: \amp.asSpec, element: \slider),
     ]),
-);
+    (
+        title: "Visualization",
+        visible: true,
+        params: [
+            (param: \fps, title: "FPS", spec: ControlSpec(20, 60, \lin, 1)),
+            (param: \visualize, title: "Display Visualization", element: \boolean),
+            (param: \showCoords, title: "Display coordinates", element: \boolean)]),
+];
 var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
 var a_BUS_POOL = [30, 52]; // lowest and highest number of bus used for objects' synths
 var c_KEY_OBJ = #[29, 18, 19, 20, 21, 23, 22, 26, 28, 25]; // keycodes for tracing objects 0-9. ORDER MATTERS!!!
@@ -105,7 +117,7 @@ var w_ZERO_2D_VECTOR = #[0, 0], w_ZERO_3D_VECTOR = #[0, 0, 0];
 var skelLimit=1, theHeaviest=5000;
 var w, world, width, height, depth, margin=0;
 var skeletonCoords=Dictionary.new, skeletonObject=Dictionary.new; // Dictionaries for skeletons' coordinates and objects
-var worldCapacity=10;
+var worldCapacity=18;
 var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide=nil, posGuide, objAudioIn=nil, posAudioIn;
 var mass, pos, wind, springs, hand, applyForses=1;
 
@@ -113,8 +125,6 @@ var rectimeRep;
 var synForm=nil, synSaw=nil, posFeet=[nil, nil], synthCtrl, currFormCtl=nil, currSawCtl=nil, startFeetSynths;
 var fillStream, streamList= [nil], runTask1, runTask2, isActiveTask1= 0, isActiveTask2= 0;
 var keyObjType;
-var cvObjCtrl, cvAux, cvAudio, cvParticles, cvVisual;
-var ezkObjCtrl=Array.fill(worldCapacity, {nil});
 var cvSkeletonObject, skeletonObjectText;
 var objColors= Array.fill(worldCapacity, {Color.rand});
 
@@ -149,10 +159,26 @@ var sys, newPart, posPart, partSynths=Dictionary.new, partGuideItems= [\wind, \f
 var worldStar, cvWorld;
 
 // Interface elements.
-var layoutHColor=Color.new255(100, 100, 100), layoutHFontColor=Color.new255(200, 200, 200);
+var layoutHColor=Color.new255(100, 100, 100), layoutHFontColor=Color.new255(200, 200, 200), panelColor=Color.grey(0.8);
 var labelFont=Font("Helvetica", 9), layoutHFont=Font("Helvetica", 11);
-var ezElements=List.new;
-var winCtl, drawPanels; // main control interface
+var winWorld, winCtl, drawPanels; // main control interface
+var stringBackground = Color.grey(alpha:0.1),
+    stringColor = layoutHColor,
+    menuBackground = Color.white,
+    menuStringColor = Color.black,
+    listBackground = Color.white,
+    listStringColor = Color.black,
+    selectedStringColor = nil,
+    hiliteColor = nil,
+    sliderBackground = Color.grey(alpha:0.5),
+    numBackground = Color.white,
+    numStringColor = Color.grey(alpha:0.1),
+    numNormalColor = Color.black,
+    numTypingColor = Color.black,
+    knobColor = Color.black,
+    background = nil;
+var cvObjCtrl, cvAux;
+var ezkObjCtrl=Array.fill(worldCapacity, {nil});
 
 // System related.
 var shutDown;
@@ -332,215 +358,104 @@ oscRemoveFunc = {
 };
 
 
-// WORLD
-//
-world = RedWorld3(RedVector3D[width, height, depth], RedVector3D[0, 0, 0], 30, 0.8);
-
-// Constant objects.
-objGuide = RedBoid(world,
-    RedVector3D[width, height, depth].rand,
-    RedVector3D[1,1,1],
-    RedVector3D[0,0,0],
-    mass:10, size:10)
-.maxForce_(1).wdistance_(3.rrand(13)).wchange_(0.75).wradius_(10.rrand(50));
-
-// Center of the World.
-worldStar = RedObject(world,
-    RedVector3D[height/2, width/3, depth/2],
-    RedVector3D[0, 0, 0],
-    RedVector3D[0, 0, 0],
-    mass:getParam.(\starMass), size:10);
-
-
 // INTERFACE
 //
-w = RedQWindow("tracking", Rect(800, 300, width, height)).background_(Color.black).front;
-u = Window("controls", Rect(1520, 50, 160, 1050)).front;
-u.view.decorator = FlowLayout(u.view.bounds);
-
-
-//
-// PROBLEMS with this approach:
-// - UGLY! how to align panels?
-// - EZListView has bugs!
-// - list and popups actually don't update params
-//
-// WARNING!
-// ADD THIS TO THE RedQWindow CYCLE!
-// s.sendMsg("/n_set", audioThroughID, \inbus, pm.value)
-//
-//
-
-
-winCtl = Window("controls", Rect(520, 50, 500, 800));
+winCtl = Window.new("controls", Rect(1200, 200, 500, 840));
 winCtl.view.decorator = FlowLayout(winCtl.view.bounds);
-winCtl.layout = VLayout();
-
-// Initiate container for ezElements that muct look the same.
-ezElements = List.new;
+winCtl.layout = GridLayout();
 
 // Draw panels.
-drawPanels = { |win|
-    var panel, view, element, label, paramVal, items;
-    var stringBackground = Color.grey(alpha:0.1),
-        stringColor = layoutHColor,
-        menuBackground = Color.white,
-        menuStringColor = Color.black,
-        listBackground = Color.white,
-        listStringColor = Color.black,
-        selectedStringColor = nil,
-        hiliteColor = nil,
-        sliderBackground = Color.grey(alpha:0.5),
-        numBackground = Color.white,
-        numStringColor = Color.grey(alpha:0.1),
-        numNormalColor = Color.black,
-        numTypingColor = Color.black,
-        knobColor = Color.black,
-        background = nil;
-
-    p_INTRFACE.keysValuesDo { |key, val|
+drawPanels = { |win, elements|
+    var panel, panelHeight, view, element, label, paramVal, j=1;
+    elements.do { |val, i|
         if (val[\visible]) {
-            panel = VLayout(
-                StaticText().string_(format(" % ", val[\title]))
-                    .background_(layoutHColor).stringColor_(layoutHFontColor).font_(layoutHFont));
+            panelHeight = 0;
+            panel = VLayout();
+            view = CompositeView().background_(panelColor);
+            view.decorator = FlowLayout(view.bounds);
+            StaticText(view, 230@20)
+                .string_(format(" % ", val[\title]))
+                .background_(layoutHColor).stringColor_(layoutHFontColor).font_(layoutHFont);
             val[\params].do { |pm|
-                view = CompositeView();
-                view.decorator = FlowLayout(view.bounds);
                 paramVal = getParam.(pm[\param]);
                 label = pm[\title] ? pm[\param];
-                // if (pm.keys.asArray.includes(\items)) {
-                //     items = all{:[x -> y], x <- pm[\items], y <- { |i| setParam.(pm[\param], x)}};
-                // };
-                if ([True, False].includes(paramVal.class)) { // boolean parameter
-                    element = CheckBox(view).string_(label).font_(labelFont)
-                } {
-                    element = pm[\element].switch(
-                        \dropdown, {
-                            EZPopUpMenu(view, label:label, items:pm[\items])
-                            .font_(layoutHFont)
-                            .setColors(stringBackground, stringColor, menuBackground, menuStringColor, background)
-                        },
-                        \list, {
-                            EZListView(view, label:label, items:pm[\items],
-                                layout: \vert, gap: 1@1)
-                            .font_(layoutHFont)
-                            .setColors(stringBackground, stringColor, listBackground, listStringColor,
-                                selectedStringColor, hiliteColor, background)
-                        },
-                        \slider, {
-                            EZSlider(view, label:label, controlSpec:pm[\spec],
-                                labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1).font_(layoutHFont)
-                            .setColors(stringBackground, stringColor, sliderBackground, numBackground,
-                                numStringColor, numNormalColor, numTypingColor, knobColor, background)
-                        },
-                        nil, { // Default element is EZNumber
-                            EZNumber(view, label:label, controlSpec:pm[\spec],
-                                unitWidth:0, numberWidth:50, margin:1@1).font_(layoutHFont)
-                            .setColors(stringBackground, stringColor, numBackground, numStringColor,
-                                numNormalColor, numTypingColor, background)
-                        }
-                    );
+                element = pm[\element].switch(
+                    \dropdown, {
+                        EZPopUpMenu(view, 200@20, label, pm[\items]).font_(layoutHFont)
+                        .setColors(stringBackground, stringColor, menuBackground, menuStringColor, background)
+                    },
+                    \list, {
+                        EZListView(view, label:label, items:pm[\items], layout: \vert)
+                        .font_(layoutHFont)
+                        // Warning! Method setColors of EZListView has bugs!
+                        // .setColors(stringBackground, stringColor, listBackground, listStringColor,
+                        // selectedStringColor, hiliteColor, background)
+                    },
+                    \slider, {
+                        EZSlider(view, 200@20, label:label, controlSpec:pm[\spec],
+                            labelWidth:50, unitWidth:0, numberWidth:30).font_(layoutHFont)
+                        .setColors(stringBackground, stringColor, sliderBackground, numBackground,
+                            numStringColor, numNormalColor, numTypingColor, knobColor, background)
+                    },
+                    \boolean, {
+                        QCheckBox(view, 200@20).font_(layoutHFont).string_(label);
+                    },
+                    nil, { // default element is EZNumber
+                        EZNumber(view, label:label, controlSpec:pm[\spec], labelWidth:100)
+                        .font_(layoutHFont)
+                        .setColors(stringBackground, stringColor, numBackground, numStringColor,
+                            numNormalColor, numTypingColor, background)
+                    }
+                );
+                panelHeight = panelHeight + element.bounds.height;
+
+                try { // set initial value and define action
+                    element.value_(pm[\items].indexOf(paramVal));
+                    element.globalAction_({ |e| setParam.(pm[\param], pm[\items].at(e.value))});
+                } { |err|
+                    element.value_(paramVal).action_({ |e| setParam.(pm[\param], e.value)});
                 };
-
-                postf("% - %\n", pm[\element], pm[\param]);
-
-                element.value_(paramVal).action_({ |e| setParam.(pm[\param], e.value)});
-                panel.add(view);
             };
-            win.layout.add(panel);
+            panel.add(view);
+            win.layout.addSpanning(panel, j, 1,
+                (panelHeight / win.layout.minRowHeight(1)).ceil);
+            j = j + (panelHeight / win.layout.minRowHeight(1)).ceil;
         };
     };
 };
-drawPanels.(winCtl);
-winCtl.front;
+// Draw first column
+winCtl.layout.setMinRowHeight(1, 60);
+drawPanels.(winCtl, p_INTRFACE);
 
-// Visualization.
-cvVisual = VLayoutView(u, 150@50);
-StaticText(cvVisual, 150@20).background_(layoutHColor).font_(layoutHFont)
-.string_(" Visualization ").stringColor_(layoutHFontColor);
-// Visualization takes ~7% of CPU, so, it's vital to keep it off when not necessary.
-// Warning! It's only about Pen drawing, RedQWindow should anyway be animated!
-CheckBox(cvVisual).font_(labelFont).string_("Display Visualization")
-.value_(getParam.(\visualize))
-.action_({ |cb| params.put(\visualize, cb.value)});
-CheckBox(cvVisual).font_(labelFont).string_("Display coordinates")
-.value_(getParam.(\showCoords))
-.action_({|bt| ~actTest.(\showCoords, bt.value)});
-//.action_({ |bt| params.put(\showCoords, bt.value)});
-
-// World params (including the Star).
-cvWorld = VLayoutView(u, 150@180);
-StaticText(cvWorld, 150@20).background_(layoutHColor).font_(layoutHFont)
-.string_(" World parameters ").stringColor_(layoutHFontColor);
-// Do objects attract each other?
-CheckBox(cvWorld).font_(labelFont).string_("Objects attract each other")
-.value_(getParam.(\objAttract))
-.action_({ |cb| params.put(\objAttract, cb.value)});
-ezElements = ezElements ++ [
-    // World gravity.
-    EZNumber(cvWorld, 150@20, "World gravity", [0, 2].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
-    .value_(getParam.(\worldGrav))
-    .action_({|ez| params.put(\worldGrav, ez.value)}),
-
-    // World dimensions.
-    EZNumber(cvWorld, 150@20, "World dimensions", [1, 10000].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
+// objects control
+cvObjCtrl = CompositeView().background_(panelColor);
+cvObjCtrl.decorator = FlowLayout(cvObjCtrl.bounds);
+StaticText(cvObjCtrl, 230@20).background_(layoutHColor).font_(layoutHFont)
+.string_(" Objects mass control ").stringColor_(layoutHFontColor);
+// initital mass of newly created object
+EZSlider(cvObjCtrl, 200@25, " new ", p_MASSSPEC, labelWidth:50, numberWidth:50).font_(layoutHFont)
+.setColors(stringBackground, stringColor, sliderBackground, numBackground,
+    numStringColor, numNormalColor, numTypingColor, knobColor, background)
+.value_(getParam.(\initMass))
+.action_({ |e| setParam.(\initMass, e.value)});
+// mass control of individual objects
+worldCapacity.do{ |i|
+    ezkObjCtrl[i] = EZSlider(cvObjCtrl, 200@25," "++i.asString, p_MASSSPEC, labelWidth:50, numberWidth:50)
     .enabled_(false)
-    .value_(getParam.(\worldDim))
-    .action_({|ez| params.put(\worldDim, ez.value)}),
+    .setColors(Color.grey(alpha:0.1), layoutHColor, objColors[i],
+        Color.grey(alpha:0.1), Color.black, nil, nil, objColors[i]).font_(labelFont)
+    .action_({ |ez| objects[i].mass = ez.value});
+};
+winCtl.layout.addSpanning(VLayout(cvObjCtrl), 1, 2, 6);
 
-    // World damping.
-    EZNumber(cvWorld, 150@20, "World damping", [0.01, 2.00].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
-    .value_(getParam.(\worldDamp))
-    .action_.action_({|ez| params[\worldDamp] = ez.value}),
-
-    // World max velocity.
-    EZNumber(cvWorld, 150@20, "Max objects velocity", [1, 100].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
-    .value_(getParam.(\worldMaxVel))
-    .action_({|ez| params[\worldMaxVel] = ez.value}),
-
-    // Repulsive force.
-    EZNumber(cvWorld, 150@20, "Repulsive force", [1, 1000].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
-    .value_(getParam.(\repulsiveForce))
-    .action_({|ez| params.put(\repulsiveForce, ez.value)}),
-
-    // Star mass.
-    EZNumber(cvWorld, 150@20, "Star mass", [5, 2147483647].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
-    .value_(getParam.(\starMass))
-    .action_({|ez| params.put(\starMass, ez.value)}),
-
-    // How much is "heavy".
-    EZNumber(cvWorld, 150@20, "Heavy objects", [1, 11].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
-    .value_(getParam.(\heavy))
-    .action_({|ez| params.put(\heavy, ez.value)})
-];
-
-// Audio settings.
-cvAudio = VLayoutView(u, 150@220);
-StaticText(cvAudio, 150@20).background_(layoutHColor).font_(layoutHFont)
-.string_(" Audio settings ").stringColor_(layoutHFontColor);
-CheckBox(cvAudio).font_(labelFont).string_("Audio in")
-.value_(getParam.(\audioIn))
-.action_({ |bt| params.put(\audioIn, bt.value)});
-PopUpMenu(cvAudio).font_(layoutHFont).background_(Color.white)
-.items_((0..29)).value_(getParam.(\inbus))
-.action_({ |pm|
-    s.sendMsg("/n_set", audioThroughID, \inbus, pm.value);
-    params.put(\inbus, pm.value)
-});
-// Surround sound configuration.
-EZListView(cvAudio, 150@90, " Spatialization engine ", items: a_SURROUND_CONFIG,
-    globalAction: { |l| params.put(\confSurround, a_SURROUND_CONFIG.at(l.value ? 0))},
-    initVal: a_SURROUND_CONFIG.indexOf(getParam.(\confSurround)),
-    layout: \vert, gap: 1@1)
-.font_(layoutHFont);
-// How deep is the aural field.
-ezElements = ezElements ++ [
-    EZNumber(cvAudio, 150@20, "Aural field depth", [0.5, 10, \lin, 0.5].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
-    .value_(getParam.(\fieldDepth))
-    .action_({|ez| params.put(\fieldDepth, ez.value)})
-];
+// aux panel
+// Auxiliary controls.
+cvAux = CompositeView().background_(panelColor);
+cvAux.decorator = FlowLayout(cvAux.bounds);
+StaticText(cvAux, 230@20).background_(layoutHColor).font_(layoutHFont)
+.string_(" Auxiliary ").stringColor_(layoutHFontColor);
 // Record button
-Button(cvAudio).font_(labelFont)
+Button(cvAux, 200@40).font_(labelFont)
 .states_([
     ["RECORD", Color.black, Color.new(0.8,0.8,0.8)],
     ["Stop", Color.red, Color.new(0.8,0.8,0.8)]
@@ -562,90 +477,47 @@ Button(cvAudio).font_(labelFont)
         s.stopRecording
     }
 });
-// Master control.
-ezElements = ezElements ++ [
-    EZSlider(cvAudio, 150@25, " master ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-    .value_(getParam.(\master))
-    .action_({ |ezk| params.put(\master, ezk.value)})
-];
-
-// Particles.
-cvParticles = VLayoutView(u, 150@150);
-StaticText(cvParticles, 150@20).background_(layoutHColor).font_(layoutHFont)
-.string_(" Particles system ").stringColor_(layoutHFontColor);
-CheckBox(cvParticles).font_(labelFont).string_("Run particles")
-.value_(getParam.(\particles))
-.action_({ |cb| params.put(\particles, cb.value.asInteger)});
-ezElements = ezElements ++ [
-    // Emit particles with frequency.
-    EZNumber(cvParticles, 150@20, "Freq", [0.01, 5.00, \lin, 0.01].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
-    .value_(getParam.(\partFreq))
-    .action_({|ez| params.put(\partFreq, ez.value)}),
-
-    // Particles age threshold.
-    EZNumber(cvParticles, 150@20, "Age threshold", [10, 100, \lin, 5].asSpec, unitWidth:0, numberWidth:50, margin:1@1)
-    .value_(getParam.(\partAgeThresh))
-    .action_({|ez| params.put(\partAgeThresh, ez.value)})
-];
-// Particles are being lead by
-EZListView(cvParticles, 150@70, " Lead by ", items: partGuideItems,
-    globalAction: { |l| params.put(\partGuide, partGuideItems.at(l.value ? 0))},
-    initVal: partGuideItems.indexOf(getParam.(\partGuide)),
-    layout: \vert, gap: 1@1)
-.font_(layoutHFont);
-
-// Objects' controls.
-cvObjCtrl = VLayoutView(u, 150@(worldCapacity * 25 + 50));
-StaticText(cvObjCtrl, 150@20).background_(layoutHColor).font_(layoutHFont)
-.string_(" Objects mass control ").stringColor_(layoutHFontColor);
-ezElements = ezElements ++ [
-    EZSlider(cvObjCtrl, 150@25, " new ", [1, 11].asSpec, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-    .value_(getParam.(\initMass))
-    .action_({ |ez| params.put(\initMass, ez.value)});
-];
-// Mass control of individual objects.
-// Not included to ezElements for its colorful appearance.
-worldCapacity.do{ |i|
-    ezkObjCtrl[i]= EZSlider(cvObjCtrl, 150@25," "++i.asString, [1, 11].asSpec, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-    .enabled_(false)
-    .setColors(Color.grey(alpha:0.1), layoutHColor, objColors[i],
-        Color.grey(alpha:0.1), Color.black, nil, nil, objColors[i]).font_(labelFont)
-    .action_({ |ez| objects[i].mass = ez.value });
-};
-
-// SkeletonObject status.
-cvSkeletonObject = VLayoutView(u, 150@40);
-StaticText(cvSkeletonObject, 150@20).background_(layoutHColor).font_(layoutHFont)
-.string_(" Skel monitor ").stringColor_(layoutHFontColor);
-skeletonObjectText= StaticText(cvSkeletonObject, 37@15)
-.string_("").font_(layoutHFont);
-
-// Auxiliary controls.
-cvAux = VLayoutView(u, 150@80);
-StaticText(cvAux, 150@20).background_(layoutHColor).font_(layoutHFont)
-.string_(" Auxiliary ").stringColor_(layoutHFontColor);
-// Formant & saw synths ctrls (hard connected to legs).
-ezElements = ezElements ++ [
-    EZSlider(cvAux, 150@25, " form ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-    .value_(getParam.(\synthForm))
-    .action_({ |ezk| params.put(\synthForm, ezk.value) }),
-
-    EZSlider(cvAux, 150@25, " lsaw ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-    .value_(getParam.(\synthSaw))
-    .action_({ |ezk| params.put(\synthSaw, ezk.value) });
-];
-
-// All EZElements must look the same.
-ezElements.do{ arg elem;
-    elem.setColors(Color.grey(alpha:0.1), layoutHColor, Color.white, Color.grey(alpha:0.1),
-        Color.black, nil, nil, Color.black)
+// Skeleton monitor.
+StaticText(cvAux, 150@20).font_(layoutHFont).string_(" Skel monitor ");
+skeletonObjectText = StaticText(cvAux, 50@20).string_("").font_(layoutHFont);
+// Formant & saw synths ctrls (hard wired to legs).
+EZSlider(cvAux, 200@25, " form ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
     .font_(labelFont)
-};
+    .value_(getParam.(\synthForm))
+    .action_({ |e| setParam.(\synthForm, e.value)})
+    .setColors(stringBackground, stringColor, sliderBackground, numBackground,
+        numStringColor, numNormalColor, numTypingColor, knobColor, background);
+EZSlider(cvAux, 200@25, " lsaw ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
+    .font_(labelFont)
+    .value_(getParam.(\synthSaw))
+    .action_({ |e| setParam.(\synthSaw, e.value)})
+    .setColors(stringBackground, stringColor, sliderBackground, numBackground,
+        numStringColor, numNormalColor, numTypingColor, knobColor, background);
+winCtl.layout.addSpanning(VLayout(cvAux), 7, 2, 2);
+winCtl.front;
 
-
-// WORLD ENGINE
+// WORLD
 //
-w.draw{
+world = RedWorld3(RedVector3D[width, height, depth], RedVector3D[0, 0, 0], 30, 0.8);
+
+// Constant objects.
+objGuide = RedBoid(world,
+    RedVector3D[width, height, depth].rand,
+    RedVector3D[1,1,1],
+    RedVector3D[0,0,0],
+    mass:10, size:10)
+.maxForce_(1).wdistance_(3.rrand(13)).wchange_(0.75).wradius_(10.rrand(50));
+
+// Center of the World.
+worldStar = RedObject(world,
+    RedVector3D[height/2, width/3, depth/2],
+    RedVector3D[0, 0, 0],
+    RedVector3D[0, 0, 0],
+    mass:getParam.(\starMass), size:10);
+
+// World engine.
+winWorld = RedQWindow("tracking", Rect(800, 300, width, height)).background_(Color.black).front;
+winWorld.draw{
     if (getParam.(\visualize).booleanValue) {
         // Draw the floor.
         Pen.strokeColor= Color.grey(0.5);
@@ -679,7 +551,7 @@ w.draw{
     if(isRecording, {recProgress = recProgress + 1});
 
     // Force: wind blowing (trig it every 30s).
-    wind = sin(2pi * ((w.frame % (30 * getParam.(\fps))) / width));
+    wind = sin(2pi * ((winWorld.frame % (30 * getParam.(\fps))) / width));
 
     // World parameters.
     world.maxVel = getParam.(\worldMaxVel);
@@ -783,9 +655,9 @@ w.draw{
     } {
         // World Star.
         worldStar.mass = getParam.(\starMass);
-        if (w.mouse != RedVector2D[0, 0]) {
+        if (winWorld.mouse != RedVector2D[0, 0]) {
             try {
-                worldStar.loc = [w.mouse[0]] ++ [w.mouse[1]] ++ [w.mouse.mean]
+                worldStar.loc = [winWorld.mouse[0]] ++ [winWorld.mouse[1]] ++ [winWorld.mouse.mean]
             } {
                 worldStar.loc = RedVector3D[width/2, height/3, depth/3]
             }
@@ -996,7 +868,10 @@ w.draw{
             audioThroughID = initGroup.(\sr__r__authro,
                 busnum: a_BUS_POOL[1], // last bus number from pool dedicated to audio through.
                 parm: [\inbus, getParam.(\inbus)])
-        }
+        };
+
+        // Set actual inbus.
+        s.sendMsg("/n_set", audioThroughID, \inbus, getParam.(\inbus))
     } {
         if (audioThroughID.isNil.not) {
             removeGroup.(audioThroughID);
@@ -1046,7 +921,7 @@ w.draw{
     // Particles.
     if (getParam.(\particles).booleanValue) {
         // A new particle every second.
-        if ((w.frame % (getParam.(\fps) * (getParam.(\partFreq))).round) == 0) {
+        if ((winWorld.frame % (getParam.(\fps) * (getParam.(\partFreq))).round) == 0) {
             newPart = RedParticle(world, objGuide.loc, 0, RedVector3D[2.rand2, 10.rand, 10.rand], 5, 5)
             .age_(getParam.(\partAgeThresh) + 10.0.rand2);
             sys.add(newPart);
@@ -1098,7 +973,7 @@ w.draw{
         }
     }
 };
-w.animate = true;
+winWorld.animate = true;
 
 // Helper functions.
 
@@ -1121,7 +996,7 @@ planeCoords = { arg vector, width, height, depth, scale=1, focal=0.5;
 recBufStart = { arg bufnum, inbus, numchannels, path, headformat= 'aiff', bitdepth= 'int16';
     bufnum = bufnum ?? s.bufferAllocator.alloc(1);
     s.sendMsg("/b_alloc", bufnum, 32768 * numchannels, numchannels, [
-            "/b_write", bufnum, path, headformat, bitdepth, 0, 0, 1]);
+        "/b_write", bufnum, path, headformat, bitdepth, 0, 0, 1]);
     recSynth = Synth.tail(RootNode(Server.default), "sr__r__rec" ++ numchannels,
         [\inbus, inbus, \bufnum, bufnum]);
     isRecording = true;
@@ -1345,7 +1220,7 @@ runTask2= { |on|
 };
 
 //--keyboard control
-w.view.keyUpAction= { arg view, char, modifiers, unicode, keycode;
+winWorld.view.keyUpAction= { arg view, char, modifiers, unicode, keycode;
     case
     {keyObjType.includes(keycode)} { // stop rec, create obj, etc.
         if ([0, 256].includes(modifiers)) {
@@ -1355,13 +1230,13 @@ w.view.keyUpAction= { arg view, char, modifiers, unicode, keycode;
             ezkObjCtrl[currSynth].enabled_(true).value = getParam.(\initMass);
             ezkObjCtrl[currSynth].set(
                 currSynth.asString ++ " " ++
-                c_KEY_OBJ_SYNTH.matchAt(keycode)[1].asString.split($_).at(1)
-            )
+                c_KEY_OBJ_SYNTH.matchAt(keycode)[1].asString.split($_).last
+            );
         }
     }
 };
 
-w.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
+winWorld.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     var checkRout;
     //[char, modifiers, unicode, keycode].postln;
     case
@@ -1396,8 +1271,8 @@ w.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
                 skeletonObject, world.objects.size,
                 world.objects, objects, objectsProp, synths,
                 sys.objects, partSynths, springs,
-                w.bounds.left, w.bounds.top, w.bounds.width, w.bounds.height,
-                u.bounds.left, u.bounds.top, u.bounds.width, u.bounds.height);
+                winWorld.bounds.left, winWorld.bounds.top, winWorld.bounds.width, winWorld.bounds.height,
+                winCtl.bounds.left, winCtl.bounds.top, winCtl.bounds.width, winCtl.bounds.height);
             "\nparams:\n------".postln;
             params.order.do{ |k| postf("%: %\n", k, params[k])};
         });
@@ -1525,8 +1400,7 @@ shutDown = {
     // Release specific synths.
     synForm.free; synSaw.free;
     // Close windows.
-    if (w.isClosed.not) {w.close};
-    if (u.isClosed.not) {u.close};
+    if (winWorld.isClosed.not) {winWorld.close};
     if (winCtl.isClosed.not) {winCtl.close};
     // Write params into file.
     "Saving settings!".postln;
@@ -1539,7 +1413,7 @@ shutDown = {
     };
     "Good bye...".postln;
 };
-u.onClose = shutDown;
+winCtl.onClose = shutDown;
 CmdPeriod.doOnce({shutDown.value()});
 \
 )

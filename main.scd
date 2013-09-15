@@ -40,7 +40,7 @@ var p_MASSSPEC = ControlSpec(1, 11, \lin, 1);
 // Interface descriptor.
 // Based on panels, each of which consist of a collection of elements.
 // Each element either sets a param (using getParam and setParam functions)
-// or triggers something special, i which case a function should exist to describe an action.
+// or triggers something special, in which case a function should exist to describe an action.
 var p_INTRFACE = [
     (
         title: "World parameters",
@@ -85,6 +85,7 @@ var p_INTRFACE = [
 ];
 var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
 var a_BUS_POOL = [30, 52]; // lowest and highest number of bus used for objects' synths
+var a_SYNTHS =
 var c_KEY_OBJ = #[29, 18, 19, 20, 21, 23, 22, 26, 28, 25]; // keycodes for tracing objects 0-9. ORDER MATTERS!!!
 var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different kinds
     12: ["a RedObject", \sr__g__reg],	// q

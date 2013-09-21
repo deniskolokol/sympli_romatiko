@@ -262,7 +262,6 @@ partSynths = Dictionary.new;
 sys = RedParticleSystem.new;
 // When particle is dead, release its synth.
 sys.removeAction = { |o|
-    // partSynths.at(o.hash).set(\rel, 1.0.rand, \gate, 0);
     removeGroup.(partSynths[o.identityHash], 1.0.rand);
     partSynths.removeAt(o.identityHash)
 };
@@ -970,7 +969,6 @@ winWorld.draw{
                 p.loc[1].linlin(0, width, 1, -1), // y
                 p.loc[0].linlin(0, height, -1, 1) // x
             );
-            //partSynths.at(p.identityHash).set( // Find corresponding synth and set params.
             s.sendMsg("/n_set", partSynths[p.identityHash].asInteger,
                 \azimuth, posPart.theta,
                 \distance, posPart.magnitude,
@@ -1423,7 +1421,7 @@ shutDown = {
     s.sendMsg("/n_free", audioThroughID);
     // Release objects and particles synths.
     synths.keys.do { |k| s.sendMsg("/n_free", synths[k])};
-    partSynths.keys.do { |k| partSynths[k].free};
+    partSynths.keys.do { |k| s.sendMsg("/n_free", partSynths[k])};
     // Release specific synths.
     synForm.free; synSaw.free;
     // Close windows.

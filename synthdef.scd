@@ -329,12 +329,12 @@ SynthDef(\sr__e__pulse, {
             DegreeToKey.kr(LocalBuf.newFrom(scale), // go melodic above height threshold
                 (az - azThresh).linlin(0, 1 - azThresh, 0, 12), 12, 1, offset
             ).midicps,
-            velocity.linlin(1,30, 5,150) // continuos change at the bottom
+            velocity.linlin(1,maxVel, 5,150) // continuos change at the bottom
         ]
     );
     // Synthesis.
     in = Blip.ar(SinOsc.kr(0.5, 0, LFDNoise1.kr(1.5), note), 100, 0.2);
-    in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq, amp), cutOff, rq, amp);
+    in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq, amp);
     in = Compander.ar(in, in, 0.002, slopeBelow: 0.33, slopeAbove: 0.5, clampTime: 0.01, relaxTime: 0.01);
     signal = Mix.ar(in);
     //Envelope.

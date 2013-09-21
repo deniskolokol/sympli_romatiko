@@ -21,10 +21,13 @@ var p_FACTORY_SETTINGS = (
     initMass:          5, // initial mass with which object is created
     objAttract:        true, // do objects attract each other
     repulsiveForce:    1, // behavior on collision (no repulsion if 1)
+    // Particles.
     particles:         0, // run particles or not
+    partSigmoidRatio:  0.7, // steepness of sigmoid function determiming probability of particle appearing
     partFreq:          0.5, // generate a new particle \partFreq times per second
     partAgeThresh:     50, // maximum particle age in cycles (fps)
     partGuide:         "object", // which object guides Particle System
+    partSynth:         \sr__e__analog,
     // Visualisation.
     fps:               60, // frames per second
     visualize:         true,
@@ -35,6 +38,10 @@ var p_FACTORY_SETTINGS = (
     // Aux
     synthForm:         1,
     synthSaw:          1);
+// List of svailable synths.
+var a_SYNTHS = #[\sr__g__reg, \sr__g__drone, \sr__g__gust, \sr__g__slic, \sr__g__loop, \sr__g__chunk,
+    \sr__e__lowe, \sr__e__probe, \sr__e__cmb, \sr__e__melo, \sr__e__ringz, \sr__e__pulse, \sr__e__analog,
+    \sr__e__noisy, \sr__e__humm, \sr__e__lfsaw, \sr__p__kick, \sr__p__hat, \sr__p__snare];
 // Spec for mass control.
 var p_MASSSPEC = ControlSpec(1, 11, \lin, 1);
 // Interface descriptor.
@@ -46,23 +53,29 @@ var p_INTRFACE = [
         title: "World parameters",
         visible: true,
         params: [
+            (param: \objAttract, title: "Mutual attraction", element: \boolean),
             (param: \worldGrav, title: "World gravity", spec: ControlSpec(0, 2)),
-            (param: \worldDim, title: "World dimensions", spec: ControlSpec(1, 2000)),
             (param: \worldDamp, title: "World damping", spec: ControlSpec(0.01, 2.00)),
             (param: \worldMaxVel, title: "Max objects velocity", spec: ControlSpec(1, 100)),
             (param: \repulsiveForce, title: "Repulsive force", spec: ControlSpec(1, 1000)),
             (param: \starMass, title: "Star mass", spec: ControlSpec(5, 2147483647)),
-            (param: \heavy, title: "Heavy objects", spec: p_MASSSPEC)]),
+            (param: \heavy, title: "Heavy objects", spec: p_MASSSPEC),
+            (param: \worldDim, title: "World dimensions", spec: ControlSpec(1, 2000)),
+        ]
+    ),
     (
         title: "Particle system",
         visible: true,
         params: [
-            (param: \particles, title: "Run particles"),
+            (param: \particles, title: "Run particles", element: \boolean),
             (param: \partFreq, title: "Particles per sec", spec: ControlSpec(0.01, 5.00, \lin, 0.01)),
-            (param: \partAgeThresh, title: "Age top threshold", spec: ControlSpec(10, 100, \lin, 5)),
+            (param: \partAgeThresh, title: "Age top threshold", spec: ControlSpec(10, 200, \lin, 5)),
+            (param: \partSigmoidRatio, title: "Steep sigmoid func", spec: ControlSpec(0.1, 1, \lin, 0.01)),
             (param: \partGuide, title: "Guide", element: \dropdown,
                 items: #[\wind, \feet, \object]),
-    ]),
+            (param: \partSynth, title: "Synth", element: \dropdown, items: a_SYNTHS),
+        ]
+    ),
     (
         title: "Audio settings",
         visible: true,
@@ -74,17 +87,20 @@ var p_INTRFACE = [
                 items: #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8]),
             (param: \fieldDepth, title: "Aural field depth", spec: ControlSpec(0.5, 10, \lin, 0.5, 4)),
             (param: \master, title: "Master volume", spec: \amp.asSpec, element: \slider),
-    ]),
+        ]
+    ),
     (
         title: "Visualization",
         visible: true,
         params: [
             (param: \fps, title: "FPS", spec: ControlSpec(20, 60, \lin, 1)),
             (param: \visualize, title: "Display Visualization", element: \boolean),
-            (param: \showCoords, title: "Display coordinates", element: \boolean)]),
+            (param: \showCoords, title: "Display coordinates", element: \boolean)
+        ]
+    )
 ];
 var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
-var a_BUS_POOL = [30, 52]; // lowest and highest number of bus used for objects' synths
+var a_BUS_POOL = [30, 53]; // lowest and highest-1 number of bus used for objects' synths
 var c_KEY_OBJ = #[29, 18, 19, 20, 21, 23, 22, 26, 28, 25]; // keycodes for tracing objects 0-9. ORDER MATTERS!!!
 var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different kinds
     12: ["a RedObject", \sr__g__reg],	// q
@@ -119,13 +135,13 @@ var w, world, width, height, depth, margin=0;
 var skeletonCoords=Dictionary.new, skeletonObject=Dictionary.new; // Dictionaries for skeletons' coordinates and objects
 var worldCapacity=18;
 var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide=nil, posGuide, objAudioIn=nil, posAudioIn;
-var mass, pos, wind, springs, hand, applyForses=1;
+var mass, pos, wind, springs, hand, applyForces=1;
 
 var rectimeRep;
 var synForm=nil, synSaw=nil, posFeet=[nil, nil], synthCtrl, currFormCtl=nil, currSawCtl=nil, startFeetSynths;
 var fillStream, streamList= [nil], runTask1, runTask2, isActiveTask1= 0, isActiveTask2= 0;
 var keyObjType;
-var cvSkeletonObject, skeletonObjectText;
+var skeletonObjectText;
 var objColors= Array.fill(worldCapacity, {Color.rand});
 
 // Global parameters.
@@ -153,10 +169,10 @@ var currFilename, currBufnum;
 var initObject, removeObject;
 
 // Particles.
-var sys, newPart, posPart, partSynths=Dictionary.new, partGuideItems= [\wind, \feet, \object];
+var sys, newPart, posPart, partSynths, partGuideItems;
 
 // A center of the World.
-var worldStar, cvWorld;
+var worldStar;
 
 // Interface elements.
 var layoutHColor=Color.new255(100, 100, 100), layoutHFontColor=Color.new255(200, 200, 200), panelColor=Color.grey(0.8);
@@ -235,19 +251,26 @@ springs = Dictionary.new; // container for springs
 rootNodeID = s.nextNodeID; // root group Id for objects' synths
 s.sendMsg("/g_new", rootNodeID, 0, 1); // root group at the head of group 1
 synthCtrl = Array.fill(c_CTRL_SYNTH_ARGS.size, { nil });
-keyObjType= c_KEY_OBJ_SYNTH.keys().asArray; // for easy access to keycodes
+keyObjType = c_KEY_OBJ_SYNTH.keys().asArray; // for easy access to keycodes
 cyclicBuf = Buffer.alloc(s, s.sampleRate, 1); // 1s single channel Buffer
 isRecording = false;
 recProgress = 0;
 
-// Particle system.
+// PARTICLES
+//
+partSynths = Dictionary.new;
 sys = RedParticleSystem.new;
 // When particle is dead, release its synth.
 sys.removeAction = { |o|
-    partSynths.at(o.hash).set(\rel, 1.0.rand, \gate, 0);
-    partSynths.removeAt(o.hash)
+    // partSynths.at(o.hash).set(\rel, 1.0.rand, \gate, 0);
+    removeGroup.(partSynths[o.identityHash], 1.0.rand);
+    partSynths.removeAt(o.identityHash)
 };
+partGuideItems = [\wind, \feet, \object];
 
+
+// CONTINOUS BUFFER RECORDING
+//
 loadBufRout = Routine({
     inf.do({ |j|
         if(cyclicBuf.numChannels != nil, {
@@ -524,7 +547,7 @@ winWorld.draw{
         Pen.strokeRect(Rect.aboutRedVector3D(RedVector[width*0.5, height*0.5, depth], width*0.5, width, height, depth));
 
         // Report if no forces.
-        if (applyForses.booleanValue.not) {
+        if (applyForces.booleanValue.not) {
             Pen.fillColor= Color.white;
             Pen.stringAtPoint("NO FORCES!", [width-60, height-20].asPoint);
         };
@@ -705,7 +728,7 @@ winWorld.draw{
                         // The havier the object the fatter it is, linearly.
                         o.size = o.mass * 5;
 
-                        if (applyForses.booleanValue) {
+                        if (applyForces.booleanValue) {
 
                             if (skeletonObject.size == 0) {
                                 // In the absence of skeletons place a Star in the World.
@@ -799,9 +822,9 @@ winWorld.draw{
                         \azimuth, pos.theta, \distance, pos.magnitude, // Distance from the center.
                         // Warning! Elevation is obsolete, get rid of it!
                         \elevation, o.loc[2].linlin(0, depth, 0.5pi, -0.5pi), // How high the object is (inverse).
-                        \amp, o.mass.linlin(1,11, 0.01,0.8) + (o.vel.abs.maxItem * 0.01), // The faster the louder.
-                        \ax, o.loc[0]/width, \ay, o.loc[1]/height, \az, o.loc[2]/depth,
-                        \velocity, o.vel.abs.maxItem,
+                        \amp, o.mass.linlin(1,11, 0.01,0.8) + (o.vel.mag * 0.01), // The faster the louder.
+                        \ax, o.loc[0] / width, \ay, o.loc[1] / height, \az, o.loc[2] / depth,
+                        \velocity, o.vel.mag,
                         \master, getParam.(\master),
                         \depth, getParam.(\fieldDepth),
                         \maxVel, getParam.(\worldMaxVel)
@@ -814,7 +837,7 @@ winWorld.draw{
     // Guide obj.
     if (objGuide.isNil.not) {
         // Guidance source (free float affected by wind only, feet, hands).
-        if (applyForses.booleanValue) {
+        if (applyForces.booleanValue) {
             getParam.(\partGuide).switch(
                 \wind, {objGuide.addForce(wind)},
                 \feet, {
@@ -881,7 +904,7 @@ winWorld.draw{
     };
 
     if (objAudioIn.isNil.not) {
-        if (applyForses.booleanValue) {
+        if (applyForces.booleanValue) {
             objAudioIn.addForce(wind);
             objAudioIn.addForce(world.gravity);
             skeletonObject.do { |obj|
@@ -919,47 +942,51 @@ winWorld.draw{
     };
 
     // Particles.
+    m = getParam.(\worldMaxVel);
     if (getParam.(\particles).booleanValue) {
-        // A new particle every second.
         if ((winWorld.frame % (getParam.(\fps) * (getParam.(\partFreq))).round) == 0) {
-            newPart = RedParticle(world, objGuide.loc, 0, RedVector3D[2.rand2, 10.rand, 10.rand], 5, 5)
-            .age_(getParam.(\partAgeThresh) + 10.0.rand2);
-            sys.add(newPart);
-            partSynths[newPart.hash] = Synth(\sr__g__dron,
-                [\busnum, 0, \bufnum, cyclicBuf.bufnum]
-            )
-        }
+            // probability of particle being generated depends on the objects velocity
+            ~steep = getParam.(\partSigmoidRatio).neg;
+            ~vel = objGuide.vel.mag.linlin(0, m, m.neg, m);
+            ~p = 1 / (1 + exp(~steep * ~vel));
+            if (~p.coin.booleanValue) {
+                newPart = RedParticle(world, objGuide.loc, 0, RedVector3D[2.rand2, 10.rand, 10.rand], 10, 10)
+                    .age_(getParam.(\partAgeThresh) + 10.0.rand2);
+                sys.add(newPart);
+                partSynths[newPart.identityHash] = initGroup.(getParam.(\partSynth),
+                    parm: [\inbus, getParam.(\inbus), \cr, 4]);
+            };
+        };
     };
-
     // Control Particles synths and render.
-    sys.addForce(world.gravity);
     sys.update;
     sys.do{ |p|
         if(p.alive) {
-            // Particles should "sprinkle" around, thus they are
-            // driven not by attraction, but by repulsive force.
-            skeletonObject.do { |obj|
-                try {
-                    newPart.addForce(newPart.gravityForce(obj[0]).neg);
-                    newPart.addForce(newPart.gravityForce(obj[4]).neg);
-                }
-            };
-            try {
-                newPart.addForce(newPart.gravityForce(worldStar).neg)
-            };
-            posPart= Complex(
+            // check it when playing live, if particles need world forces
+            // if (applyForces.booleanValue) {
+            //     newPart.addForce(newPart.gravityForce(worldStar).neg);
+            // };
+            posPart = Complex(
                 p.loc[1].linlin(0, width, 1, -1), // y
                 p.loc[0].linlin(0, height, -1, 1) // x
             );
-            partSynths.at(p.hash).set( // Find corresponding synth and set params.
+            //partSynths.at(p.identityHash).set( // Find corresponding synth and set params.
+            s.sendMsg("/n_set", partSynths[p.identityHash].asInteger,
                 \azimuth, posPart.theta,
                 \distance, posPart.magnitude,
-                \elevation, p.loc[2].linlin(0, depth, 0pi, 0.5pi),
-                // Volume being decreased by age, increased by accel.
-                \amp, (1 / 10) * (p.age / getParam.(\partAgeThresh)) * (p.vel.mag / 10),
-                \ax, p.loc[0]/width,
+                \elevation, p.loc[2].linlin(0, depth, 0.5pi, -0.5pi),
+                \velocity, p.vel.mag,
+                \ax, p.loc[0] / width, \ay, p.loc[1] / height, \az, p.loc[2] / depth,
+                // velocity boost amp, but it drops with age,
+                // adjusted for maximum age and particles density
+                \amp, (1 /
+                    (1 + exp((p.age * p.vel.mag.linlin(0, m, m.neg, m) * getParam.(\partFreq)).neg
+                        / (getParam.(\partAgeThresh) * getParam.(\worldMaxVel)))
+                    )
+                ),
                 \master, getParam.(\master),
-                \depth, getParam.(\fieldDepth)
+                \depth, getParam.(\fieldDepth),
+                \maxVel, getParam.(\worldMaxVel)
             );
         };
         if (getParam.(\visualize).booleanValue) {
@@ -971,7 +998,7 @@ winWorld.draw{
                 err.postln;
             }
         }
-    }
+    };
 };
 winWorld.animate = true;
 
@@ -1263,7 +1290,7 @@ winWorld.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
         }
     }
     {keycode == 9} { // V - remove all forces
-        if( [0, 256].includes(modifiers), {applyForses= (1 - applyForses).abs});
+        if( [0, 256].includes(modifiers), {applyForces= (1 - applyForces).abs});
     }
     {keycode == 6} { // Z - info
         if( [0, 256].includes(modifiers), {

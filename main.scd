@@ -135,7 +135,7 @@ var w_ZERO_2D_VECTOR = #[0, 0], w_ZERO_3D_VECTOR = #[0, 0, 0];
 var skelLimit=1, theHeaviest=5000;
 var w, world, width, height, depth, margin=0;
 var worldCapacity=18;
-var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide=nil, posGuide, objAudioIn=nil, posAudioIn;
+var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide, posGuide, objAudioIn=nil, posAudioIn;
 var mass, pos, wind, springs, hand, applyForces=1;
 
 var rectimeRep;
@@ -184,20 +184,20 @@ var layoutHColor=Color.new255(100, 100, 100), layoutHFontColor=Color.new255(200,
 var labelFont=Font("Helvetica", 9), layoutHFont=Font("Helvetica", 11);
 var winWorld, winCtl, drawPanels; // main control interface
 var stringBackground = Color.grey(alpha:0.1),
-    stringColor = layoutHColor,
-    menuBackground = Color.white,
-    menuStringColor = Color.black,
-    listBackground = Color.white,
-    listStringColor = Color.black,
-    selectedStringColor = nil,
-    hiliteColor = nil,
-    sliderBackground = Color.grey(alpha:0.5),
-    numBackground = Color.white,
-    numStringColor = Color.grey(alpha:0.1),
-    numNormalColor = Color.black,
-    numTypingColor = Color.black,
-    knobColor = Color.black,
-    background = nil;
+stringColor = layoutHColor,
+menuBackground = Color.white,
+menuStringColor = Color.black,
+listBackground = Color.white,
+listStringColor = Color.black,
+selectedStringColor = nil,
+hiliteColor = nil,
+sliderBackground = Color.grey(alpha:0.5),
+numBackground = Color.white,
+numStringColor = Color.grey(alpha:0.1),
+numNormalColor = Color.black,
+numTypingColor = Color.black,
+knobColor = Color.black,
+background = nil;
 var cvObjCtrl, cvAux;
 var ezkObjCtrl=Array.fill(worldCapacity, {nil});
 
@@ -403,8 +403,8 @@ drawPanels = { |win, elements|
             view = CompositeView().background_(panelColor);
             view.decorator = FlowLayout(view.bounds);
             StaticText(view, 230@20)
-                .string_(format(" % ", val[\title]))
-                .background_(layoutHColor).stringColor_(layoutHFontColor).font_(layoutHFont);
+            .string_(format(" % ", val[\title]))
+            .background_(layoutHColor).stringColor_(layoutHFontColor).font_(layoutHFont);
             val[\params].do { |pm|
                 paramVal = gP.(pm[\param]);
                 label = pm[\title] ? pm[\param];
@@ -511,17 +511,17 @@ StaticText(cvAux, 150@20).font_(layoutHFont).string_(" Skel monitor ");
 skeletonObjectText = StaticText(cvAux, 50@20).string_("").font_(layoutHFont);
 // Formant & saw synths ctrls (hard wired to legs).
 EZSlider(cvAux, 200@25, " form ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-    .font_(labelFont)
-    .value_(gP.(\synthForm))
-    .action_({ |e| setParam.(\synthForm, e.value)})
-    .setColors(stringBackground, stringColor, sliderBackground, numBackground,
-        numStringColor, numNormalColor, numTypingColor, knobColor, background);
+.font_(labelFont)
+.value_(gP.(\synthForm))
+.action_({ |e| setParam.(\synthForm, e.value)})
+.setColors(stringBackground, stringColor, sliderBackground, numBackground,
+    numStringColor, numNormalColor, numTypingColor, knobColor, background);
 EZSlider(cvAux, 200@25, " lsaw ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-    .font_(labelFont)
-    .value_(gP.(\synthSaw))
-    .action_({ |e| setParam.(\synthSaw, e.value)})
-    .setColors(stringBackground, stringColor, sliderBackground, numBackground,
-        numStringColor, numNormalColor, numTypingColor, knobColor, background);
+.font_(labelFont)
+.value_(gP.(\synthSaw))
+.action_({ |e| setParam.(\synthSaw, e.value)})
+.setColors(stringBackground, stringColor, sliderBackground, numBackground,
+    numStringColor, numNormalColor, numTypingColor, knobColor, background);
 winCtl.layout.addSpanning(VLayout(cvAux), 7, 2, 2);
 winCtl.front;
 
@@ -678,7 +678,7 @@ winWorld.draw{
         // Report skeletons.
         try {
             skeletonObjectText.string= skeletonObject.keys.asArray.asString
-                .replace("[ ","").replace(" ]","");
+            .replace("[ ","").replace(" ]","");
         }
     } {
         // World Star.
@@ -824,17 +824,17 @@ winWorld.draw{
                         o.loc[0].linlin(0, height, -1, 1) // x
                     );
                     try {
-                    s.sendMsg("/n_set", synths.at(o.identityHash).asInteger,
-                        \azimuth, pos.theta, \distance, pos.magnitude, // Distance from the center.
-                        // Warning! Elevation is obsolete, get rid of it!
-                        \elevation, o.loc[2].linlin(0, depth, 0.5pi, -0.5pi), // How high the object is (inverse).
-                        \amp, o.mass.linlin(1,11, 0.01,0.8) + (o.vel.mag * 0.01), // The faster the louder.
-                        \ax, o.loc[0] / width, \ay, o.loc[1] / height, \az, o.loc[2] / depth,
-                        \velocity, o.vel.mag,
-                        \master, gP.(\master),
-                        \depth, gP.(\fieldDepth),
-                        \maxVel, gP.(\worldMaxVel)
-                    )
+                        s.sendMsg("/n_set", synths.at(o.identityHash).asInteger,
+                            \azimuth, pos.theta, \distance, pos.magnitude, // Distance from the center.
+                            // Warning! Elevation is obsolete, get rid of it!
+                            \elevation, o.loc[2].linlin(0, depth, 0.5pi, -0.5pi), // How high the object is (inverse).
+                            \amp, o.mass.linlin(1,11, 0.01,0.8) + (o.vel.mag * 0.01), // The faster the louder.
+                            \ax, o.loc[0] / width, \ay, o.loc[1] / height, \az, o.loc[2] / depth,
+                            \velocity, o.vel.mag,
+                            \master, gP.(\master),
+                            \depth, gP.(\fieldDepth),
+                            \maxVel, gP.(\worldMaxVel)
+                        )
                     }
                 }
             }
@@ -976,6 +976,7 @@ winWorld.draw{
             };
         };
     };
+
     // Control Particles synths and render.
     sys.update;
     sys.do{ |p|
@@ -991,8 +992,8 @@ winWorld.draw{
             // velocity boost amp, but it drops with age,
             // adjusted for maximum age and particles density
             partAmp = sigmoid.(
-                    ratio:gP.(\partFreq) / (gP.(\partAgeThresh) * m),
-                    value:(p.age * p.vel.mag.linlin(0, m, m.neg, m)));
+                ratio:gP.(\partFreq) / (gP.(\partAgeThresh) * m),
+                value:(p.age * p.vel.mag.linlin(0, m, m.neg, m)));
             s.sendBundle(0.001,
                 ["/error", 1], // turn errors off (locally)
                 ["/n_set", partSynths[p.identityHash].asInteger,

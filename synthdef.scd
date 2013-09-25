@@ -45,7 +45,8 @@ SynthDef(\sr__g__reg, {
         DelayL.ar(FreeVerb.ar(Mix.ar(in), distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
         distance.linlin(0, 1, 10000, 1000), 0.5);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -70,7 +71,8 @@ SynthDef(\sr__g__drone, {
         DelayL.ar(FreeVerb.ar(Mix.ar(in), distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
         distance.linlin(0, 1, 10000, 1000), 0.5);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -100,7 +102,8 @@ SynthDef(\sr__g__gust, { // ~ gusts of wind
         DelayL.ar(FreeVerb.ar(Mix.ar(in), distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
         distance.linlin(0, 1, 10000, 1000), 0.5);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -125,7 +128,8 @@ SynthDef(\sr__g__slic, { // slicing
         DelayL.ar(FreeVerb.ar(Mix.ar(in), distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
         distance.linlin(0, 1, 10000, 1000), 0.5);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -147,7 +151,8 @@ SynthDef(\sr__g__loop, {
         DelayL.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
         distance.linlin(0, 1, 10000, 1000), 0.5);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -172,7 +177,8 @@ SynthDef(\sr__g__chunk, { // ~ chunks of sound
         DelayL.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
         distance.linlin(0, 1, 10000, 1000), 0.5);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).send(s);
 
@@ -197,7 +203,8 @@ SynthDef(\sr__e__lowe, { // the "lowe"st
     in = SinOsc.ar(c, BPF.ar(BPF.ar(LFSaw.ar(freq * xx, 0, a), b), xx, q), amp * 0.05);
     signal = RLPF.ar(FreeVerb.ar(Limiter.ar(Mix.ar(in))), distance.linlin(0, 1, 500, 10000), 0.5);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -227,7 +234,8 @@ SynthDef(\sr__e__probe, {
     2.do({in = AllpassN.ar(in, 0.05, [dtl, dtr], 3.0.rand, 2)});
     signal = Mix(in);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -259,7 +267,8 @@ SynthDef(\sr__e__cmb, { // CMB ~ "Cosmic Backgroud Radiation"
     signal = RLPF.ar(FreeVerb.ar(Mix.ar(in), distance, distance/3.44, 0.2),
         distance.linlin(0, 1, 10000, 500), 0.5, mul: amp);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -285,7 +294,8 @@ SynthDef(\sr__e__melo, {
         FreeVerb.ar(LeakDC.ar(Mix.ar(in) * 0.03), distance, distance/3.44, 0.2),
         distance.linlin(0, 1, 10000, 500), 0.5);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -308,7 +318,8 @@ SynthDef(\sr__e__ringz, {
         FreeVerb.ar(LeakDC.ar(Mix.ar(in)), distance, distance/3.44, 0.2),
         distance.linlin(0, 1, 10000, 500), 0.5);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -338,7 +349,8 @@ SynthDef(\sr__e__pulse, {
     in = Compander.ar(in, in, 0.002, slopeBelow: 0.33, slopeAbove: 0.5, clampTime: 0.01, relaxTime: 0.01);
     signal = Mix.ar(in);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -377,7 +389,8 @@ SynthDef(\sr__e__analog, {
     in = Mix.fill(8, {LFSaw.ar((note + 0.1.rand2).midicps, mul:0.025)});
     signal = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq, amp);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -395,7 +408,7 @@ SynthDef(\sr__e__noisy, {
     // Synthesis.
 	in = RLPF.ar(
         Impulse.ar(freq, 0.0, 0.7.rand) + WhiteNoise.ar(0.8.rand),
-        LFDClipNoise.ar(az, 34, 78).midicps, 0.1 // bookmark - broad the spectrum
+        LFDClipNoise.ar(az, 34, 78).midicps // bookmark - broad the spectrum
         //LFNoise1.kr(1, 38, 115)
     );
  	in = [in, DelayN.ar(in, 0.04, 0.04) ];
@@ -404,7 +417,8 @@ SynthDef(\sr__e__noisy, {
         FreeVerb.ar(LeakDC.ar(Mix.ar(in) * 0.03), distance, distance/3.44, 0.5),
         distance.linlin(0, 1, 10000, 500), 0.5);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).send(s);
 
@@ -420,7 +434,8 @@ SynthDef(\sr__e__humm, {
     in = LFSaw.ar(mnote + freqBase + mod.linlin(-1, 1, -40, 40), mul: amp * 0.1);
     signal = RLPF.ar(in, LinLin.kr(mod, -1, 1, 80, 30).midicps, 0.1, amp.clip(0.01, 0.99));
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 
@@ -441,7 +456,8 @@ SynthDef(\sr__e__lfsaw, {
         FreeVerb.ar(LeakDC.ar(in), distance, distance/3.44, 0.2),
         distance.linlin(0, 1, 10000, 500), 0.5);
     //Envelope.
-    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
 

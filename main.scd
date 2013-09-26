@@ -127,7 +127,7 @@ var c_CTRL_SYNTH_ARGS = #[ //[\synthName, kr_bus]
     [\kr_mh0, 5]];
 var o_SCHEDULER_ADDR = NetAddr.new("127.0.0.1", 57120);
 var o_SKELETON_ADDR = NetAddr("192.168.1.102", nil); // NetAddr("192.168.0.11", nil);
-var w_ZERO_2D_VECTOR = #[0, 0], w_ZERO_3D_VECTOR = #[0, 0, 0];
+var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0], w_REDVEC_3D_0 = RedVector3D[0, 0, 0];
 
 
 // VARIABLES
@@ -252,8 +252,8 @@ objects = Array.fill(worldCapacity, {nil}); // container for physical objects
 objectsProp = Dictionary.new; // properties of objects
 synths = Dictionary.new; // container for synths connected to objects
 springs = Dictionary.new; // container for springs
-skeletonCoords=Dictionary.new; // container for skeleton coordinates
-skeletonObject=Dictionary.new; // container for skeleton objects
+skeletonCoords = Dictionary.new; // container for skeleton coordinates
+skeletonObject = Dictionary.new; // container for skeleton objects
 
 rootNodeID = s.nextNodeID; // root group Id for objects' synths
 s.sendMsg("/g_new", rootNodeID, 0, 1); // root group at the head of group 1
@@ -302,10 +302,10 @@ oscSkeletonNew = OSCFunc({ arg msg, time, addr, recvPort;
     if (skeletonCoords.size < skelLimit) {
         skeletonCoords.put(msg[1].asInteger, (
             \update: Date.getDate.secStamp,
-            \r_hand: w_ZERO_3D_VECTOR, \l_hand: w_ZERO_3D_VECTOR,
-            \r_elbow: w_ZERO_3D_VECTOR, \l_elbow: w_ZERO_3D_VECTOR,
-            \r_foot: w_ZERO_3D_VECTOR, \l_foot: w_ZERO_3D_VECTOR,
-            \neck: w_ZERO_3D_VECTOR
+            \r_hand: w_VEC_3D_0, \l_hand: w_VEC_3D_0,
+            \r_elbow: w_VEC_3D_0, \l_elbow: w_VEC_3D_0,
+            \r_foot: w_VEC_3D_0, \l_foot: w_VEC_3D_0,
+            \neck: w_VEC_3D_0
             )
         )
     }
@@ -527,7 +527,7 @@ winCtl.front;
 
 // WORLD
 //
-world = RedWorld3(RedVector3D[width, height, depth], RedVector3D[0, 0, 0], 30, 0.8);
+world = RedWorld3(RedVector3D[width, height, depth], w_REDVEC_3D_0, 30, 0.8);
 
 // Constant objects.
 objGuide = RedBoid(world,
@@ -540,8 +540,8 @@ objGuide = RedBoid(world,
 // Center of the World.
 worldStar = RedObject(world,
     RedVector3D[height/2, width/3, depth/2],
-    RedVector3D[0, 0, 0],
-    RedVector3D[0, 0, 0],
+    w_REDVEC_3D_0,
+    w_REDVEC_3D_0,
     mass:gP.(\starMass), size:10);
 
 // World engine.
@@ -609,12 +609,15 @@ winWorld.draw{
             // Check if the objects for current skeleton id are out there.
             if (skeletonObject.keys.includes(k).not) {
                 skeletonObject.put(k, Dictionary.new);
-                5.do{|i| // 5 are hands, elbows and neck.
+                5.do{ |i| // 5 are hands, elbows and neck.
+                    // The choice of RedAgent is because of its .state Dict, which
+                    // carries additional info and objects.
                     skeletonObject[k].put(i,
-                        RedAgent(world, RedVector3D[height, width, depth].rand,
-                            RedVector3D[0,0,0], RedVector3D[0,0,0], gP.(\starMass), 10
-                        ).state_(Dictionary.new)
-                    )
+                        RedAgent(world, w_REDVEC_3D_0, w_REDVEC_3D_0, w_REDVEC_3D_0, gP.(\starMass), 10)
+                        .state_(Dictionary.new)
+                    );
+                    skeletonObject[k][i].state[\guide] = RedObject(world,
+                        w_REDVEC_3D_0, w_REDVEC_3D_0, w_REDVEC_3D_0, mass:10, size:10);
                 };
                 skeletonCoords[k].put(\color, Color.rand);
             };
@@ -628,9 +631,17 @@ winWorld.draw{
                         3, {RedVector3D.newFrom(v[\r_elbow])},
                         4, {RedVector3D.newFrom(v[\r_hand])}
                     );
+                    // update skeleton joint
                     sk.mass = gP.(\starMass);
                     sk.update;
                     world.contain(sk);
+                    // update skeleton joint spring object
+                    sk.state[\guide]
+                        .spring(skeletonObject[k][i], 1, 0.1, 0.1)
+                        .addForce(world.gravity)
+                        .addForce(wind)
+                        .update;
+                    world.contain(sk.state[\guide]);
                     if (gP.(\visualize).booleanValue) {
                         // Render objects.
                         Pen.fillColor = skeletonCoords[k].at(\color);
@@ -859,8 +870,6 @@ winWorld.draw{
                             objGuide.addForceArrive(obj.at(0).loc).addForceArrive(obj.at(4).loc);
                         };
                     };
-                    objGuide.addForce(world.gravity);
-                    objGuide.addForce(wind);
                 }
             );
             // Apply only world's forces.
@@ -890,7 +899,7 @@ winWorld.draw{
             objAudioIn = RedBoid(world,
                 RedVector3D[width, height, depth].rand,
                 RedVector3D[1, 1, 1],
-                RedVector3D[0, 0, 0],
+                w_REDVEC_3D_0,
                 10, 10)
             .maxForce_(1).wdistance_(3.rrand(13))
             .wchange_(0.75).wradius_(10.rrand(50));
@@ -952,14 +961,12 @@ winWorld.draw{
     m = gP.(\worldMaxVel);
     if (gP.(\particles).booleanValue) {
         if (winWorld.frame % (gP.(\fps) * (gP.(\partFreq))).round == 0) {
-            // guide object in the absence of skeleton
-            guides = [objGuide];
-            // guides = [];
-            // if (skeletonCoords.size.booleanValue) {
-            //     skeletonObject.do { |k| guides = guides ++ [k[0], k[4]]}
-            // } {
-            //     guides = [objGuide]
-            // };
+            if (skeletonObject.size.booleanValue) { // hands guide particles
+                guides = [];
+                skeletonObject.do { |k| guides = guides ++ [k[0].state[\guide], k[4].state[\guide]]}
+            } { // guide object in the absence of skeleton
+                guides = [objGuide]
+            };
             guides.do { |g, i|
                 // probability of particle being generated depends on the objects velocity
                 partProb = sigmoid.(
@@ -981,10 +988,6 @@ winWorld.draw{
     sys.update;
     sys.do{ |p|
         if(p.alive) {
-            // check it when playing live, if particles need any more forces
-            // if (applyForces.booleanValue) {
-            //     newPart.addForce(newPart.gravityForce(worldStar).neg);
-            // };
             posPart = Complex(
                 p.loc[1].linlin(0, width, 1, -1), // y
                 p.loc[0].linlin(0, height, -1, 1) // x
@@ -1095,11 +1098,11 @@ initObject = { |objectMass=5, objectType="a RedObject", objectAge=inf, objectPos
     // Create new object.
     newObject = switch(objectType.asString,
         "a RedBoid", {
-            RedBoid(world, initPos, RedVector3D[0, 0, 0], RedVector3D[0, 0, 0], objectMass, objectMass * 5)
+            RedBoid(world, initPos, w_REDVEC_3D_0, w_REDVEC_3D_0, objectMass, objectMass * 5)
             .maxForce_(1).wdistance_(3.rrand(13)).wchange_(0.75).wradius_(10.rrand(50))
         },
         "a RedObject", {
-            RedObject(world, initPos, RedVector3D[0, 0, 0], RedVector3D[0, 0, 0], objectMass, objectMass * 5)
+            RedObject(world, initPos, w_REDVEC_3D_0, w_REDVEC_3D_0, objectMass, objectMass * 5)
         }
     );
     objects.put(currObj, newObject); // Place new object to the stack.

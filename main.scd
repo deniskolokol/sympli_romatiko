@@ -635,11 +635,10 @@ winWorld.draw{
                     sk.mass = gP.(\starMass);
                     sk.update;
                     world.contain(sk);
-                    // update skeleton joint spring object
+                    // add object on spring
                     sk.state[\guide]
                         .spring(skeletonObject[k][i], 1, 0.1, 0.1)
                         .addForce(world.gravity)
-                        .addForce(wind)
                         .update;
                     world.contain(sk.state[\guide]);
                     if (gP.(\visualize).booleanValue) {
@@ -857,17 +856,16 @@ winWorld.draw{
         // Guidance source (free float affected by wind only, feet, hands).
         if (applyForces.booleanValue) {
             gP.(\partGuide).switch(
-                \wind, {objGuide.addForce(wind)},
+                \wind, { }, // wind affects it anyway (see below)
                 \feet, {
                     try {
                         objGuide.addForceArrive(skeletonCoords.at(skeletonCoords.keys.minItem)[[\r_foot, \l_foot].choose]);
                     };
-                    objGuide.addForce(world.gravity);
                 },
                 \object, {
                     try {
                         skeletonObject.keysValuesDo { |id, obj|
-                            objGuide.addForceArrive(obj.at(0).loc).addForceArrive(obj.at(4).loc);
+                            objGuide.addForceArrive(obj[0].loc).addForceArrive(obj[4].loc);
                         };
                     };
                 }
@@ -896,11 +894,8 @@ winWorld.draw{
     // Audio through object and synth.
     if (gP.(\audioIn).booleanValue) {
         if (objAudioIn.isNil) {
-            objAudioIn = RedBoid(world,
-                RedVector3D[width, height, depth].rand,
-                RedVector3D[1, 1, 1],
-                w_REDVEC_3D_0,
-                10, 10)
+            objAudioIn = RedBoid(world, RedVector3D[width, height, depth].rand,
+                w_REDVEC_3D_0, w_REDVEC_3D_0, 10, 10)
             .maxForce_(1).wdistance_(3.rrand(13))
             .wchange_(0.75).wradius_(10.rrand(50));
 
@@ -962,8 +957,7 @@ winWorld.draw{
     if (gP.(\particles).booleanValue) {
         if (winWorld.frame % (gP.(\fps) * (gP.(\partFreq))).round == 0) {
             if (skeletonObject.size.booleanValue) { // hands guide particles
-                guides = [];
-                skeletonObject.do { |k| guides = guides ++ [k[0].state[\guide], k[4].state[\guide]]}
+                guides = all{: l[k].state[\guide], l <- skeletonObject, k <- l.keys, [0, 4].includes(k)}
             } { // guide object in the absence of skeleton
                 guides = [objGuide]
             };
@@ -973,7 +967,7 @@ winWorld.draw{
                     ratio:gP.(\partSigmoidRatio),
                     value:g.vel.mag.linlin(0, m, m.neg, m));
                 if (partProb.coin.booleanValue) {
-                    // particle "follows" trajectory of its guide (inertia)
+                    // particle has inertia (follows trajectory of its guide)
                     newPart = RedParticle(world, g.loc, 0, objGuide.vel.tanh * gP.(\partInitAccel).max(0.01), 10, 10)
                         .age_(gP.(\partAgeThresh).logistic);
                     sys.add(newPart);
@@ -984,7 +978,7 @@ winWorld.draw{
         };
     };
 
-    // Control Particles synths and render.
+    // Control Particles synths.
     sys.update;
     sys.do{ |p|
         if(p.alive) {
@@ -1011,6 +1005,8 @@ winWorld.draw{
                     \maxVel, m]
             );
         };
+
+        // Render particles.
         if (gP.(\visualize).booleanValue) {
             try {
                 Pen.fillColor= Color.red(p.age / gP.(\partAgeThresh), 1)

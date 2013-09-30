@@ -20,7 +20,10 @@ var p_FACTORY_SETTINGS = (
     heavy:             5, // heavy objects hang on springs, no gravity
     initMass:          5, // initial mass with which object is created
     objAttract:        true, // do objects attract each other
-    repulsiveForce:    1, // behavior on collision (no repulsion if 1)
+    repulsiveForce:    1, // behavior on collision (no repulsion if 1),
+    springStiff:       0.1, // springs stiffness
+    springDamp:        0.9, // springs damping
+    springLen:         1, // springs length
     // Particles.
     particles:         0, // run particles
     partSigmoidRatio:  0.7, // steepness of sigmoid function determiming probability of particle appearing
@@ -62,6 +65,9 @@ var p_INTRFACE = [
             (param: \starMass, title: "Star mass", spec: ControlSpec(5, 2147483647)),
             (param: \heavy, title: "Heavy objects", spec: p_MASSSPEC),
             (param: \worldDim, title: "World dimensions", spec: ControlSpec(1, 2000)),
+            (param: \springStiff, title: "Spring stiffness", spec: ControlSpec(0.1, 2)),
+            (param: \springDamp, title: "Spring damping", spec: ControlSpec(0.1, 2)),
+            (param: \springLen, title: "Spring length", spec: ControlSpec(0.1, 10.0)),
         ]
     ),
     (
@@ -274,7 +280,6 @@ sys.removeAction = { |o|
 };
 partGuideItems = [\wind, \feet, \object];
 
-
 // CONTINOUS BUFFER RECORDING
 //
 loadBufRout = Routine({
@@ -386,7 +391,6 @@ oscRemoveFunc = {
     oscSkeletonJoint.free;
 };
 
-
 // INTERFACE
 //
 winCtl = Window.new("controls", Rect(1200, 200, 500, 840));
@@ -452,6 +456,7 @@ drawPanels = { |win, elements|
         };
     };
 };
+
 // Draw first column
 winCtl.layout.setMinRowHeight(1, 60);
 drawPanels.(winCtl, p_INTRFACE);
@@ -460,20 +465,20 @@ drawPanels.(winCtl, p_INTRFACE);
 cvObjCtrl = CompositeView().background_(panelColor);
 cvObjCtrl.decorator = FlowLayout(cvObjCtrl.bounds);
 StaticText(cvObjCtrl, 230@20).background_(layoutHColor).font_(layoutHFont)
-.string_(" Objects mass control ").stringColor_(layoutHFontColor);
+    .string_(" Objects mass control ").stringColor_(layoutHFontColor);
 // initital mass of newly created object
 EZSlider(cvObjCtrl, 200@25, " new ", p_MASSSPEC, labelWidth:50, numberWidth:50).font_(layoutHFont)
-.setColors(stringBackground, stringColor, sliderBackground, numBackground,
-    numStringColor, numNormalColor, numTypingColor, knobColor, background)
-.value_(gP.(\initMass))
-.action_({ |e| setParam.(\initMass, e.value)});
+    .setColors(stringBackground, stringColor, sliderBackground, numBackground,
+        numStringColor, numNormalColor, numTypingColor, knobColor, background)
+    .value_(gP.(\initMass))
+    .action_({ |e| setParam.(\initMass, e.value)});
 // mass control of individual objects
 worldCapacity.do{ |i|
     ezkObjCtrl[i] = EZSlider(cvObjCtrl, 200@25," "++i.asString, p_MASSSPEC, labelWidth:50, numberWidth:50)
-    .enabled_(false)
-    .setColors(Color.grey(alpha:0.1), layoutHColor, objColors[i],
-        Color.grey(alpha:0.1), Color.black, nil, nil, objColors[i]).font_(labelFont)
-    .action_({ |ez| objects[i].mass = ez.value});
+        .enabled_(false)
+        .setColors(Color.grey(alpha:0.1), layoutHColor, objColors[i],
+            Color.grey(alpha:0.1), Color.black, nil, nil, objColors[i]).font_(labelFont)
+        .action_({ |ez| objects[i].mass = ez.value});
 };
 winCtl.layout.addSpanning(VLayout(cvObjCtrl), 1, 2, 6);
 
@@ -511,17 +516,17 @@ StaticText(cvAux, 150@20).font_(layoutHFont).string_(" Skel monitor ");
 skeletonObjectText = StaticText(cvAux, 50@20).string_("").font_(layoutHFont);
 // Formant & saw synths ctrls (hard wired to legs).
 EZSlider(cvAux, 200@25, " form ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-.font_(labelFont)
-.value_(gP.(\synthForm))
-.action_({ |e| setParam.(\synthForm, e.value)})
-.setColors(stringBackground, stringColor, sliderBackground, numBackground,
-    numStringColor, numNormalColor, numTypingColor, knobColor, background);
+    .font_(labelFont)
+    .value_(gP.(\synthForm))
+    .action_({ |e| setParam.(\synthForm, e.value)})
+    .setColors(stringBackground, stringColor, sliderBackground, numBackground,
+        numStringColor, numNormalColor, numTypingColor, knobColor, background);
 EZSlider(cvAux, 200@25, " lsaw ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-.font_(labelFont)
-.value_(gP.(\synthSaw))
-.action_({ |e| setParam.(\synthSaw, e.value)})
-.setColors(stringBackground, stringColor, sliderBackground, numBackground,
-    numStringColor, numNormalColor, numTypingColor, knobColor, background);
+    .font_(labelFont)
+    .value_(gP.(\synthSaw))
+    .action_({ |e| setParam.(\synthSaw, e.value)})
+    .setColors(stringBackground, stringColor, sliderBackground, numBackground,
+        numStringColor, numNormalColor, numTypingColor, knobColor, background);
 winCtl.layout.addSpanning(VLayout(cvAux), 7, 2, 2);
 winCtl.front;
 
@@ -531,17 +536,13 @@ world = RedWorld3(RedVector3D[width, height, depth], w_REDVEC_3D_0, 30, 0.8);
 
 // Constant objects.
 objGuide = RedBoid(world,
-    RedVector3D[width, height, depth].rand,
-    RedVector3D[1,1,1],
-    RedVector3D[0,0,0],
+    RedVector3D[width, height, depth].rand, w_REDVEC_3D_0, w_REDVEC_3D_0,
     mass:10, size:10)
-.maxForce_(1).wdistance_(3.rrand(13)).wchange_(0.75).wradius_(10.rrand(50));
+    .maxForce_(1).wdistance_(3.rrand(13)).wchange_(0.75).wradius_(10.rrand(50));
 
 // Center of the World.
 worldStar = RedObject(world,
-    RedVector3D[height/2, width/3, depth/2],
-    w_REDVEC_3D_0,
-    w_REDVEC_3D_0,
+    RedVector3D[height/2, width/3, depth/2], w_REDVEC_3D_0, w_REDVEC_3D_0,
     mass:gP.(\starMass), size:10);
 
 // World engine.
@@ -643,12 +644,17 @@ winWorld.draw{
                     world.contain(sk.state[\guide]);
                     if (gP.(\visualize).booleanValue) {
                         // Render objects.
-                        Pen.fillColor = skeletonCoords[k].at(\color);
-                        Pen.strokeColor = Color.blue;
+                        Pen.fillColor = skeletonCoords[k][\color];
+                        Pen.strokeColor = skeletonCoords[k][\color];
                         Pen.fillOval(Rect.aboutRedObject3D(sk));
                         // Draw feet (no objects).
                         Pen.fillOval(Rect.aboutRedVector3D(v[\r_foot], v[\r_foot][2].linlin(0,depth, 5,30), width, height, depth));
                         Pen.fillOval(Rect.aboutRedVector3D(v[\l_foot], v[\l_foot][2].linlin(0,depth, 5,30), width, height, depth));
+                        try { // connect joints
+                            Pen.line(planeCoords.value(sk.loc, width, height, depth).asPoint,
+                                planeCoords.value(skeletonObject[k][i-1].loc, width, height, depth).asPoint)
+                                .stroke;
+                        }
                     }
                 }
             };
@@ -775,7 +781,8 @@ winWorld.draw{
                                             } {
                                                 //Spring params: target, stiffness, damping, length.
                                                 try {
-                                                    o.spring(springs[o.identityHash], 0.8, 0.1, 2)
+                                                    o.spring(springs[o.identityHash],
+                                                        gP.(\springStiff), gP.(\springDamp), gP.(\springLen))
                                                 } { |err|
                                                     ("Error attaching spring to object: " ++ err).postln;
                                                 }
@@ -991,7 +998,7 @@ winWorld.draw{
             partAmp = sigmoid.(
                 ratio:gP.(\partFreq) / (gP.(\partAgeThresh) * m),
                 value:(p.age * p.vel.mag.linlin(0, m, m.neg, m)));
-            s.sendBundle(0.001,
+            s.sendBundle(0.01,
                 ["/error", 1], // turn errors off (locally)
                 ["/n_set", partSynths[p.identityHash].asInteger,
                     \azimuth, posPart.theta,

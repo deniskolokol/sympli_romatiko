@@ -24,7 +24,7 @@ Naming synths:
 
 
 // GRANULAR SYNTHS
-
+//
 SynthDef(\sr__g__reg, {
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
@@ -184,7 +184,7 @@ SynthDef(\sr__g__chunk, { // ~ chunks of sound
 
 
 // ELECTRONIC SYNTHS
-
+//
 SynthDef(\sr__e__lowe, { // the "lowe"st
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
@@ -401,18 +401,26 @@ SynthDef(\sr__e__noisy, {
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=10,
         offset=36, cutoff=0, maxVel=30;
 	var in, out, signal;
-    var freq, scale;
+    var scale, freq, fbase, reso, shift;
     // Conversion.
     scale = NamedControl.kr(\scale, FloatArray[0, 3, 7, 10]);
-    freq = DegreeToKey.kr(LocalBuf.newFrom(scale), az * 15, 24, 1, 15).cpsmidi;
+    freq = DegreeToKey.kr(LocalBuf.newFrom(scale), az * 15, 24, 1, 15).midicps;
+
+    // Conversion.
+    fbase = distance.linexp(0, 1, 10, 40);
+    reso = distance.linexp(0, 1, 200, 5000);
+    shift = (velocity ** 3).lag(0.01);
     // Synthesis.
-	in = RLPF.ar(
-        Impulse.ar(freq, 0.0, 0.7.rand) + WhiteNoise.ar(0.8.rand),
-        LFDClipNoise.ar(az, 34, 78).midicps // bookmark - broad the spectrum
-        //LFNoise1.kr(1, 38, 115)
-    );
- 	in = [in, DelayN.ar(in, 0.04, 0.04) ];
-	4.do({in = AllpassN.ar(in, 0.05, [0.05.rand, 0.05.rand], 4, amp)});
+    in = Formlet.ar(
+        WhiteNoise.ar(SinOsc.ar(fbase, shift, 0.5, 1)).min(1)
+        +
+        SinOsc.ar(freq, shift)
+        ,
+        LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(1))), 2450, 2550), 0.01, 0.1
+    ).softclip;
+
+    in = [in, DelayN.ar(in, 0.04, 0.4)];
+    4.do({in = AllpassN.ar(in, 0.5, [0.5.rand, 0.5.rand], 4, amp * 2)});
     signal = RLPF.ar(
         FreeVerb.ar(LeakDC.ar(Mix.ar(in) * 0.03), distance, distance/3.44, 0.5),
         distance.linlin(0, 1, 10000, 500), 0.5);
@@ -462,8 +470,9 @@ SynthDef(\sr__e__lfsaw, {
 }).add;
 
 
-// DRUMS AND PERCUSSION (Warning! Different enveloping.)
-
+// DRUMS AND PERCUSSION
+// (Warning! Different enveloping.)
+//
 SynthDef(\sr__p__kick, {
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr=3,
@@ -529,18 +538,22 @@ SynthDef(\sr__p__snare, {
 // Ambisonic notes:
 // - distance of the object from the center should always be corrected with respect to field depth.
 // - distance artificially moved to 0.5 from the center to eliminate feedback.
-
+//
 SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0,
         amp=1, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
-    var w, x, y, z, r, s, t, u, v;
-    var in, signal, out;
+    var w, x, y, z, r, s, t, u, v,
+        speakerAzim= [-0.25pi, 0.25pi], speakerElev= 0, speakerDist= [2, 2],
+        maxDist=3, scaleFlag=1,
+        in, signal, out;
     distance = distance.linlin(0.0, 1.0, 0.5, depth);
     in = In.ar(inbus, 1);
     signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
     #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance, amp);
     out = FMHDecode1.stereo(w, z);
+    // out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
+    // azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
     Out.ar(outbus, out);
 }).send(s);
 
@@ -601,7 +614,7 @@ SynthDef(\sr__s__vbap4, {
 
 
 // RECORDING AND AUDIO
-
+//
 SynthDef(\sr__r__rec1, { // mono recording
     arg inbus, bufnum=0, amp=1;
     DiskOut.ar(bufnum, Limiter.ar(amp * InFeedback.ar(inbus, 1), 0.99, 0.01) );
@@ -648,7 +661,7 @@ SynthDef(\sr__r__authro, { // audio-through
 
 
 // UTILITIES
-
+//
 SynthDef(\sr__u__grain, { //individual grain (can only be sent to audio in).
     arg bufnum=0, busnum=0, amp=1, att=1, rel=1, ca=3, cr= -3,
     pos=0.0, rate=1, dur=0.1;

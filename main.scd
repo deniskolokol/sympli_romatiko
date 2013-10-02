@@ -138,7 +138,7 @@ var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0], w_REDVEC_3D_0 = RedVector3D[0
 
 // VARIABLES
 //
-var skelLimit=1, theHeaviest=5000;
+var skelLimit=1;
 var w, world, width, height, depth, margin=0;
 var worldCapacity=18;
 var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide, posGuide, objAudioIn=nil, posAudioIn;
@@ -732,8 +732,8 @@ winWorld.draw{
             }
         };
 
-        // Process only synth objects (skeleton objects must always be the haviest ones).
-        if ([objGuide, objAudioIn].includes(o).not && (o.mass < theHeaviest)) {
+        // Process only synth objects (skeleton objects must always be the heaviest ones).
+        if ([objGuide, objAudioIn].includes(o).not && (o.mass < params[\starMass])) {
             if (objects.indexOf(o) == nil) {
                 // Hot trash cleaner.
                 world.remove(o); o.free; o= nil;

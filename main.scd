@@ -50,8 +50,8 @@ var a_SYNTHS = #[\sr__g__reg, \sr__g__drone, \sr__g__gust, \sr__g__slic, \sr__g_
 var p_MASSSPEC = ControlSpec(1, 11, \lin, 1);
 // Interface descriptor.
 // Based on panels, each of which consist of a collection of elements.
-// Each element either sets a param (using gP and setParam functions)
-// or triggers something special, in which case a function should exist to describe an action.
+// Each element either sets a param or triggers something special,
+// in which case a function should be defined.
 var p_INTRFACE = [
     (
         title: "World parameters",
@@ -153,9 +153,6 @@ var objColors= Array.fill(worldCapacity, {Color.rand});
 
 // Global parameters.
 var params, paramsFilename, paramsFile;
-var getParam = { |p| params.atFail(p, {p_FACTORY_SETTINGS[p]})};
-var setParam = { |p, v| params.put(p, v.value)};
-var gP = getParam, sP = setParam; // abbr
 
 // OSC communication.
 var oscObjScheduler, oscParmScheduler, oscActScheduler;
@@ -232,6 +229,8 @@ try { // to load from settings file
         paramsFilename
     ).warn
 };
+// complete params: if key not present, fill from factory settings
+params = merge(params, p_FACTORY_SETTINGS, { |a, b| a });
 
 // Load synthDefs.
 "Loading synth definitions...".postln;
@@ -243,7 +242,7 @@ if (this.executeFile((params[\synthdefFile])).isNil.not) {
 };
 
 // Find or create tmp dir.
-~tempDir = gP.(\tempDir).asAbsolutePath;
+~tempDir = params[\tempDir].asAbsolutePath;
 if (File.type(~tempDir) != \directory) {File.mkdir(~tempDir)};
 if (File.type(~tempDir) == \not_found) { // error!
     format(
@@ -253,7 +252,7 @@ if (File.type(~tempDir) == \not_found) { // error!
     ~tempDir = nil;
 };
 
-depth = width = height = gP.(\worldDim);
+depth = width = height = params[\worldDim];
 objects = Array.fill(worldCapacity, {nil}); // container for physical objects
 objectsProp = Dictionary.new; // properties of objects
 synths = Dictionary.new; // container for synths connected to objects
@@ -287,7 +286,7 @@ loadBufRout = Routine({
         if(cyclicBuf.numChannels != nil, {
             cyclicSynthID = s.nextNodeID;
             s.sendMsg("/s_new", \sr__r__buffloop, cyclicSynthID, 0, rootNodeID,
-                \bufnum, cyclicBuf.bufnum, \busnum, gP.(\inbus), \volIn, 1, \gate, 1, \dur, 1);
+                \bufnum, cyclicBuf.bufnum, \busnum, params[\inbus], \volIn, 1, \gate, 1, \dur, 1);
             loadBufRout.stop;
         });
         0.01.wait;
@@ -350,7 +349,7 @@ oscSkeletonJoint = OSCFunc({ arg msg, time, addr, recvPort;
 oscObjScheduler = OSCFunc({ arg msg, time, addr, recvPort;
     postf("from % received %\n", addr, msg);
     initObject.value(
-        msg[7] ? gP.(\initMass),
+        msg[7] ? params[\initMass],
         objectType: msg[2],
         objectAge: msg[3],
         objectPos: if (msg[4..6] == [0, 0, 0]) {[width, height, depth].rand} {msg[4..6]}
@@ -393,7 +392,7 @@ oscRemoveFunc = {
 
 // INTERFACE
 //
-winCtl = Window.new("controls", Rect(1200, 200, 500, 840));
+winCtl = Window.new("controls", Rect(1200, 200, 500, Window.screenBounds.height));
 winCtl.view.decorator = FlowLayout(winCtl.view.bounds);
 winCtl.layout = GridLayout();
 
@@ -410,7 +409,7 @@ drawPanels = { |win, elements|
             .string_(format(" % ", val[\title]))
             .background_(layoutHColor).stringColor_(layoutHFontColor).font_(layoutHFont);
             val[\params].do { |pm|
-                paramVal = gP.(pm[\param]);
+                paramVal = params[pm[\param]];
                 label = pm[\title] ? pm[\param];
                 element = pm[\element].switch(
                     \dropdown, {
@@ -444,9 +443,9 @@ drawPanels = { |win, elements|
 
                 try { // set initial value and define action
                     element.value_(pm[\items].indexOf(paramVal));
-                    element.globalAction_({ |e| setParam.(pm[\param], pm[\items].at(e.value))});
+                    element.globalAction_({ |e| params[pm[\param]] = pm[\items][e.value]});
                 } { |err|
-                    element.value_(paramVal).action_({ |e| setParam.(pm[\param], e.value)});
+                    element.value_(paramVal).action_({ |e| params[pm[\param]] = e.value});
                 };
             };
             panel.add(view);
@@ -470,8 +469,8 @@ StaticText(cvObjCtrl, 230@20).background_(layoutHColor).font_(layoutHFont)
 EZSlider(cvObjCtrl, 200@25, " new ", p_MASSSPEC, labelWidth:50, numberWidth:50).font_(layoutHFont)
     .setColors(stringBackground, stringColor, sliderBackground, numBackground,
         numStringColor, numNormalColor, numTypingColor, knobColor, background)
-    .value_(gP.(\initMass))
-    .action_({ |e| setParam.(\initMass, e.value)});
+    .value_(params[\initMass])
+.action_({ |e| params[\initMass] = e.value});
 // mass control of individual objects
 worldCapacity.do{ |i|
     ezkObjCtrl[i] = EZSlider(cvObjCtrl, 200@25," "++i.asString, p_MASSSPEC, labelWidth:50, numberWidth:50)
@@ -517,14 +516,14 @@ skeletonObjectText = StaticText(cvAux, 50@20).string_("").font_(layoutHFont);
 // Formant & saw synths ctrls (hard wired to legs).
 EZSlider(cvAux, 200@25, " form ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
     .font_(labelFont)
-    .value_(gP.(\synthForm))
-    .action_({ |e| setParam.(\synthForm, e.value)})
+    .value_(params[\synthForm])
+    .action_({ |e| params[\synthForm] = e.value})
     .setColors(stringBackground, stringColor, sliderBackground, numBackground,
         numStringColor, numNormalColor, numTypingColor, knobColor, background);
 EZSlider(cvAux, 200@25, " lsaw ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
     .font_(labelFont)
-    .value_(gP.(\synthSaw))
-    .action_({ |e| setParam.(\synthSaw, e.value)})
+    .value_(params[\synthSaw])
+    .action_({ |e| params[\synthSaw] = e.value})
     .setColors(stringBackground, stringColor, sliderBackground, numBackground,
         numStringColor, numNormalColor, numTypingColor, knobColor, background);
 winCtl.layout.addSpanning(VLayout(cvAux), 7, 2, 2);
@@ -543,12 +542,12 @@ objGuide = RedBoid(world,
 // Center of the World.
 worldStar = RedObject(world,
     RedVector3D[height/2, width/3, depth/2], w_REDVEC_3D_0, w_REDVEC_3D_0,
-    mass:gP.(\starMass), size:10);
+    mass:params[\starMass], size:10);
 
 // World engine.
 winWorld = RedQWindow("tracking", Rect(800, 300, width, height)).background_(Color.black).front;
 winWorld.draw{
-    if (gP.(\visualize).booleanValue) {
+    if (params[\visualize].booleanValue) {
         // Draw the floor.
         Pen.strokeColor= Color.grey(0.5);
         Pen.strokeRect(Rect.aboutRedVector3D(RedVector[width*0.5, height*0.5, depth], width*0.5, width, height, depth));
@@ -560,7 +559,7 @@ winWorld.draw{
         };
 
         // Show coordinates (all objects).
-        if (gP.(\showCoords).booleanValue) {
+        if (params[\showCoords].booleanValue) {
             world.objects.do { |o, i|
                 planeDot = [5, height - ((i+1) * 22)].asPoint;
                 Pen.fillColor= Color.white;
@@ -581,17 +580,17 @@ winWorld.draw{
     if(isRecording, {recProgress = recProgress + 1});
 
     // Force: wind blowing (trig it every 30s).
-    wind = sin(2pi * ((winWorld.frame % (30 * gP.(\fps))) / width));
+    wind = sin(2pi * ((winWorld.frame % (30 * params[\fps])) / width));
 
     // World parameters.
-    world.maxVel = gP.(\worldMaxVel);
-    world.damping = gP.(\worldDamp);
+    world.maxVel = params[\worldMaxVel];
+    world.damping = params[\worldDamp];
     // World's gravity depends on the presence of skeletons.
     try {
         world.gravity = RedVector3D.newFrom( // Head's position defines vector of gravity
             skeletonObject.at(skeletonObject.keys.minItem)[2].loc/([width, height, depth])-0.5)
     } {
-        world.gravity = RedVector3D[1, 1, 1] * (gP.(\worldGrav));
+        world.gravity = RedVector3D[1, 1, 1] * (params[\worldGrav]);
     };
 
     // Render skeletons.
@@ -614,8 +613,8 @@ winWorld.draw{
                     // The choice of RedAgent is because of its .state Dict, which
                     // carries additional info and objects.
                     skeletonObject[k].put(i,
-                        RedAgent(world, w_REDVEC_3D_0, w_REDVEC_3D_0, w_REDVEC_3D_0, gP.(\starMass), 10)
-                        .state_(Dictionary.new)
+                        RedAgent(world, w_REDVEC_3D_0, w_REDVEC_3D_0, w_REDVEC_3D_0,
+                            params[\starMass], 10).state_(Dictionary.new)
                     );
                     skeletonObject[k][i].state[\guide] = RedObject(world,
                         w_REDVEC_3D_0, w_REDVEC_3D_0, w_REDVEC_3D_0, mass:10, size:10);
@@ -633,7 +632,7 @@ winWorld.draw{
                         4, {RedVector3D.newFrom(v[\r_hand])}
                     );
                     // update skeleton joint
-                    sk.mass = gP.(\starMass);
+                    sk.mass = params[\starMass];
                     sk.update;
                     world.contain(sk);
                     // add object on spring
@@ -642,7 +641,7 @@ winWorld.draw{
                         .addForce(world.gravity)
                         .update;
                     world.contain(sk.state[\guide]);
-                    if (gP.(\visualize).booleanValue) {
+                    if (params[\visualize].booleanValue) {
                         // Render objects.
                         Pen.fillColor = skeletonCoords[k][\color];
                         Pen.strokeColor = skeletonCoords[k][\color];
@@ -653,7 +652,7 @@ winWorld.draw{
                         try { // connect joints
                             Pen.line(planeCoords.value(sk.loc, width, height, depth).asPoint,
                                 planeCoords.value(skeletonObject[k][i-1].loc, width, height, depth).asPoint)
-                                .stroke;
+                            .stroke;
                         }
                     }
                 }
@@ -678,17 +677,17 @@ winWorld.draw{
                     \distance, posFeet[1].magnitude,
                     \elevation, v[\r_foot][2].linlin(0, depth, -0.5pi, 0.5pi),
                     \amp, v[\r_foot][2].clip(0.4, 0.7),
-                    \master, gP.(\synthForm),
+                    \master, params[\synthForm],
                     \mod, "c"++(currFormCtl ? "").asString,
-                    \depth, gP.(\fieldDepth));
+                    \depth, params[\fieldDepth]);
                 synSaw.set(	// left controls \saw
                     \azimuth, posFeet[0].theta,
                     \distance, posFeet[0].magnitude,
                     \elevation, v[\lFoot][2].linlin(0, depth, -0.5pi, 0.5pi),
                     \amp, v[\lFoot][2].clip(0.4, 0.7),
-                    \master, gP.(\synthSaw),
+                    \master, params[\synthSaw],
                     \mod, "c"++(currFormCtl ? "").asString,
-                    \depth, gP.(\fieldDepth));
+                    \depth, params[\fieldDepth]);
             };
         };
         // Report skeletons.
@@ -698,7 +697,7 @@ winWorld.draw{
         }
     } {
         // World Star.
-        worldStar.mass = gP.(\starMass);
+        worldStar.mass = params[\starMass];
         if (winWorld.mouse != RedVector2D[0, 0]) {
             try {
                 worldStar.loc = [winWorld.mouse[0]] ++ [winWorld.mouse[1]] ++ [winWorld.mouse.mean]
@@ -711,7 +710,7 @@ winWorld.draw{
         worldStar.update;
         world.contain(worldStar);
 
-        if (gP.(\visualize).booleanValue) {
+        if (params[\visualize].booleanValue) {
             Pen.fillColor = Color.new(*[0.71, 0.99, 0.99] * worldStar.loc[2].linlin(0, height, 1, 0.3));
             Pen.fillOval(Rect.aboutRedObject3D(worldStar));
         }
@@ -719,7 +718,7 @@ winWorld.draw{
 
     // Render objects.
     world.objects.do { |o, i|
-        if (gP.(\objAttract).booleanValue && (skeletonObject.size == 0)) {
+        if (params[\objAttract].booleanValue && (skeletonObject.size == 0)) {
             // Everybody attracts each other, regardless of the object type or function
             // and even when the World's forces switched off. This helps keeping objects
             // in swarm, while at the same time slowly affects position of the Star.
@@ -727,7 +726,7 @@ winWorld.draw{
                 if (i != j) {
                     o.addForce(o.gravityForce(oo));
                     if (o.loc.distance(oo.loc) < (o.size*2)) {
-                        o.addForce(o.gravityForce(oo).neg * gP.(\repulsiveForce));
+                        o.addForce(o.gravityForce(oo).neg * params[\repulsiveForce]);
                     }
                 }
             }
@@ -741,7 +740,7 @@ winWorld.draw{
             } {
                 if (objectsProp.keys.includes(o.hash)) {
                     // control object's age!
-                    objectsProp[o.hash].put(\age, objectsProp[o.hash].at(\age) - (1/gP.(\fps)));
+                    objectsProp[o.hash].put(\age, objectsProp[o.hash].at(\age) - (1/params[\fps]));
                     if (objectsProp[o.hash].at(\age) <= 0) {
                         // Time to die.
                         removeObject.value(o)
@@ -766,7 +765,7 @@ winWorld.draw{
                                         o.addForceArrive(m[4].loc);
                                     },
                                     "a RedObject", {
-                                        if (o.mass >= gP.(\heavy)) {
+                                        if (o.mass >= params[\heavy]) {
                                             // Springs are for heavy objects.
                                             // Springs _tend_ to stick to the "freer" hand, i.e. the one that have objects
                                             // on springs, whose total mass is lighter than the other (thus the .reverse).
@@ -782,7 +781,7 @@ winWorld.draw{
                                                 //Spring params: target, stiffness, damping, length.
                                                 try {
                                                     o.spring(springs[o.identityHash],
-                                                        gP.(\springStiff), gP.(\springDamp), gP.(\springLen))
+                                                        params[\springStiff], params[\springDamp], params[\springLen])
                                                 } { |err|
                                                     ("Error attaching spring to object: " ++ err).postln;
                                                 }
@@ -790,7 +789,7 @@ winWorld.draw{
 
                                             // Render springs.
                                             // Works only here, since in any other place it's difficult to find the proper object.
-                                            if (gP.(\visualize).booleanValue) {
+                                            if (params[\visualize].booleanValue) {
                                                 Pen.strokeColor= Color.cyan;
                                                 springs.keysValuesDo { |sp, h|
                                                     try {
@@ -821,7 +820,7 @@ winWorld.draw{
                     }
                 };
                 // Render objects.
-                if (gP.(\visualize).booleanValue) {
+                if (params[\visualize].booleanValue) {
                     try {
                         Pen.fillColor = objColors[objects.indexOf(o)].alpha_(o.loc[2].linlin(0, height, 1.0, 0.3));
                     } {
@@ -848,9 +847,9 @@ winWorld.draw{
                             \amp, o.mass.linlin(1,11, 0.01,0.8) + (o.vel.mag * 0.01), // The faster the louder.
                             \ax, o.loc[0] / width, \ay, o.loc[1] / height, \az, o.loc[2] / depth,
                             \velocity, o.vel.mag,
-                            \master, gP.(\master),
-                            \depth, gP.(\fieldDepth),
-                            \maxVel, gP.(\worldMaxVel)
+                            \master, params[\master],
+                            \depth, params[\fieldDepth],
+                            \maxVel, params[\worldMaxVel]
                         )
                     }
                 }
@@ -862,7 +861,7 @@ winWorld.draw{
     if (objGuide.isNil.not) {
         // Guidance source (free float affected by wind only, feet, hands).
         if (applyForces.booleanValue) {
-            gP.(\partGuide).switch(
+            params[\partGuide].switch(
                 \wind, { }, // wind affects it anyway (see below)
                 \feet, {
                     try {
@@ -886,7 +885,7 @@ winWorld.draw{
         };
         objGuide.update;
         world.contain(objGuide);
-        if (gP.(\visualize).booleanValue) {
+        if (params[\visualize].booleanValue) {
             try {
                 Pen.fillColor = Color.white.alpha_(objGuide.loc[2].linlin(0, height, 1.0, 0.3));
                 Pen.fillOval(Rect.aboutRedObject3D(objGuide));
@@ -899,7 +898,7 @@ winWorld.draw{
     };
 
     // Audio through object and synth.
-    if (gP.(\audioIn).booleanValue) {
+    if (params[\audioIn].booleanValue) {
         if (objAudioIn.isNil) {
             objAudioIn = RedBoid(world, RedVector3D[width, height, depth].rand,
                 w_REDVEC_3D_0, w_REDVEC_3D_0, 10, 10)
@@ -908,11 +907,11 @@ winWorld.draw{
 
             audioThroughID = initGroup.(\sr__r__authro,
                 busnum: a_BUS_POOL[1], // last bus number from pool dedicated to audio through.
-                parm: [\inbus, gP.(\inbus)])
+                parm: [\inbus, params[\inbus]])
         };
 
         // Set actual inbus.
-        s.sendMsg("/n_set", audioThroughID, \inbus, gP.(\inbus))
+        s.sendMsg("/n_set", audioThroughID, \inbus, params[\inbus])
     } {
         if (audioThroughID.isNil.not) {
             removeGroup.(audioThroughID);
@@ -938,7 +937,7 @@ winWorld.draw{
         world.contain(objAudioIn);
 
         // Render Object Audio in.
-        if (gP.(\visualize).booleanValue) {
+        if (params[\visualize].booleanValue) {
             try {
                 Pen.fillColor= Color.blue(0.7, 0.8).alpha_(objAudioIn.loc[2].linlin(0, height, 1.0, 0.3));
                 Pen.fillOval(Rect.aboutRedObject3D(objAudioIn));
@@ -954,15 +953,15 @@ winWorld.draw{
             \azimuth, posAudioIn.theta,
             \distance, posAudioIn.magnitude,
             \elevation, objAudioIn.loc[2].linlin(0, depth, -0.5pi, 0.5pi),
-            \master, gP.(\master),
-            \depth, gP.(\fieldDepth)
+            \master, params[\master],
+            \depth, params[\fieldDepth]
         )
     };
 
     // Particles.
-    m = gP.(\worldMaxVel);
-    if (gP.(\particles).booleanValue) {
-        if (winWorld.frame % (gP.(\fps) * (gP.(\partFreq))).round == 0) {
+    m = params[\worldMaxVel];
+    if (params[\particles].booleanValue) {
+        if (winWorld.frame % (params[\fps] * (params[\partFreq])).round == 0) {
             if (skeletonObject.size.booleanValue) { // hands guide particles
                 guides = all{: l[k].state[\guide], l <- skeletonObject, k <- l.keys, [0, 4].includes(k)}
             } { // guide object in the absence of skeleton
@@ -971,15 +970,15 @@ winWorld.draw{
             guides.do { |g, i|
                 // probability of particle being generated depends on the objects velocity
                 partProb = sigmoid.(
-                    ratio:gP.(\partSigmoidRatio),
+                    ratio:params[\partSigmoidRatio],
                     value:g.vel.mag.linlin(0, m, m.neg, m));
                 if (partProb.coin.booleanValue) {
                     // particle has inertia (follows trajectory of its guide)
-                    newPart = RedParticle(world, g.loc, 0, objGuide.vel.tanh * gP.(\partInitAccel).max(0.01), 10, 10)
-                        .age_(gP.(\partAgeThresh).logistic);
+                    newPart = RedParticle(world, g.loc, 0, objGuide.vel.tanh * params[\partInitAccel].max(0.01), 10, 10)
+                        .age_(params[\partAgeThresh].logistic);
                     sys.add(newPart);
-                    partSynths[newPart.identityHash] = initGroup.(gP.(\partSynth),
-                        parm: [\inbus, gP.(\inbus), \cr, 4]);
+                    partSynths[newPart.identityHash] = initGroup.(params[\partSynth],
+                        parm: [\inbus, params[\inbus], \cr, 4]);
                 };
             };
         };
@@ -996,7 +995,7 @@ winWorld.draw{
             // velocity boost amp, but it drops with age,
             // adjusted for maximum age and particles density
             partAmp = sigmoid.(
-                ratio:gP.(\partFreq) / (gP.(\partAgeThresh) * m),
+                ratio:params[\partFreq] / (params[\partAgeThresh] * m),
                 value:(p.age * p.vel.mag.linlin(0, m, m.neg, m)));
             s.sendBundle(0.01,
                 ["/error", 1], // turn errors off (locally)
@@ -1007,16 +1006,16 @@ winWorld.draw{
                     \velocity, p.vel.mag,
                     \ax, p.loc[0] / width, \ay, p.loc[1] / height, \az, p.loc[2] / depth,
                     \amp, partAmp,
-                    \master, gP.(\master),
-                    \depth, gP.(\fieldDepth),
+                    \master, params[\master],
+                    \depth, params[\fieldDepth],
                     \maxVel, m]
             );
         };
 
         // Render particles.
-        if (gP.(\visualize).booleanValue) {
+        if (params[\visualize].booleanValue) {
             try {
-                Pen.fillColor= Color.red(p.age / gP.(\partAgeThresh), 1)
+                Pen.fillColor= Color.red(p.age / params[\partAgeThresh], 1)
                 .alpha_(p.loc[2].linlin(0, height, 1.0, 0.3));
                 Pen.fillOval(Rect.aboutRedObject3D(p));
             } { |err|
@@ -1118,7 +1117,7 @@ initObject = { |objectMass=5, objectType="a RedObject", objectAge=inf, objectPos
 // Create new object's group, insert synth and spatializer into it.
 initGroup = { |synth, bufnum, busnum, parm|
     var spatial, groupID, synthID, spatlID, l, h;
-    spatial = "sr__s__" ++ gP.(\confSurround).toLower; // spatializer's name
+    spatial = "sr__s__" ++ params[\confSurround].toLower; // spatializer's name
     groupID = s.nextNodeID;
     synthID = s.nextNodeID;
     spatlID = s.nextNodeID;
@@ -1132,9 +1131,9 @@ initGroup = { |synth, bufnum, busnum, parm|
         ["/g_new", groupID, 1, rootNodeID], // add new group to root's tail
         ["/s_new", spatial, spatlID, 1, groupID, // add spatializer to new group's tail
             \inbus, busnum, // getting signal from synth
-            \outbus, gP.(\outbus)], // to main output
+            \outbus, params[\outbus]], // to main output
         ["/s_new", synth, synthID, 0, groupID, // add synth to new group's head
-            \inbus, gP.(\inbus), // getting signal from external input
+            \inbus, params[\inbus], // getting signal from external input
             \outbus, busnum, // feeding into spatilizer
             \bufnum, bufnum] ++ (parm ? [])
     );
@@ -1184,10 +1183,10 @@ startFeetSynths= { |gate, tFormAttRel, tSawAttRel|
     if(gate != 0, {
         if(synForm == nil, {
             synForm= Synth.head(rootNodeID, \sr__e__form,
-                [\att, tFormAttRel, \amp, 0.4, \master, gP.(\synthForm),
+                [\att, tFormAttRel, \amp, 0.4, \master, params[\synthForm],
                     \azimuth, pi.bilinrand, \spread, 10.rrand(50), \mod, "c"]);
             synSaw= Synth.head(rootNodeID, \sr__e__lsaw,
-                [\att, tSawAttRel, \amp, 0.4, \master, gP.(\synthSaw),
+                [\att, tSawAttRel, \amp, 0.4, \master, params[\synthSaw],
                     \azimuth, pi.bilinrand, \spread, 10.rrand(50), \mod, "c"]);
             c_CTRL_SYNTH_ARGS.size.do({ |i|
                 synthCtrl[i]= s.nextNodeID;
@@ -1280,10 +1279,10 @@ winWorld.view.keyUpAction= { arg view, char, modifiers, unicode, keycode;
     case
     {keyObjType.includes(keycode)} { // stop rec, create obj, etc.
         if ([0, 256].includes(modifiers)) {
-            initObject.(gP.(\initMass), c_KEY_OBJ_SYNTH.matchAt(keycode)[0]);
+            initObject.(params[\initMass], c_KEY_OBJ_SYNTH.matchAt(keycode)[0]);
             startSynth.(c_KEY_OBJ_SYNTH.matchAt(keycode)[1], recProgress > 30);
             // Enable interface for mass control and set the label.
-            ezkObjCtrl[currSynth].enabled_(true).value = gP.(\initMass);
+            ezkObjCtrl[currSynth].enabled_(true).value = params[\initMass];
             ezkObjCtrl[currSynth].set(
                 currSynth.asString ++ " " ++
                 c_KEY_OBJ_SYNTH.matchAt(keycode)[1].asString.split($_).last
@@ -1428,7 +1427,7 @@ winWorld.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
             ) {
                 if (~tempDir.isNil.not) {
                     currFilename = ~tempDir +/+ (format("sr_%.aif", Date.getDate.stamp.asString));
-                    currBufnum = recBufStart.(inbus: gP.(\inbus), numchannels: 1, path: currFilename);
+                    currBufnum = recBufStart.(inbus: params[\inbus], numchannels: 1, path: currFilename);
                 }
             }
         };

@@ -401,24 +401,15 @@ SynthDef(\sr__e__noisy, {
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=10,
         offset=36, cutoff=0, maxVel=30;
 	var in, out, signal;
-    var scale, freq, fbase, reso, shift;
-    // Conversion.
-    scale = NamedControl.kr(\scale, FloatArray[0, 3, 7, 10]);
-    freq = DegreeToKey.kr(LocalBuf.newFrom(scale), az * 15, 24, 1, 15).midicps;
-
+    var fbase, shift;
     // Conversion.
     fbase = distance.linexp(0, 1, 10, 40);
-    reso = distance.linexp(0, 1, 200, 5000);
     shift = (velocity ** 3).lag(0.01);
     // Synthesis.
     in = Formlet.ar(
-        WhiteNoise.ar(SinOsc.ar(fbase, shift, 0.5, 1)).min(1)
-        +
-        SinOsc.ar(freq, shift)
-        ,
-        LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(1))), 2450, 2550), 0.01, 0.1
+        WhiteNoise.ar(SinOsc.ar(fbase, shift, 0.5, 1)).min(1) + SinOsc.ar(freq, shift),
+        LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(0.5))), 2450, 2550), 0.01, 0.1
     ).softclip;
-
     in = [in, DelayN.ar(in, 0.04, 0.4)];
     4.do({in = AllpassN.ar(in, 0.5, [0.5.rand, 0.5.rand], 4, amp * 2)});
     signal = RLPF.ar(

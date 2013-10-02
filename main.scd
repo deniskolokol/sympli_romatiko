@@ -978,7 +978,7 @@ winWorld.draw{
                         .age_(params[\partAgeThresh].logistic);
                     sys.add(newPart);
                     partSynths[newPart.identityHash] = initGroup.(params[\partSynth],
-                        parm: [\inbus, params[\inbus], \cr, 4]);
+                        parm: [\inbus, params[\inbus], \cr, 4, \att, 0.1]);
                 };
             };
         };

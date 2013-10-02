@@ -174,7 +174,7 @@ var currFilename, currBufnum;
 var initObject, removeObject;
 
 // Particles.
-var sys, guides, newPart, posPart, partSynths, partGuideItems, partProb, partAmp;
+var sys, guides, newPart, posPart, partSynths, partGuideItems, partProb;
 
 // A center of the World.
 var worldStar;
@@ -992,11 +992,6 @@ winWorld.draw{
                 p.loc[1].linlin(0, width, 1, -1), // y
                 p.loc[0].linlin(0, height, -1, 1) // x
             );
-            // velocity boost amp, but it drops with age,
-            // adjusted for maximum age and particles density
-            partAmp = sigmoid.(
-                ratio:params[\partFreq] / (params[\partAgeThresh] * m),
-                value:(p.age * p.vel.mag.linlin(0, m, m.neg, m)));
             s.sendBundle(0.01,
                 ["/error", 1], // turn errors off (locally)
                 ["/n_set", partSynths[p.identityHash].asInteger,
@@ -1005,7 +1000,11 @@ winWorld.draw{
                     \elevation, p.loc[2].linlin(0, depth, 0.5pi, -0.5pi),
                     \velocity, p.vel.mag,
                     \ax, p.loc[0] / width, \ay, p.loc[1] / height, \az, p.loc[2] / depth,
-                    \amp, partAmp,
+                    // velocity boost amp, but it drops with age,
+                    // adjusted for maximum age and particles density
+                    \amp, sigmoid.(
+                        ratio:params[\partFreq] / (params[\partAgeThresh] * m),
+                        value:(p.age * p.vel.mag.linlin(0, m, m.neg, m))),
                     \master, params[\master],
                     \depth, params[\fieldDepth],
                     \maxVel, m]

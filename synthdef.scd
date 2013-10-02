@@ -563,7 +563,7 @@ SynthDef(\sr__s__ambisonic4, {
         amp=1, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim= [-0.25pi, -0.6pi, 0.6pi, 0.25pi], speakerElev= 0, speakerDist= [6.34, 4.88, 4.88, 6.34],
+        speakerAzim= [-0.25pi, -0.6pi, 0.6pi, 0.25pi], speakerElev= 0, speakerDist= [2, 2, 2, 2],
         maxDist=3, scaleFlag=1,
         in, signal, out;
     distance = distance.linlin(0.0, 1.0, 0.5, depth);

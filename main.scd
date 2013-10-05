@@ -139,7 +139,7 @@ var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0], w_REDVEC_3D_0 = RedVector3D[0
 // VARIABLES
 //
 var skelLimit=1;
-var w, world, width, height, depth, margin=0;
+var w, world, width, height, depth;
 var worldCapacity=18;
 var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide, posGuide, objAudioIn=nil, posAudioIn;
 var mass, pos, wind, springs, hand, applyForces=1;
@@ -320,10 +320,10 @@ oscSkeletonJoint = OSCFunc({ arg msg, time, addr, recvPort;
     //postf("from % received %\n", addr, msg);
     joint = msg[1];
     #x, y, z = [
-        msg[3].linlin(-0.1, 1.1, margin, width - margin).round,
-        msg[5].linlin(0.3, 3.4, margin, height - margin).round,
-        // WARNING! Height range shifted by -0.15 in the top and 0.1 in the bottom!
-        msg[4].linlin(-0.15, 0.99, depth - margin, margin).round
+        // WARNING! Ranges shifted!
+        msg[3].linlin(-0.1, 1.1, 0, width).round,
+        msg[5].linlin(0.3, 3.4, 0, height).round,
+        msg[4].linlin(-0.15, 0.99, depth, 0).round
     ];
     skel = skeletonCoords[msg[2].asInteger];
     if (skel.isNil) {
@@ -674,7 +674,7 @@ winWorld.draw{
             if (synForm.isNil.not) {
                 synForm.set( // right controls \formant
                     \azimuth, posFeet[1].theta,
-                    \distance, posFeet[1].magnitude,
+                    \distance, posFeet[1].rho,
                     \elevation, v[\r_foot][2].linlin(0, depth, -0.5pi, 0.5pi),
                     \amp, v[\r_foot][2].clip(0.4, 0.7),
                     \master, params[\synthForm],
@@ -682,7 +682,7 @@ winWorld.draw{
                     \depth, params[\fieldDepth]);
                 synSaw.set(	// left controls \saw
                     \azimuth, posFeet[0].theta,
-                    \distance, posFeet[0].magnitude,
+                    \distance, posFeet[0].rho,
                     \elevation, v[\lFoot][2].linlin(0, depth, -0.5pi, 0.5pi),
                     \amp, v[\lFoot][2].clip(0.4, 0.7),
                     \master, params[\synthSaw],
@@ -841,17 +841,17 @@ winWorld.draw{
                     );
                     try {
                         s.sendMsg("/n_set", synths.at(o.identityHash).asInteger,
-                            \azimuth, pos.theta, \distance, pos.magnitude, // Distance from the center.
-                            // Warning! Elevation is obsolete, get rid of it!
+                            \azimuth, pos.theta,
+                            \distance, pos.rho, // distance from the center
                             \elevation, o.loc[2].linlin(0, depth, 0.5pi, -0.5pi), // How high the object is (inverse).
                             \amp, o.mass.linlin(1,11, 0.01,0.8) + (o.vel.mag * 0.01), // The faster the louder.
                             \ax, o.loc[0] / width, \ay, o.loc[1] / height, \az, o.loc[2] / depth,
-                            \velocity, o.vel.mag,
+                            \velocity, o.vel.mag / world.maxVel,
                             \master, params[\master],
-                            \depth, params[\fieldDepth],
-                            \maxVel, params[\worldMaxVel]
+                            \depth, params[\fieldDepth]
                         )
-                    }
+                    };
+                    p_MASSSPEC.map(o.mass);
                 }
             }
         }
@@ -951,7 +951,7 @@ winWorld.draw{
         );
         s.sendMsg("/n_set", audioThroughID,
             \azimuth, posAudioIn.theta,
-            \distance, posAudioIn.magnitude,
+            \distance, posAudioIn.rho,
             \elevation, objAudioIn.loc[2].linlin(0, depth, -0.5pi, 0.5pi),
             \master, params[\master],
             \depth, params[\fieldDepth]
@@ -959,7 +959,6 @@ winWorld.draw{
     };
 
     // Particles.
-    m = params[\worldMaxVel];
     if (params[\particles].booleanValue) {
         if (winWorld.frame % (params[\fps] * (params[\partFreq])).round == 0) {
             if (skeletonObject.size.booleanValue) { // hands guide particles
@@ -971,7 +970,7 @@ winWorld.draw{
                 // probability of particle being generated depends on the objects velocity
                 partProb = sigmoid.(
                     ratio:params[\partSigmoidRatio],
-                    value:g.vel.mag.linlin(0, m, m.neg, m));
+                    value:g.vel.mag.linlin(0, world.maxVel, world.maxVel.neg, world.maxVel));
                 if (partProb.coin.booleanValue) {
                     // particle has inertia (follows trajectory of its guide)
                     newPart = RedParticle(world, g.loc, 0, objGuide.vel.tanh * params[\partInitAccel].max(0.01), 10, 10)
@@ -996,18 +995,17 @@ winWorld.draw{
                 ["/error", 1], // turn errors off (locally)
                 ["/n_set", partSynths[p.identityHash].asInteger,
                     \azimuth, posPart.theta,
-                    \distance, posPart.magnitude,
+                    \distance, posPart.rho,
                     \elevation, p.loc[2].linlin(0, depth, 0.5pi, -0.5pi),
-                    \velocity, p.vel.mag,
+                    \velocity, p.vel.mag / world.maxVel,
                     \ax, p.loc[0] / width, \ay, p.loc[1] / height, \az, p.loc[2] / depth,
                     // velocity boost amp, but it drops with age,
                     // adjusted for maximum age and particles density
                     \amp, sigmoid.(
-                        ratio:params[\partFreq] / (params[\partAgeThresh] * m),
-                        value:(p.age * p.vel.mag.linlin(0, m, m.neg, m))),
+                        ratio:params[\partFreq] / (params[\partAgeThresh] * world.maxVel),
+                        value:(p.age * p.vel.mag.linlin(0, world.maxVel, world.maxVel.neg, world.maxVel))),
                     \master, params[\master],
-                    \depth, params[\fieldDepth],
-                    \maxVel, m]
+                    \depth, params[\fieldDepth]]
             );
         };
 

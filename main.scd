@@ -119,7 +119,7 @@ var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different
     16: ["a RedObject", \sr__e__noisy],	// y
     32: ["a RedObject", \sr__e__probe],	// u
     34: ["a RedObject", \sr__e__cmb],	// i
-    31: ["a RedObject", \sr__e__lowe],  // o
+    31: ["a RedObject", \sr__e__entro], // o // 31: ["a RedObject", \sr__e__lowe],
     35: ["a RedObject", \sr__e__melo],	// p
     33: ["a RedBoid",   \sr__e__ringz],	// [
     30: ["a RedBoid",   \sr__e__pulse],	// ]
@@ -132,7 +132,7 @@ var c_CTRL_SYNTH_ARGS = #[ //[\synthName, kr_bus]
     [\kr_mg1, 4],
     [\kr_mh0, 5]];
 var o_SCHEDULER_ADDR = NetAddr.new("127.0.0.1", 57120);
-var o_SKELETON_ADDR = NetAddr("192.168.1.102", nil); // NetAddr("192.168.0.11", nil);
+var o_SKELETON_ADDR = NetAddr("192.168.1.103", nil); // NetAddr("192.168.0.11", nil);
 var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0], w_REDVEC_3D_0 = RedVector3D[0, 0, 0];
 
 
@@ -1307,8 +1307,6 @@ winWorld.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
         if([0, 256].includes(modifiers), {objects.do({|o| removeObject.value(o)})});
     }
     {keycode == 45} { a.setn(\freq, [700, 705, 890]); }
-
-    // bookmark
     {keycode == 8} {  // C -
         synths.keys.do{ |k|
             s.sendMsg("/n_setn", synths[k].asInteger, \scale, 7, 0,1,3,5,7,8,10);

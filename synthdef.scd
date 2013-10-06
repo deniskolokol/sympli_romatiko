@@ -439,6 +439,35 @@ SynthDef(\sr__e__humm, {
 }).add;
 
 
+SynthDef(\sr__e__entro, {
+    arg bufnum=0, inbus=30, outbus=20,
+        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
+        offset=36, cutoff=0;
+    var freq, shift, rq, in, out, signal;
+    var options, trig, timer;
+    // Conversion.
+    rq = distance.linlin(0, 2.sqrt, 0.2, 1);
+    freq = velocity.linexp(0, 1, 20, 1000);
+    shift = ((velocity ** 0.2 * 30) ** 3).lag(0.5); // boost velocity
+    trig = velocity > 0.3;
+    timer = Timer.kr(trig);
+    in = TChoose.ar((timer > 0.25) * trig, [
+        RLPF.ar(Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
+            LFNoise0.kr(1, 2, 10), r: LFNoise0.kr(1, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
+            LFPulse.kr(LFSaw.ar(0.2).exp.cubed, 0.5, 2500, 3500),
+            velocity, mul: amp * 0.2),
+        Saw.ar((1..15) * LFNoise0.kr(5, 10, 50) + SinOsc.ar((6..2) * 0.5))
+        ]
+    ) * velocity;
+    signal = RLPF.ar(RLPF.ar(Mix.ar(in), shift, rq), shift, rq);
+    //Envelope.
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(outbus, out);
+}).add;
+
+
 SynthDef(\sr__e__lfsaw, {
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,

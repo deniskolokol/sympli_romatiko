@@ -17,6 +17,7 @@ var p_FACTORY_SETTINGS = (
     worldDamp:         0.8,
     worldDim:          800, // World dimensions in pixels
     starMass:          120, // the heaviest object's mass
+    starSize:          10,
     heavy:             5, // heavy objects hang on springs, no gravity
     initMass:          5, // initial mass with which object is created
     objAttract:        true, // do objects attract each other
@@ -63,6 +64,7 @@ var p_INTRFACE = [
             (param: \worldMaxVel, title: "Max objects velocity", spec: ControlSpec(1, 100)),
             (param: \repulsiveForce, title: "Repulsive force", spec: ControlSpec(1, 1000)),
             (param: \starMass, title: "Star mass", spec: ControlSpec(5, 2147483647)),
+            (param: \starSize, title: "Star size", spec: ControlSpec(10, 500, step:10)),
             (param: \heavy, title: "Heavy objects", spec: p_MASSSPEC),
             (param: \worldDim, title: "World dimensions", spec: ControlSpec(1, 2000)),
             (param: \springStiff, title: "Spring stiffness", spec: ControlSpec(0.1, 2)),
@@ -132,7 +134,7 @@ var c_CTRL_SYNTH_ARGS = #[ //[\synthName, kr_bus]
     [\kr_mg1, 4],
     [\kr_mh0, 5]];
 var o_SCHEDULER_ADDR = NetAddr.new("127.0.0.1", 57120);
-var o_SKELETON_ADDR = NetAddr("192.168.1.103", nil); // NetAddr("192.168.0.11", nil);
+var o_SKELETON_ADDR = NetAddr("192.168.1.102", nil); // NetAddr("192.168.0.11", nil);
 var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0], w_REDVEC_3D_0 = RedVector3D[0, 0, 0];
 
 
@@ -464,20 +466,20 @@ drawPanels.(winCtl, p_INTRFACE);
 cvObjCtrl = CompositeView().background_(panelColor);
 cvObjCtrl.decorator = FlowLayout(cvObjCtrl.bounds);
 StaticText(cvObjCtrl, 230@20).background_(layoutHColor).font_(layoutHFont)
-    .string_(" Objects mass control ").stringColor_(layoutHFontColor);
+.string_(" Objects mass control ").stringColor_(layoutHFontColor);
 // initital mass of newly created object
 EZSlider(cvObjCtrl, 200@25, " new ", p_MASSSPEC, labelWidth:50, numberWidth:50).font_(layoutHFont)
-    .setColors(stringBackground, stringColor, sliderBackground, numBackground,
-        numStringColor, numNormalColor, numTypingColor, knobColor, background)
-    .value_(params[\initMass])
+.setColors(stringBackground, stringColor, sliderBackground, numBackground,
+    numStringColor, numNormalColor, numTypingColor, knobColor, background)
+.value_(params[\initMass])
 .action_({ |e| params[\initMass] = e.value});
 // mass control of individual objects
 worldCapacity.do{ |i|
     ezkObjCtrl[i] = EZSlider(cvObjCtrl, 200@25," "++i.asString, p_MASSSPEC, labelWidth:50, numberWidth:50)
-        .enabled_(false)
-        .setColors(Color.grey(alpha:0.1), layoutHColor, objColors[i],
-            Color.grey(alpha:0.1), Color.black, nil, nil, objColors[i]).font_(labelFont)
-        .action_({ |ez| objects[i].mass = ez.value});
+    .enabled_(false)
+    .setColors(Color.grey(alpha:0.1), layoutHColor, objColors[i],
+        Color.grey(alpha:0.1), Color.black, nil, nil, objColors[i]).font_(labelFont)
+    .action_({ |ez| objects[i].mass = ez.value});
 };
 winCtl.layout.addSpanning(VLayout(cvObjCtrl), 1, 2, 6);
 
@@ -515,17 +517,17 @@ StaticText(cvAux, 150@20).font_(layoutHFont).string_(" Skel monitor ");
 skeletonObjectText = StaticText(cvAux, 50@20).string_("").font_(layoutHFont);
 // Formant & saw synths ctrls (hard wired to legs).
 EZSlider(cvAux, 200@25, " form ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-    .font_(labelFont)
-    .value_(params[\synthForm])
-    .action_({ |e| params[\synthForm] = e.value})
-    .setColors(stringBackground, stringColor, sliderBackground, numBackground,
-        numStringColor, numNormalColor, numTypingColor, knobColor, background);
+.font_(labelFont)
+.value_(params[\synthForm])
+.action_({ |e| params[\synthForm] = e.value})
+.setColors(stringBackground, stringColor, sliderBackground, numBackground,
+    numStringColor, numNormalColor, numTypingColor, knobColor, background);
 EZSlider(cvAux, 200@25, " lsaw ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-    .font_(labelFont)
-    .value_(params[\synthSaw])
-    .action_({ |e| params[\synthSaw] = e.value})
-    .setColors(stringBackground, stringColor, sliderBackground, numBackground,
-        numStringColor, numNormalColor, numTypingColor, knobColor, background);
+.font_(labelFont)
+.value_(params[\synthSaw])
+.action_({ |e| params[\synthSaw] = e.value})
+.setColors(stringBackground, stringColor, sliderBackground, numBackground,
+    numStringColor, numNormalColor, numTypingColor, knobColor, background);
 winCtl.layout.addSpanning(VLayout(cvAux), 7, 2, 2);
 winCtl.front;
 
@@ -537,7 +539,7 @@ world = RedWorld3(RedVector3D[width, height, depth], w_REDVEC_3D_0, 30, 0.8);
 objGuide = RedBoid(world,
     RedVector3D[width, height, depth].rand, w_REDVEC_3D_0, w_REDVEC_3D_0,
     mass:10, size:10)
-    .maxForce_(1).wdistance_(3.rrand(13)).wchange_(0.75).wradius_(10.rrand(50));
+.maxForce_(1).wdistance_(3.rrand(13)).wchange_(0.75).wradius_(10.rrand(50));
 
 // Center of the World.
 worldStar = RedObject(world,
@@ -637,9 +639,9 @@ winWorld.draw{
                     world.contain(sk);
                     // add object on spring
                     sk.state[\guide]
-                        .spring(skeletonObject[k][i], 1, 0.1, 0.1)
-                        .addForce(world.gravity)
-                        .update;
+                    .spring(skeletonObject[k][i], 1, 0.1, 0.1)
+                    .addForce(world.gravity)
+                    .update;
                     world.contain(sk.state[\guide]);
                     if (params[\visualize].booleanValue) {
                         // Render objects.
@@ -698,6 +700,7 @@ winWorld.draw{
     } {
         // World Star.
         worldStar.mass = params[\starMass];
+        worldStar.size = params[\starSize];
         if (winWorld.mouse != RedVector2D[0, 0]) {
             try {
                 worldStar.loc = [winWorld.mouse[0]] ++ [winWorld.mouse[1]] ++ [winWorld.mouse.mean]
@@ -718,10 +721,11 @@ winWorld.draw{
 
     // Render objects.
     world.objects.do { |o, i|
+
+        // Everybody attracts each other, regardless of the object type or function
+        // and even when the World's forces switched off. This helps keeping objects
+        // in swarm, while at the same time slowly affects position of the Star.
         if (params[\objAttract].booleanValue && (skeletonObject.size == 0)) {
-            // Everybody attracts each other, regardless of the object type or function
-            // and even when the World's forces switched off. This helps keeping objects
-            // in swarm, while at the same time slowly affects position of the Star.
             world.objects.do { |oo, j|
                 if (i != j) {
                     o.addForce(o.gravityForce(oo));
@@ -974,7 +978,7 @@ winWorld.draw{
                 if (partProb.coin.booleanValue) {
                     // particle has inertia (follows trajectory of its guide)
                     newPart = RedParticle(world, g.loc, 0, objGuide.vel.tanh * params[\partInitAccel].max(0.01), 10, 10)
-                        .age_(params[\partAgeThresh].logistic);
+                    .age_(params[\partAgeThresh].logistic);
                     sys.add(newPart);
                     partSynths[newPart.identityHash] = initGroup.(params[\partSynth],
                         parm: [\inbus, params[\inbus], \cr, 4, \att, 0.1]);
@@ -1113,11 +1117,9 @@ initObject = { |objectMass=5, objectType="a RedObject", objectAge=inf, objectPos
 
 // Create new object's group, insert synth and spatializer into it.
 initGroup = { |synth, bufnum, busnum, parm|
-    var spatial, groupID, synthID, spatlID, l, h;
+    var spatial, groupID, l, h;
     spatial = "sr__s__" ++ params[\confSurround].toLower; // spatializer's name
     groupID = s.nextNodeID;
-    synthID = s.nextNodeID;
-    spatlID = s.nextNodeID;
     if (busnum.isNil) { // internal bus for routing
         #l, h = a_BUS_POOL;
         busnum = clipInc.(currBusRoute ?? l, lo:l, hi:h);
@@ -1126,10 +1128,10 @@ initGroup = { |synth, bufnum, busnum, parm|
     s.sendBundle(0.001,
         ["/error", 1], // turn errors off (locally)
         ["/g_new", groupID, 1, rootNodeID], // add new group to root's tail
-        ["/s_new", spatial, spatlID, 1, groupID, // add spatializer to new group's tail
+        ["/s_new", spatial, s.nextNodeID, 1, groupID, // add spatializer to new group's tail
             \inbus, busnum, // getting signal from synth
             \outbus, params[\outbus]], // to main output
-        ["/s_new", synth, synthID, 0, groupID, // add synth to new group's head
+        ["/s_new", synth, s.nextNodeID, 0, groupID, // add synth to new group's head
             \inbus, params[\inbus], // getting signal from external input
             \outbus, busnum, // feeding into spatilizer
             \bufnum, bufnum] ++ (parm ? [])

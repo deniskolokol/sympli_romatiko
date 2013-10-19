@@ -386,7 +386,7 @@ SynthDef(\sr__e__analog, {
         ]
     );
     // Synthesis.
-    in = Mix.fill(8, {LFSaw.ar((note + 0.1.rand2).midicps, mul:0.025)});
+    in = Mix.fill(8, {LFSaw.ar((note + 0.1.rand2).midicps, mul:0.1)});
     signal = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq, amp);
     //Envelope.
     out = signal * master * EnvGen.kr(

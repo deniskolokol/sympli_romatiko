@@ -456,11 +456,12 @@ SynthDef(\sr__e__entro, {
         RLPF.ar(Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
             LFNoise0.kr(1, 2, 10), r: LFNoise0.kr(1, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
             LFPulse.kr(LFSaw.ar(0.2).exp.cubed, 0.5, 2500, 3500),
-            velocity, mul: amp * 0.2),
+            velocity),
         Saw.ar((1..15) * LFNoise0.kr(5, 10, 50) + SinOsc.ar((6..2) * 0.5))
         ]
-    ) * velocity;
-    signal = RLPF.ar(RLPF.ar(Mix.ar(in), shift, rq), shift, rq);
+    );
+    in = Mix.ar(in) * velocity * amp * 0.2; // too loud comparing to the rest, attenuate vol
+    signal = RLPF.ar(RLPF.ar(in, shift, rq), shift, rq);
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -560,8 +561,7 @@ SynthDef(\sr__p__snare, {
 // - distance artificially moved to 0.5 from the center to eliminate feedback.
 //
 SynthDef(\sr__s__ambisonic2, {
-    arg inbus=20, outbus=0,
-        amp=1, gate=1, rel=1,
+    arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
         speakerAzim= [-0.25pi, 0.25pi], speakerElev= 0, speakerDist= [2, 2],
@@ -570,7 +570,7 @@ SynthDef(\sr__s__ambisonic2, {
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);
     signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
-    #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance, amp);
+    #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
     out = FMHDecode1.stereo(w, z);
     // out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
     // azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
@@ -579,8 +579,7 @@ SynthDef(\sr__s__ambisonic2, {
 
 
 SynthDef(\sr__s__ambisonic4, {
-    arg inbus=20, outbus=0,
-        amp=1, gate=1, rel=1,
+    arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
         speakerAzim= [-0.25pi, -0.6pi, 0.6pi, 0.25pi], speakerElev= 0, speakerDist= [2, 2, 2, 2],
@@ -589,7 +588,7 @@ SynthDef(\sr__s__ambisonic4, {
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);
     signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
-    #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance, amp);
+    #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
     out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
         azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
     Out.ar(outbus, out);
@@ -597,8 +596,7 @@ SynthDef(\sr__s__ambisonic4, {
 
 
 SynthDef(\sr__s__ambisonic8, {
-    arg inbus=20, outbus=0,
-        amp=1, gate=1, rel=1,
+    arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
         speakerAzim=[-0.20pi, -0.5pi, -0.70pi, -pi, 0.70pi, 0.5pi, 0.20pi, 0pi], speakerElev=0,
@@ -607,7 +605,7 @@ SynthDef(\sr__s__ambisonic8, {
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);
     signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
-    #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance, amp);
+    #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
     out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
         azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
     Out.ar(outbus, out);
@@ -615,8 +613,7 @@ SynthDef(\sr__s__ambisonic8, {
 
 
 SynthDef(\sr__s__vbap4, {
-    arg inbus=20, outbus=0,
-        amp=1, gate=1, rel=1,
+    arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
     var speakerAzim = #[-45, -140, 140, 45], speakerElev=0, speakerBuff, spread=0;
     var in, signal, out;

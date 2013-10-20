@@ -361,14 +361,18 @@ SynthDef(\sr__e__analog, {
         offset=36, cutoff=0;
     var scale, note, in, out, signal;
     var rq, azThresh=0.7;
+    var trig, timer;
     // Conversion.
     scale = NamedControl.kr(\scale, FloatArray[0, 3, 7, 10]);
+    trig = velocity > 0.33; // high velocity causes sharp switch
+    timer = Timer.kr(trig);
     cutoff = SelectX.kr(BinaryOpUGen('<', cutoff, 0) * 2,
         [ // Positive cutoff falls at the freq range 200..5000
-            SelectX.kr(BinaryOpUGen('<', velocity, 0.33) * 2, [ // high velocity causes sharp switch
+            TChoose.ar((timer > 0.25) * trig, [
                 LFDClipNoise.ar(az, 34, 78),
                 LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(1))), 34, 90)
-            ]).midicps,
+                ]
+            ).midicps,
             5666 // zero or negative cutoff means constant
         ]
     );

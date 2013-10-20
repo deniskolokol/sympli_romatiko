@@ -46,7 +46,7 @@ var p_FACTORY_SETTINGS = (
 // List of svailable synths.
 var a_SYNTHS = #[\sr__g__reg, \sr__g__drone, \sr__g__gust, \sr__g__slic, \sr__g__loop, \sr__g__chunk,
     \sr__e__lowe, \sr__e__probe, \sr__e__cmb, \sr__e__melo, \sr__e__ringz, \sr__e__pulse, \sr__e__analog,
-    \sr__e__noisy, \sr__e__humm, \sr__e__lfsaw, \sr__p__kick, \sr__p__hat, \sr__p__snare];
+    \sr__e__entro, \sr__e__noisy, \sr__e__humm, \sr__e__lfsaw, \sr__p__kick, \sr__p__hat, \sr__p__snare];
 // Spec for mass control.
 var p_MASSSPEC = ControlSpec(1, 11, \lin, 1);
 // Interface descriptor.
@@ -125,7 +125,8 @@ var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different
     35: ["a RedObject", \sr__e__melo],	// p
     33: ["a RedBoid",   \sr__e__ringz],	// [
     30: ["a RedBoid",   \sr__e__pulse],	// ]
-    42: ["a RedObject", \sr__e__analog]); //\ (the answer to the ultimate question ))
+    42: ["a RedObject", \sr__e__analog], // \ (the answer to the ultimate question ))
+);
 var c_CTRL_SYNTH_ARGS = #[ //[\synthName, kr_bus]
     [\kr_ml0, 0],
     [\kr_mg2, 1],
@@ -1292,7 +1293,7 @@ winWorld.view.keyUpAction= { arg view, char, modifiers, unicode, keycode;
 
 winWorld.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     var checkRout;
-    //[char, modifiers, unicode, keycode].postln;
+    // [char, modifiers, unicode, keycode].postln;
     case
     {keycode == 45} { // N - new object (???)
         checkRout= Routine({

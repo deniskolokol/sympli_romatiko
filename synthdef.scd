@@ -227,14 +227,13 @@ SynthDef(\sr__e__probe, {
             (
                 Mix.ar(SinOsc.ar(rate * [rrand(0.7, 1.3), 1], [2pi.rand, 2pi.rand], 0.04)).max(0)
                 * Mix.ar(SinOsc.ar(exprand(6,24) * [rrand(0.7, 1.3), 1], [2pi.rand, 2pi.rand])).abs
-                * (amp * 0.2)
             )
         )
     );
     2.do({in = AllpassN.ar(in, 0.05, [dtl, dtr], 3.0.rand, 2)});
-    signal = Mix(in);
+    signal = Mix(in) * amp * master;
     //Envelope.
-    out = signal * master * EnvGen.kr(
+    out = signal * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
@@ -422,23 +421,6 @@ SynthDef(\sr__e__noisy, {
 }).send(s);
 
 
-SynthDef(\sr__e__humm, {
-    arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
-        offset=36, cutoff=0,
-        mnote=0, freqBase=85, mod=0; // WARNING! This is obsolete, remove when finishing notes via .kr bus!
-    var scale, note, in, out, signal;
-    // Synthesis.
-    in = LFSaw.ar(mnote + freqBase + mod.linlin(-1, 1, -40, 40), mul: amp * 0.1);
-    signal = RLPF.ar(in, LinLin.kr(mod, -1, 1, 80, 30).midicps, 0.1, amp.clip(0.01, 0.99));
-    //Envelope.
-    out = signal * master * EnvGen.kr(
-        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
-}).add;
-
-
 SynthDef(\sr__e__entro, {
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
@@ -469,6 +451,27 @@ SynthDef(\sr__e__entro, {
 }).add;
 
 
+SynthDef(\sr__e__humm, {
+    arg bufnum=0, inbus=30, outbus=20,
+        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
+        offset=36, cutoff=0,
+        mnote=0, freqBase=36, mod=0; // WARNING! This is obsolete, remove when finishing notes via .kr bus!
+    var scale, note, in, out, signal;
+    // Conversion.
+    scale = NamedControl.kr(\scale, FloatArray[0, 3, 7, 10]);
+    note = DegreeToKey.kr(LocalBuf.newFrom(scale), az, 24, 1, freqBase).midicps;
+    // Synthesis.
+    in = LFSaw.ar((1..5) * note, velocity)
+         + Impulse.ar((0..4) + SinOsc.ar((4..8) * note).exprange(0.3, 300));
+    signal = RLPF.ar(Mix.ar(in), LinLin.kr(velocity, 0, 1, 80, 30).midicps, velocity, amp * 0.2);
+    //Envelope.
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(outbus, out);
+}).add;
+
+
 SynthDef(\sr__e__lfsaw, {
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
@@ -477,13 +480,9 @@ SynthDef(\sr__e__lfsaw, {
         mnote=0, freqBase=85, mod=0; // WARNING! This is obsolete, remove when finishing notes via .kr bus!
     var scale, note, in, out, signal;
     // Conversion.
-    in = LFSaw.ar(
-        mnote + freqBase + mod.linlin(-1, 1, -50, 0),
-        (amp * mod.linlin(-1,1, 0.01, 0.25)).clip(0.01, 0.99)
-    );
+    in = LFSaw.ar(mnote + freqBase, mul:amp * 0.2);
     signal = RLPF.ar(
-        FreeVerb.ar(LeakDC.ar(in), distance, distance/3.44, 0.2),
-        distance.linlin(0, 2.sqrt, 10000, 500), 0.5);
+        FreeVerb.ar(LeakDC.ar(in), distance, distance/3.44, 0.2), distance.linlin(0, 2.sqrt, 10000, 500), 0.5);
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -564,16 +563,15 @@ SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim= [-0.25pi, 0.25pi], speakerElev= 0, speakerDist= [2, 2],
+        speakerAzim = [-0.16pi, 0.16pi], speakerElev = 0, speakerDist = [0.35, 0.35],
         maxDist=3, scaleFlag=1,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);
     signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
     #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
-    out = FMHDecode1.stereo(w, z);
-    // out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
-    // azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
+    out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
+        azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
     Out.ar(outbus, out);
 }).send(s);
 
@@ -674,6 +672,43 @@ SynthDef(\sr__r__authro, { // audio-through
     out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).send(s);
+
+
+// MODULATORS
+//
+SynthDef(\sr__k__sin, {
+    arg outbus=0, freq=440, phase=0, mul=1, add=0, mod_mul=0.45, mod_add=0.55;
+    var out = SinOsc.kr(LFNoise0.kr(freq, mod_mul, mod_add), LFDClipNoise.kr(freq), mul, add);
+    Out.kr(outbus, out);
+}).add;
+
+SynthDef(\sr__k__saw, {
+    arg outbus=0, freq=440, mul=1, add=0, mod_mul=0.45, mod_add=0.55;
+    var out = Saw.kr(LFNoise0.kr(freq, mod_mul, mod_add), mul, add);
+    Out.kr(outbus, Saw.kr(freq, mul, add));
+}).add;
+
+SynthDef(\sr__k__tri, {
+    arg freq=440, phase=0, mul=1, add=0, outbus=0;
+    Out.kr(outbus, LFTri.kr(freq, phase, mul, add));
+}).add;
+
+// clip noise
+SynthDef(\sr__k__clipnoise, {
+    arg freq=1, phase=0, mul=1, add=0, outbus=0;
+    Out.kr(outbus, LFDClipNoise.kr(freq, mul, add));
+}).add;
+
+// step noise
+SynthDef(\sr__k__stepnoise, {
+    arg freq=1, phase=0, mul=1, add=0, outbus=0;
+    Out.kr(outbus, LFDNoise0.kr(freq, mul, add));
+}).add;
+
+SynthDef(\sr__k__lfnoise2, {
+    arg freq=1, phase=0, mul=1, add=0, outbus=0;
+    Out.kr(outbus, LFNoise2.kr(freq, mul, add));
+}).add;
 
 
 // UTILITIES

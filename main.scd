@@ -134,7 +134,7 @@ var c_CTRL_SYNTH_ARGS = #[ //[\synthName, kr_bus]
     [\kr_mg1, 4],
     [\kr_mh0, 5]];
 var o_SCHEDULER_ADDR = NetAddr.new("127.0.0.1", 57120);
-var o_SKELETON_ADDR = NetAddr("192.168.1.102", nil); // NetAddr("192.168.0.11", nil);
+var o_SKELETON_ADDR = NetAddr("192.168.1.103", nil); // NetAddr("192.168.0.11", nil);
 var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0], w_REDVEC_3D_0 = RedVector3D[0, 0, 0];
 
 
@@ -557,7 +557,7 @@ winWorld.draw{
         // Report if no forces.
         if (applyForces.booleanValue.not) {
             Pen.fillColor= Color.white;
-            Pen.stringAtPoint("NO FORCES!", [width-60, height-20].asPoint);
+            Pen.stringAtPoint("NO FORCES!", [width-80, height-20].asPoint);
         };
 
         // Show coordinates (all objects).

@@ -46,7 +46,7 @@ var p_FACTORY_SETTINGS = (
 // List of svailable synths.
 var a_SYNTHS = #[\sr__g__reg, \sr__g__drone, \sr__g__gust, \sr__g__slic, \sr__g__loop, \sr__g__chunk,
     \sr__e__lowe, \sr__e__probe, \sr__e__cmb, \sr__e__melo, \sr__e__ringz, \sr__e__pulse, \sr__e__analog,
-    \sr__e__entro, \sr__e__noisy, \sr__e__humm, \sr__e__lfsaw, \sr__p__kick, \sr__p__hat, \sr__p__snare];
+    \sr__e__entro, \sr__e__noisy, \sr__e__humm, \sr__e__radio, \sr__p__kick, \sr__p__hat, \sr__p__snare];
 // Spec for mass control.
 var p_MASSSPEC = ControlSpec(1, 11, \lin, 1);
 // Interface descriptor.
@@ -147,12 +147,12 @@ var worldCapacity=18;
 var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide, posGuide, objAudioIn=nil, posAudioIn;
 var mass, pos, wind, springs, hand, applyForces=1;
 
-var rectimeRep;
 var synForm=nil, synSaw=nil, posFeet=[nil, nil], synthCtrl, currFormCtl=nil, currSawCtl=nil, startFeetSynths;
 var fillStream, streamList= [nil], runTask1, runTask2, isActiveTask1= 0, isActiveTask2= 0;
-var keyObjType;
-var skeletonObjectText;
 var objColors= Array.fill(worldCapacity, {Color.rand});
+var skeletonObjectText;
+var rectimeRep;
+var keyObjType;
 
 // Global parameters.
 var params, paramsFilename, paramsFile;
@@ -172,6 +172,7 @@ var startSynth, initGroup, removeGroup;
 var cyclicBuf, cyclicSynthID, loadBufRout, recBufStart, recBufStop, recSynth;
 var isRecording, recProgress;
 var currFilename, currBufnum;
+var scaleBuf;
 
 // Objects management.
 var initObject, removeObject;
@@ -270,6 +271,7 @@ keyObjType = c_KEY_OBJ_SYNTH.keys().asArray; // for easy access to keycodes
 cyclicBuf = Buffer.alloc(s, s.sampleRate, 1); // 1s single channel Buffer
 isRecording = false;
 recProgress = 0;
+scaleBuf = Buffer.loadCollection(s, FloatArray[0, 3, 7, 10]); // default Scale buffer
 
 // PARTICLES
 //
@@ -1170,8 +1172,12 @@ startSynth = { |synthName='sr__e__silencio', updateBuf=false, parm=nil|
                 0.01.wait;
             };
         }).start;
-    } { // only granular synths require buffer with sound
-        buff = if (synthName.asString.find("__g__").isNil.not) {cyclicBuf.bufnum};
+    } {
+        buff = if (synthName.asString.find("__g__").isNil.not) {
+            cyclicBuf.bufnum // granular synths require buffer with sound
+        } {
+            scaleBuf.bufnum // electronic synths require buffer with Scale
+        };
         group = initGroup.(synthName, buff, parm:parm);
         synths.put(objects[currSynth].identityHash, group); // register synth
     }

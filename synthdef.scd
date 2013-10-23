@@ -280,10 +280,12 @@ SynthDef(\sr__e__melo, {
     // Conversion.
     note = DegreeToKey.kr(bufnum, az * 15, 24, 1, 15).midicps;
     // Synthesis.
-    in = RLPF.ar(LFSaw.ar(note)
-        + Impulse.ar(XLine.kr(note, note + 100, 1.5), 0.0, 0.7.rand)
-        + WhiteNoise.ar(0.8.rand, mul:0.2),
-        LFNoise1.kr(1, 38, 115).midicps, 0.1, mul:amp
+    in = RLPF.ar(
+        LFSaw.ar(note)
+        + Impulse.ar(XLine.kr(note, note + 100, 1.5), 0.0)
+        + Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
+            LFNoise0.kr(1.0.rand, 2, 10), r: LFNoise0.kr(1.0.rand, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
+        LFNoise0.kr(0.2, 38, 115).midicps, 0.1, mul:amp
     );
     in = [in, DelayN.ar(in, 0.04, 0.04)];
     4.do({in = AllpassN.ar(in, 0.05, [0.05.rand, 0.05.rand], 4)});
@@ -304,13 +306,15 @@ SynthDef(\sr__e__ringz, {
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
         offset=36, cutoff=0;
     var in, out, signal;
-    var fbase, reso, shift;
+    var fbase, shift;
     // Conversion.
     fbase = distance.linexp(0, 1, 10, 40);
-    reso = distance.linexp(0, 1, 200, 5000);
     shift = ((velocity * 30) ** 3).lag(0.01);
     // Synthesis.
-    in = Ringz.ar(SinOsc.ar(fbase, shift, amp * 0.02), reso, 0.01).softclip;
+    in = Ringz.ar(
+        SinOsc.ar(fbase, shift, amp * 0.02),
+        LFNoise2.kr(0.2, 2400, 2600), 0.01
+    ).softclip;
     5.do({in});
     signal = RLPF.ar(
         FreeVerb.ar(LeakDC.ar(Mix.ar(in)), distance, distance/3.44, 0.2),

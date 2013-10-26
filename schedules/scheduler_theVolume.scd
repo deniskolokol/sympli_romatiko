@@ -403,12 +403,14 @@ thePiece = (
             info: "Leave one __noisy",
             message: \worldobj,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
-            object: (type: "a RedBoid", age: inf, mass: 5)
+            object: (type: "a RedObject", age: inf, mass: 8)
         ),
-        //
-        // ...
-        // new "Sawwy" synth here
-        //
+        (
+            info: "Add heavy __radio",
+            message: \worldobj,
+            synth: (name: \sr__e__radio, params: [\att, 5.0.rand, \rel, 10]),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
     ],
     95: [
         ( // Remove all objects.
@@ -430,7 +432,7 @@ thePiece = (
             info: "Particles ON",
             message: \worldpar,
             params: [
-                particles: 1, partSigmoidRatio: 0.5, partFreq: 0.02, partAgeThresh: 80,
+                particles: 1, partSigmoidRatio: 0.7, partFreq: 0.02, partAgeThresh: 80,
                 partInitAccel: 3, partGuide: "object", partSynth: \sr__e__analog,
             ]
         ),

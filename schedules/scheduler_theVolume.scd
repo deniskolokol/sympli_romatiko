@@ -308,10 +308,6 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         ),
         (
-            info: "Remove all, stop sched",
-            message: \task, name: \lightPulseRingz, act: 0
-        ),
-        (
             info: "2 heavy ringz",
             message: \worldobj,
             synth: (name: \sr__e__ringz, params: [\att, 10.0.rand, \rel, 10]),
@@ -358,6 +354,10 @@ thePiece = (
         ),
         ( // Stop schedule with sporadic \sr__e__melo
             message: \task, name: \sporadicMelo, act: 0
+        ),
+        ( // Stop schedule lightPulseRingz
+            info: "Remove all, stop sched",
+            message: \task, name: \lightPulseRingz, act: 0
         ),
         ( // Stop percussive granWave.
             message: \task, name: \granWave, act: 0

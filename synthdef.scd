@@ -494,17 +494,17 @@ SynthDef(\sr__e__radio, {
     );
     // Synthesis.
     in = (
-        LFSaw.ar(freq)
-        + Impulse.ar(SinOsc.ar(cutoff).exprange(48, 10000), mul:velocity)
+        LFSaw.ar(freq, mul:velocity * 0.02)
+        + Impulse.ar(SinOsc.ar(cutoff).exprange(48, 10000), mul:velocity * 0.02)
         + Formlet.ar(
-            Impulse.ar(freq + SinOsc.ar(freq * 0.02).exprange(0.3, 300)),
+            Impulse.ar(freq + SinOsc.ar(freq * 0.02).exprange(0.3, cutoff / 3.67)),
             (1..5)
             * SinOsc.ar(velocity).exprange(20, 2000)
             * SinOsc.ar(SinOsc.ar(velocity, 0, 0.1), 0, 0.1, 1), 0.001, 0.0015,
-            mul:velocity
+            mul:velocity * 0.5
         )
     );
-    signal = Mix.ar(in * 0.01);
+    signal = Mix.ar(in);
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);

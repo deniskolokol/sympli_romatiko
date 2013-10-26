@@ -166,7 +166,7 @@ var oscRemoveFunc;
 var currBusRoute, rootNodeID, audioThroughID;
 
 // Groups and synths management.
-var startSynth, initGroup, removeGroup;
+var startSynth, initGroup, removeGroup, mixerNode;
 
 // Buffers.
 var cyclicBuf, cyclicSynthID, loadBufRout, recBufStart, recBufStop, recSynth;
@@ -212,7 +212,7 @@ var ezkObjCtrl=Array.fill(worldCapacity, {nil});
 var shutDown;
 
 // Utils and helper functions.
-var planeCoords, planeDot, clipInc, sigmoid;
+var planeCoords, currentChannels, planeDot, clipInc, sigmoid;
 
 
 // INITIAL
@@ -455,8 +455,8 @@ drawPanels = { |win, elements|
             };
             panel.add(view);
             win.layout.addSpanning(panel, j, 1,
-                (panelHeight / win.layout.minRowHeight(1)).ceil);
-            j = j + (panelHeight / win.layout.minRowHeight(1)).ceil;
+                (panelHeight / win.layout.minRowHeight(1)));
+            j = j + (panelHeight / win.layout.minRowHeight(1));
         };
     };
 };
@@ -493,16 +493,17 @@ cvAux.decorator = FlowLayout(cvAux.bounds);
 StaticText(cvAux, 230@20).background_(layoutHColor).font_(layoutHFont)
 .string_(" Auxiliary ").stringColor_(layoutHFontColor);
 // Record button
-Button(cvAux, 200@40).font_(labelFont)
+Button(cvAux, 200@35)
 .states_([
     ["RECORD", Color.black, Color.new(0.8,0.8,0.8)],
     ["Stop", Color.red, Color.new(0.8,0.8,0.8)]
 ])
 .action_({ |bt|
     if (bt.value == 1) {
+        // this records buses n..m, where m is last used output (remove after rec, if n > 0)
         Dialog.savePanel({ |path|
             var recordPath;
-            s.recChannels = 8;
+            s.recChannels = sum(currentChannels.());
             s.recHeaderFormat = "AIFF";
             s.recSampleFormat = "int16";
             recordPath= path ++ ".aif";
@@ -513,6 +514,23 @@ Button(cvAux, 200@40).font_(labelFont)
         )
     } {
         s.stopRecording
+    }
+});
+// Send sum to sub (next to the last channel used for main output)
+Button(cvAux, 200@35)
+.states_([
+    ["MIX NODE ON", Color.black, Color.new(0.8,0.8,0.8)],
+    ["RELEASE MIX NODE", Color.red, Color.new(0.8,0.8,0.8)],
+])
+.action_({ |bt|
+    var ch0, channels, synthName;
+    # ch0, channels = currentChannels.();
+    synthName = "sr__u__mixNode" ++ channels.asString;
+    if (bt.value == 1) {
+        s.sendMsg("/s_new", synthName, mixerNode = s.nextNodeID, 1, rootNodeID,
+            \inbus, ch0, \outbus, ch0 + channels)
+    } {
+        s.sendMsg("/n_set", mixerNode, \gate, 0)
     }
 });
 // Skeleton monitor.
@@ -1030,13 +1048,16 @@ winWorld.draw{
 };
 winWorld.animate = true;
 
+
 // HELPER FUNCTIONS
 //
 // Increments integers with a limit: resets to `lo` every time in + step reaches `hi`.
 clipInc = { |in=0, step=1, lo=0, hi=inf| ((in + step).clip(lo, hi) % hi).clip(lo, hi)};
 
+
 // Simple sigmoid function.
 sigmoid = { |ratio, value| 1 / (1 + exp((ratio * value).neg))};
+
 
 // Project 3D coordinates on the plane.
 planeCoords = { arg vector, width, height, depth, scale=1, focal=0.5;
@@ -1047,6 +1068,17 @@ planeCoords = { arg vector, width, height, depth, scale=1, focal=0.5;
     ox = 1 - z * (width * 0.5) + x;
     oy = 1 - z * (height * 0.5) + y;
     [ox, oy]
+};
+
+
+// Figure out first output channel and total number of output channels.
+currentChannels = {
+    var chOut, chNum, str;
+    chOut = params[\outbus];
+    str = params[\confSurround].asString;
+    chNum = str[f.size-1..].asInteger;
+    if (chNum == 0) {chNum = str[f.size-2..].asInteger};
+    [chOut, chNum]
 };
 
 

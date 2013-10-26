@@ -768,10 +768,51 @@ SynthDef(\sr__u__play, {
     Out.ar(busnum, out);
 }).send(s);
 
-SynthDef(\sr__u__mixNode4x1, { // send sum to the 5th channel, LPF, 5th channel goes to sub
+// Stereo mix-node: LPF input, send summary to outbus
+SynthDef(\sr__u__mixNode2, {
+    arg inbus=0, outbus=2, gate=1;
+    var env, in, out;
+    in = Limiter.ar(LPF.ar(InFeedback.ar(inbus, 2), 200) * 0.7);
+    env = EnvGen.kr(Env.asr(0.1, 1, 0.5, [3, -3]), gate: gate, doneAction:2);
+    out = Mix.ar(in * env);
+    Out.ar(outbus, out);
+}).send(s);
+
+// Quad mix-node: LPF input, send summary to outbus
+SynthDef(\sr__u__mixNode4, {
     arg inbus=0, outbus=4, gate=1;
     var env, in, out;
     in = Limiter.ar(LPF.ar(InFeedback.ar(inbus, 4), 200) * 0.7);
+    env = EnvGen.kr(Env.asr(0.1, 1, 0.5, [3, -3]), gate: gate, doneAction:2);
+    out = Mix.ar(in * env);
+    Out.ar(outbus, out);
+}).send(s);
+
+// Pent mix-node: LPF input, send summary to outbus
+SynthDef(\sr__u__mixNode5, {
+    arg inbus=0, outbus=5, gate=1;
+    var env, in, out;
+    in = Limiter.ar(LPF.ar(InFeedback.ar(inbus, 5), 200) * 0.7);
+    env = EnvGen.kr(Env.asr(0.1, 1, 0.5, [3, -3]), gate: gate, doneAction:2);
+    out = Mix.ar(in * env);
+    Out.ar(outbus, out);
+}).send(s);
+
+// Hex mix-node: LPF input, send summary to outbus
+SynthDef(\sr__u__mixNode6, {
+    arg inbus=0, outbus=6, gate=1;
+    var env, in, out;
+    in = Limiter.ar(LPF.ar(InFeedback.ar(inbus, 6), 200) * 0.7);
+    env = EnvGen.kr(Env.asr(0.1, 1, 0.5, [3, -3]), gate: gate, doneAction:2);
+    out = Mix.ar(in * env);
+    Out.ar(outbus, out);
+}).send(s);
+
+// Oct mix-node: LPF input, send summary to outbus
+SynthDef(\sr__u__mixNode8, {
+    arg inbus=0, outbus=8, gate=1;
+    var env, in, out;
+    in = Limiter.ar(LPF.ar(InFeedback.ar(inbus, 8), 200) * 0.7);
     env = EnvGen.kr(Env.asr(0.1, 1, 0.5, [3, -3]), gate: gate, doneAction:2);
     out = Mix.ar(in * env);
     Out.ar(outbus, out);

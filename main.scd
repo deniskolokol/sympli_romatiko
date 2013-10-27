@@ -38,7 +38,7 @@ var p_FACTORY_SETTINGS = (
     visualize:         true,
     showCoords:        false,
     // System
-    synthdefFile:      "synthdef.scd",
+    synthdefFile:      "/Users/deniskolokol/Documents/dev_music/sympli_romatiko/repo/sympli_romatiko/synthdef.scd",
     tempDir:           "~/tmp/SuperCollider/sounds/",
     // Aux
     synthForm:         1,
@@ -47,6 +47,7 @@ var p_FACTORY_SETTINGS = (
 var a_SYNTHS = #[\sr__g__reg, \sr__g__drone, \sr__g__gust, \sr__g__slic, \sr__g__loop, \sr__g__chunk,
     \sr__e__lowe, \sr__e__probe, \sr__e__cmb, \sr__e__melo, \sr__e__ringz, \sr__e__pulse, \sr__e__analog,
     \sr__e__entro, \sr__e__noisy, \sr__e__humm, \sr__e__radio, \sr__p__kick, \sr__p__hat, \sr__p__snare];
+var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
 // Spec for mass control.
 var p_MASSSPEC = ControlSpec(1, 11, \lin, 1);
 // Interface descriptor.
@@ -93,8 +94,7 @@ var p_INTRFACE = [
             (param: \audioIn, title: "Audio through", element: \boolean),
             (param: \inbus, title: "Input bus", element: \dropdown, items: (0..29)),
             (param: \outbus, title: "Main out", element: \dropdown, items: (0..29)),
-            (param: \confSurround, title: "Surround sound", element: \dropdown,
-                items: #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8]),
+            (param: \confSurround, title: "Surround sound", element: \dropdown, items: a_SURROUND_CONFIG),
             (param: \fieldDepth, title: "Aural field depth", spec: ControlSpec(0.5, 10, \lin, 0.5, 4)),
             (param: \master, title: "Master volume", spec: \amp.asSpec, element: \slider),
         ]
@@ -109,7 +109,6 @@ var p_INTRFACE = [
         ]
     )
 ];
-var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
 var a_BUS_POOL = [30, 53]; // lowest and highest-1 number of bus used for objects' synths
 var c_KEY_OBJ = #[29, 18, 19, 20, 21, 23, 22, 26, 28, 25]; // keycodes for tracing objects 0-9. ORDER MATTERS!!!
 var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different kinds

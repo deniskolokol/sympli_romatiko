@@ -13,19 +13,18 @@ var parmDir = Dictionary.new; // Global params of the piece dictionary.
 
 // WARNING! Specific for the current piece!
 // Read left channel only to feed to TGrains!
-var drumLoop1 = Buffer.readChannel(s, "/Users/deniskolokol/Music/Sympli_Romatiko/solo/Audio/bbcloop_comp.wav", channels: [0]);
 var introBuff = Buffer.readChannel(s,
-    "/Users/deniskolokol/Music/Sympli_Romatiko/solo/Audio/DRLATPOL.WAV",
+    PathName("~/Music/Sympli_Romatiko/solo/Audio/DRLATPOL.WAV").fullPath,
     channels: [0]);
 var buffList = List.new;
 [ // Fill buffList.
-    "/Users/deniskolokol/Music/Sympli_Romatiko/solo/Audio/bboxbeay2.wav",
-    "/Users/deniskolokol/Music/Sympli_Romatiko/solo/Audio/17boxloop.wav",
-    "/Users/deniskolokol/Music/Sympli_Romatiko/solo/Audio/BBOX75.WAV",
-    "/Users/deniskolokol/Music/Sympli_Romatiko/solo/Audio/BBOX90.WAV",
-    "/Users/deniskolokol/Music/Sympli_Romatiko/solo/Audio/loop_clean.wav"
-].do { |filename|
-    buffList.add(Buffer.readChannel(s, filename, channels: [0]));
+    "~/Music/Sympli_Romatiko/solo/Audio/bboxbeay2.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/17boxloop.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/BBOX75.WAV",
+    "~/Music/Sympli_Romatiko/solo/Audio/BBOX90.WAV",
+    "~/Music/Sympli_Romatiko/solo/Audio/loop_clean.wav"
+].do { |f|
+    buffList.add(Buffer.readChannel(s, PathName(f).fullPath, channels: [0]));
 };
 
 // Initial settings.
@@ -76,15 +75,21 @@ thePiece = (
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
                 ["/s_new", \sr__s__ambisonic4, \next_node_id, 1, \group_id, // add spatializer to new group's tail
                     \inbus, 3, // getting signal from synth
-                    \outbus, 0], // to main output
+                    \outbus, 0, // to main output
+                    \azimuth, 0],
                 ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
                     \outbus, 3, // feeding into spatilizer
-                    \azimuth, 0, \velocity, 0.88, \att, 15],
+                    \velocity, 0.88, \att, 15, \amp, 0.08],
                 ["/s_new", \sr__k__lfnoise2, \next_node_id, 0, \group_id, \freq, 0.5, \mul, 1pi, \outbus, 0],
                 ["/n_map", \group_id, \azimuth, 0],
-                ["/s_new", \sr__k__sin, \next_node_id, 0, \group_id, \freq, 0.2,
-                    \mul, ((32.sqrt - 0.5)/2), \add, (32.sqrt - ((32.sqrt - 0.5)/2)),
-                    \mod_mul, ((0.2 - 0.02)/2), \mod_add, 0.2 - ((0.2 - 0.02)/2), \outbus, 1],
+                // TO-DO: Somehow this works really bad! No real movement, plus very loud
+                // Find proper distance! Properly set azimuth!
+                ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, \freq, 0.2,
+                    \mul, (1.5 - 0.6) * 0.5, \add, 1.5 - ((1.5 - 0.6) * 0.5), // range 0.3..0.7
+                    \outbus, 1],
+                // ["/s_new", \sr__k__sin, \next_node_id, 0, \group_id, \freq, 0.2,
+                //     \mul, ((32.sqrt - 0.5)/2), \add, (32.sqrt - ((32.sqrt - 0.5)/2)),
+                // \mod_mul, ((0.2 - 0.02)/2), \mod_add, 0.2 - ((0.2 - 0.02)/2), \outbus, 1],
                 ["/n_map", \group_id, \distance, 1],
                 ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 2],
                 ["/n_map", \group_id, \velocity, 2],
@@ -100,6 +105,10 @@ thePiece = (
             info: "Particles ON!",
             message: \worldpar, params: [particles: 1, partGuide: "object"]
         ),
+        //
+        // TO-DO: Experiment with particles density and age to find a proper balance
+        // of dynamics with the rest - at least in the beginning
+        //
         (
             info: "Schedule particles",
             message: \task, name: \randomParticles, act: 1
@@ -158,6 +167,13 @@ thePiece = (
             object: (type: "a RedBoid", age: rrand(80, 150), mass: 4),
         ),
         // Start 2 heavy sr__e__analog w/default cutoff.
+
+        // TO-DO:
+        // - 2 heavy sr__e__analog should appear in a particular place (calculate coordinates) and stay for some time
+        //   (to give it a time to accumulate a pressure before transition)
+        // - they can also appear one after another (add one more event)
+        //
+
         (
             message: \worldobj,
             synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 10]),
@@ -362,6 +378,12 @@ thePiece = (
         ( // Stop percussive granWave.
             message: \task, name: \granWave, act: 0
         ),
+        //
+        // TO-DO:
+        // - add 2 __melo here, re-write them so that their \amp depend on velocity
+        //   via some sigmoid function: in this way moving hands slowly would seem like
+        //   moving a wind around, when it's more energetic, the winds start "singing"
+        //
         (
             info: "2 heavy __noisy",
             message: \worldobj,
@@ -829,7 +851,6 @@ win.front;
 
 CmdPeriod.doOnce({
     // Free buffers.
-    drumLoop1.free;
     introBuff.free;
     buffList.do { |buff| buff.free};
 

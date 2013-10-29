@@ -285,7 +285,8 @@ SynthDef(\sr__e__melo, {
         + Impulse.ar(XLine.kr(note, note + 100, 1.5), 0.0)
         + Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
             LFNoise0.kr(1.0.rand, 2, 10), r: LFNoise0.kr(1.0.rand, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
-        LFNoise0.kr(0.2, 38, 115).midicps, 0.1, mul:amp
+        LFNoise0.kr(0.2, 38, 115).midicps, 0.1,
+        mul:(amp * velocity).scurve // sigmoid: the faster and louder - the more "obvious"
     );
     in = [in, DelayN.ar(in, 0.04, 0.04)];
     4.do({in = AllpassN.ar(in, 0.05, [0.05.rand, 0.05.rand], 4)});
@@ -728,11 +729,18 @@ SynthDef(\sr__k__clipnoise, {
 }).add;
 
 // step noise
-SynthDef(\sr__k__stepnoise, {
+SynthDef(\sr__k__lfnoise0, {
     arg freq=1, phase=0, mul=1, add=0, outbus=0, gate=1, att=1, rel=1;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
     var out = env * LFDNoise0.kr(freq, mul, add);
     Out.kr(outbus, out);
+}).add;
+
+SynthDef(\sr__k__lfnoise1, {
+    arg freq=1, phase=0, mul=1, add=0, outbus=0, gate=1, att=1, rel=1;
+    var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
+    var out = env * LFNoise1.kr(freq, mul, add);
+    Out.kr(outbus, out );
 }).add;
 
 SynthDef(\sr__k__lfnoise2, {

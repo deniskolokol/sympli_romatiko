@@ -79,24 +79,22 @@ thePiece = (
                     \azimuth, 0],
                 ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
                     \outbus, 3, // feeding into spatilizer
-                    \velocity, 0.88, \att, 15, \amp, 0.08],
-                ["/s_new", \sr__k__lfnoise2, \next_node_id, 0, \group_id, \freq, 0.5, \mul, 1pi, \outbus, 0],
+                    \velocity, 0.88, \att, 15, \amp, 1],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.5, \mul, 1pi, \outbus, 0],
                 ["/n_map", \group_id, \azimuth, 0],
-                // TO-DO: Somehow this works really bad! No real movement, plus very loud
-                // Find proper distance! Properly set azimuth!
-                ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, \freq, 0.2,
-                    \mul, (1.5 - 0.6) * 0.5, \add, 1.5 - ((1.5 - 0.6) * 0.5), // range 0.3..0.7
+                //
+                // TO-DO:
+                // schedule a routine that would alternate distance modulation
+                // between __lfnoise2 to __lfnoise0
+                //
+                ["/s_new", \sr__k__lfnoise2, \next_node_id, 0, \group_id, \freq, 0.08,
+                    \mul, (2.sqrt - 0.3) * 0.5, \add, 2.sqrt - ((2.sqrt - 0.3) * 0.5), // range 0.3..0.7
                     \outbus, 1],
-                // ["/s_new", \sr__k__sin, \next_node_id, 0, \group_id, \freq, 0.2,
-                //     \mul, ((32.sqrt - 0.5)/2), \add, (32.sqrt - ((32.sqrt - 0.5)/2)),
-                // \mod_mul, ((0.2 - 0.02)/2), \mod_add, 0.2 - ((0.2 - 0.02)/2), \outbus, 1],
                 ["/n_map", \group_id, \distance, 1],
-                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 2],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 2],
                 ["/n_map", \group_id, \velocity, 2],
-                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 3],
-                ["/n_map", \group_id, \velocity, 3],
-                ["/s_new", \sr__k__sin, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 4],
-                ["/n_map", \group_id, \az, 4]
+                ["/s_new", \sr__k__sin, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 3],
+                ["/n_map", \group_id, \az, 3]
             ]
         )
     ],
@@ -383,6 +381,7 @@ thePiece = (
         // - add 2 __melo here, re-write them so that their \amp depend on velocity
         //   via some sigmoid function: in this way moving hands slowly would seem like
         //   moving a wind around, when it's more energetic, the winds start "singing"
+        // - align their scale with bass
         //
         (
             info: "2 heavy __noisy",
@@ -395,7 +394,19 @@ thePiece = (
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
-
+    ],
+    82: [
+        (
+            info: "add 2 heavy __melo",
+            message: \worldobj,
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 10]),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
+        (
+            message: \worldobj,
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 10]),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
     ],
     85: [
         (

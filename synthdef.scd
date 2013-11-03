@@ -286,11 +286,11 @@ SynthDef(\sr__e__melo, {
         + Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
             LFNoise0.kr(1.0.rand, 2, 10), r: LFNoise0.kr(1.0.rand, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
         LFNoise0.kr(0.2, 38, 115).midicps, 0.1,
-        mul:(amp * velocity).scurve // sigmoid: the faster and louder - the more "obvious"
+        mul:(amp * velocity).scurve // sigmoid: the faster, the more present
     );
     in = [in, DelayN.ar(in, 0.04, 0.04)];
     4.do({in = AllpassN.ar(in, 0.05, [0.05.rand, 0.05.rand], 4)});
-    in = Mix.ar(in) * 0.03;
+    in = Mix.ar(in) * 0.2;
     signal = RLPF.ar(
         FreeVerb.ar(LeakDC.ar(in), distance, distance/3.44, 0.2),
         distance.linlin(0, 2.sqrt, 10000, 500), 0.5);
@@ -309,16 +309,17 @@ SynthDef(\sr__e__ringz, {
     var in, out, signal;
     var fbase, shift;
     // Conversion.
-    fbase = distance.linexp(0, 1, 10, 40);
+    fbase = (az * distance).linexp(0, 1, 10, 40);
     shift = ((velocity * 30) ** 3).lag(0.01);
     // Synthesis.
-    in = Ringz.ar(
-        SinOsc.ar(fbase, shift, amp * 0.02),
-        LFNoise2.kr(0.2, 2400, 2600), 0.01
+    in = (
+        Ringz.ar(SinOsc.ar(fbase, shift), distance.linexp(0,1.41, 200,2000), 0.01)
+        + RLPF.ar(LFSaw.ar((1..10) * fbase * az, shift, velocity))
     ).softclip;
     5.do({in});
+    in = Limiter.ar(MidEQ.ar(Mix.ar(in), 14000, 0.7, 8), amp * 0.2);
     signal = RLPF.ar(
-        FreeVerb.ar(LeakDC.ar(Mix.ar(in)), distance, distance/3.44, 0.2),
+        FreeVerb.ar(in, distance, distance/3.44, 0.2),
         distance.linlin(0, 2.sqrt, 10000, 500), 0.5);
     //Envelope.
     out = signal * master * EnvGen.kr(
@@ -346,7 +347,7 @@ SynthDef(\sr__e__pulse, {
     // Synthesis.
     in = Blip.ar(SinOsc.kr(0.5, 0, LFDNoise1.kr(1.5), note), 100, 0.2);
     in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq, amp);
-    in = Compander.ar(in, in, 0.002, slopeBelow: 0.33, slopeAbove: 0.5, clampTime: 0.01, relaxTime: 0.01);
+    in = Limiter.ar(MidEQ.ar(Mix.ar(in), [200, 14000], 0.7, 8) * amp);
     signal = Mix.ar(in);
     //Envelope.
     out = signal * master * EnvGen.kr(
@@ -390,8 +391,8 @@ SynthDef(\sr__e__analog, {
     );
     // Synthesis.
     in = Mix.fill(8, {LFSaw.ar((note + 0.1.rand2).midicps)});
-    in = in * 0.02; // vol attenuation
-    signal = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq, amp);
+    in = Limiter.ar(Mix.ar(in), amp * 0.2);
+    signal = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq);
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -415,7 +416,7 @@ SynthDef(\sr__e__noisy, {
         LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(0.5))), 2450, 2550), 0.01, 0.1
     ).softclip;
     in = [in, DelayN.ar(in, 0.04, 0.4)];
-    4.do({in = AllpassN.ar(in, 0.5, [0.5.rand, 0.5.rand], 4, amp)});
+    4.do({in = AllpassN.ar(in, 0.5, [0.5.rand, 0.5.rand], 4, amp * 1.5)});
     signal = RLPF.ar(
         FreeVerb.ar(LeakDC.ar(Mix.ar(in) * 0.03), distance, distance/3.44, 0.5),
         distance.linlin(0, 2.sqrt, 10000, 500), 0.5);
@@ -447,7 +448,7 @@ SynthDef(\sr__e__entro, {
         Saw.ar((1..15) * LFNoise0.kr(5, 10, 50) + SinOsc.ar((6..2) * 0.5))
         ]
     );
-    in = Mix.ar(in) * velocity * amp * 0.03; // too loud comparing to the rest, attenuate vol
+    in = Mix.ar(in) * velocity * amp * 0.15; // too loud comparing to the rest, attenuate vol
     signal = RLPF.ar(RLPF.ar(in, shift, rq), shift, rq);
     //Envelope.
     out = signal * master * EnvGen.kr(
@@ -749,6 +750,18 @@ SynthDef(\sr__k__lfnoise2, {
     var out = env * LFNoise2.kr(freq, mul, add);
     Out.kr(outbus, out );
 }).add;
+
+SynthDef(\sr__k__stepnoise, {
+    arg freq=1, phase=0, mul=1, add=0, outbus=0, gate=1, att=1, rel=1;
+    var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
+    var out = env * TWChoose.kr(
+        Dust.ar(1),
+        [LFNoise0.kr(freq, mul, add), LFNoise1.kr(freq, mul, add), LFNoise2.kr(freq, mul, add)],
+        [0.1, 0.3, 0.6]
+    );
+    Out.kr(outbus, out );
+}).add;
+
 
 
 // UTILITIES

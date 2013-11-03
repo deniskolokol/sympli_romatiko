@@ -1,33 +1,20 @@
 (
+var thePiece; // main dictionary with the sequence of scheduled tasks
+var parmDir = Dictionary.new; // Global params of the piece dictionary.
+var sGroupId; // root group
+var receiverNet; // communication
+var task; // tasks dictionary
+var guideBuff, samples, scales; // buffers (sound files and scales)
+var synths=Dictionary.new; // temp dictionary of the synths symbolic IDs vs. server Nodes
+var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
+var key, current, next, syn, obj, age, mass; // object's properties
+var processEvents, sendObjCreate, sendSNew, sendParam, groupNew, groupFree; // main logic functions
+var getKey, displayEventInfo, convertTime; // helper functions
 var win, info, buttons, stCurrNum, stCurrInfo, stNextNum, stNextInfo, timeLabel; // interface
 var shade, count=0, animate=false; // schedule animation
-var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime.
-var key, current, next, syn, obj, age, mass;
-var synths=Dictionary.new; // temp dictionary of the synths symbolic IDs vs. server Nodes
-var sGroupId, receiverNet;
-var thePiece=Dictionary.new; // Sequence of scheduled tasks.
-var getKey, processEvents, displayEventInfo, convertTime;
-var sendObjCreate, sendSNew, sendParam, groupNew, groupFree;
-var task; // Tasks dictionary
-var parmDir = Dictionary.new; // Global params of the piece dictionary.
 
-// WARNING! Specific for the current piece!
-// Read left channel only to feed to TGrains!
-var introBuff = Buffer.readChannel(s,
-    PathName("~/Music/Sympli_Romatiko/solo/Audio/DRLATPOL.WAV").fullPath,
-    channels: [0]);
-var buffList = List.new;
-[ // Fill buffList.
-    "~/Music/Sympli_Romatiko/solo/Audio/bboxbeay2.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/17boxloop.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/BBOX75.WAV",
-    "~/Music/Sympli_Romatiko/solo/Audio/BBOX90.WAV",
-    "~/Music/Sympli_Romatiko/solo/Audio/loop_clean.wav"
-].do { |f|
-    buffList.add(Buffer.readChannel(s, PathName(f).fullPath, channels: [0]));
-};
-
-// Initial settings.
+// INITIAL
+//
 // Net Address and Port of the Receiver.
 receiverNet = NetAddr.new("127.0.0.1", 57120);
 // Group for synths.
@@ -42,6 +29,28 @@ dictObjSeq = (
 );
 msetObjSeq = MarkovSetN([], 2);
 dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
+
+// fill buff with sample connected to guide object
+guideBuff = Buffer.readChannel(s,
+    PathName("~/Music/Sympli_Romatiko/solo/Audio/DRLATPOL.WAV").fullPath,
+    channels: [0]);
+
+samples = List.new; // fill samples
+[
+    "~/Music/Sympli_Romatiko/solo/Audio/bboxbeay2.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/17boxloop.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/BBOX75.WAV",
+    "~/Music/Sympli_Romatiko/solo/Audio/BBOX90.WAV",
+    "~/Music/Sympli_Romatiko/solo/Audio/loop_clean.wav"
+].do { |f|
+    samples.add(Buffer.readChannel(s, PathName(f).fullPath, channels: [0]));
+};
+
+scales = List.new; // fill scales
+[
+    FloatArray[0, 3, 7, 10], // scales[0] is the main scale
+    FloatArray[0, 1, 3, 7, 8] // the rest are specific to thePiece's parts
+].do { |a| scales.add(Buffer.loadCollection(s, a)) };
 
 thePiece = (
     0: [
@@ -79,15 +88,10 @@ thePiece = (
                     \azimuth, 0],
                 ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
                     \outbus, 3, // feeding into spatilizer
-                    \velocity, 0.88, \att, 15, \amp, 1],
+                    \velocity, 0.88, \att, 15, \amp, 0.08],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.5, \mul, 1pi, \outbus, 0],
                 ["/n_map", \group_id, \azimuth, 0],
-                //
-                // TO-DO:
-                // schedule a routine that would alternate distance modulation
-                // between __lfnoise2 to __lfnoise0
-                //
-                ["/s_new", \sr__k__lfnoise2, \next_node_id, 0, \group_id, \freq, 0.08,
+                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.08,
                     \mul, (2.sqrt - 0.3) * 0.5, \add, 2.sqrt - ((2.sqrt - 0.3) * 0.5), // range 0.3..0.7
                     \outbus, 1],
                 ["/n_map", \group_id, \distance, 1],
@@ -103,10 +107,6 @@ thePiece = (
             info: "Particles ON!",
             message: \worldpar, params: [particles: 1, partGuide: "object"]
         ),
-        //
-        // TO-DO: Experiment with particles density and age to find a proper balance
-        // of dynamics with the rest - at least in the beginning
-        //
         (
             info: "Schedule particles",
             message: \task, name: \randomParticles, act: 1
@@ -164,23 +164,16 @@ thePiece = (
             synth: (name: \sr__e__pulse, params: [\att, 1, \rel, 10]),
             object: (type: "a RedBoid", age: rrand(80, 150), mass: 4),
         ),
-        // Start 2 heavy sr__e__analog w/default cutoff.
-
-        // TO-DO:
-        // - 2 heavy sr__e__analog should appear in a particular place (calculate coordinates) and stay for some time
-        //   (to give it a time to accumulate a pressure before transition)
-        // - they can also appear one after another (add one more event)
-        //
-
+        // Start 2 heavy sr__e__analog w/default cutoff and long attack
         (
             message: \worldobj,
-            synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 9),
+            synth: (name: \sr__e__analog, params: [\att, 40, \rel, 10]),
+            object: (type: "a RedObject", age: inf, mass: 9, pos: [300, 300, 250]),
         ),
         (
             message: \worldobj,
-            synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 9)
+            synth: (name: \sr__e__analog, params: [\att, 40, \rel, 10]),
+            object: (type: "a RedObject", age: inf, mass: 9, pos: [470, 300, 250])
         )
     ],
     35: [
@@ -376,35 +369,28 @@ thePiece = (
         ( // Stop percussive granWave.
             message: \task, name: \granWave, act: 0
         ),
-        //
-        // TO-DO:
-        // - add 2 __melo here, re-write them so that their \amp depend on velocity
-        //   via some sigmoid function: in this way moving hands slowly would seem like
-        //   moving a wind around, when it's more energetic, the winds start "singing"
-        // - align their scale with bass
-        //
         (
             info: "2 heavy __noisy",
             message: \worldobj,
-            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
+            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 9]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
         (
             message: \worldobj,
-            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
+            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 9]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
     ],
     82: [
         (
-            info: "add 2 heavy __melo",
+            info: "add 2 heavy __melo with specific scale",
             message: \worldobj,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 10]),
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
         (
             message: \worldobj,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 10]),
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
     ],
@@ -554,7 +540,8 @@ task = (
                 (
                     message: \worldobj,
                     synth: (name: \sr__e__analog, params: [\cutoff, -1]),
-                    object: (age: rrand(1.70, 2.30), mass: 8, type: "a RedObject", objectPos: [300.rand, 300.rand, 300.rand])
+                    object: (age: rrand(1.70, 2.30), mass: 9, type: "a RedObject",
+                        pos: rrand(200, 500) ! 3)
                 )
             );
             (next + rand2(next * 0.25)).wait;
@@ -596,7 +583,9 @@ task = (
             sendObjCreate.(
                 (
                     message: \worldobj,
-                    synth: (name: \sr__e__melo, params: [\att, 1.5, \rel, 3]),
+                    synth: (name: \sr__e__melo, params: [\att, 1.5, \rel, 3,
+                        \bufnum: scales[1].bufnum // specific scale for __melo!
+                    ]),
                     object: (age: rrand(5, 10), mass: 4, type: "a RedObject")
                 )
             );
@@ -617,14 +606,14 @@ task = (
                     message: \worldobj,
                     object: (age: age, mass: 5, type: "a RedBoid"),
                     synth: (name: introSynths.wchoose(introSynthProb),
-                        params: [\att, 4, \rel, 3.0.rand, \bufnum, introBuff.bufnum]
+                        params: [\att, 4, \rel, 3.0.rand, \bufnum, guideBuff.bufnum]
                     )
                 )
             );
             // Wait attack time (will overlap with wave a little).
             4.wait;
-            // Alternate between samples from buffList.
-            buff = buffList[(j % buffList.size).asInt];
+            // Alternate between samples from samples.
+            buff = samples[(j % samples.size).asInt];
             {
                 200.do{ arg i;
                     var timeprop = (i / 199.0) ** 3;
@@ -862,8 +851,8 @@ win.front;
 
 CmdPeriod.doOnce({
     // Free buffers.
-    introBuff.free;
-    buffList.do { |buff| buff.free};
+    guideBuff.free;
+    samples.do { |buff| buff.free};
 
     win.close;
 });

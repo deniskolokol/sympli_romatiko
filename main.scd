@@ -196,23 +196,23 @@ var skeletonCoords, skeletonObject;
 var layoutHColor=Color.new255(100, 100, 100), layoutHFontColor=Color.new255(200, 200, 200), panelColor=Color.grey(0.8);
 var labelFont=Font("Helvetica", 9), layoutHFont=Font("Helvetica", 11);
 var winWorld, winCtl, drawPanels; // main control interface
-var stringBackground = Color.grey(alpha:0.1),
-stringColor = layoutHColor,
-menuBackground = Color.white,
-menuStringColor = Color.black,
-listBackground = Color.white,
-listStringColor = Color.black,
-selectedStringColor = nil,
-hiliteColor = nil,
-sliderBackground = Color.grey(alpha:0.5),
-numBackground = Color.white,
-numStringColor = Color.grey(alpha:0.1),
-numNormalColor = Color.black,
-numTypingColor = Color.black,
-knobColor = Color.black,
-background = nil;
 var cvObjCtrl, cvAux;
-var ezkObjCtrl=Array.fill(worldCapacity, {nil});
+var ezkObjCtrl;
+var stringBackground = Color.grey(alpha:0.1),
+    stringColor = layoutHColor,
+    menuBackground = Color.white,
+    menuStringColor = Color.black,
+    listBackground = Color.white,
+    listStringColor = Color.black,
+    selectedStringColor = nil,
+    hiliteColor = nil,
+    sliderBackground = Color.grey(alpha:0.5),
+    numBackground = Color.white,
+    numStringColor = Color.grey(alpha:0.1),
+    numNormalColor = Color.black,
+    numTypingColor = Color.black,
+    knobColor = Color.black,
+    background = nil;
 
 // System related.
 var shutDown;
@@ -278,6 +278,7 @@ cyclicBuf = Buffer.alloc(s, s.sampleRate, 1); // 1s single channel Buffer
 isRecording = false;
 recProgress = 0;
 scaleBuf = Buffer.loadCollection(s, FloatArray[0, 3, 7, 10]); // default Scale buffer
+ezkObjCtrl = Array.fill(worldCapacity, {nil}); // EZ elements with similar style
 
 // PARTICLES
 //

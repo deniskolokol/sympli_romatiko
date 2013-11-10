@@ -286,11 +286,11 @@ SynthDef(\sr__e__melo, {
         + Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
             LFNoise0.kr(1.0.rand, 2, 10), r: LFNoise0.kr(1.0.rand, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
         LFNoise0.kr(0.2, 38, 115).midicps, 0.1,
-        mul:(amp * velocity).scurve // sigmoid: the faster, the more present
+        mul:(amp * velocity * 0.5).scurve // sigmoid: the faster, the more present
     );
     in = [in, DelayN.ar(in, 0.04, 0.04)];
     4.do({in = AllpassN.ar(in, 0.05, [0.05.rand, 0.05.rand], 4)});
-    in = Mix.ar(in) * 0.2;
+    in = Mix.ar(in);
     signal = RLPF.ar(
         FreeVerb.ar(LeakDC.ar(in), distance, distance/3.44, 0.2),
         distance.linlin(0, 2.sqrt, 10000, 500), 0.5);
@@ -363,16 +363,21 @@ SynthDef(\sr__e__analog, {
         offset=36, cutoff=0;
     var note, in, out, signal;
     var rq, azThresh=0.7;
-    var trig, timer;
+    var freq, trig, timer, mul, add;
     // Conversion.
+    mul = 2250; add = 2750;
     trig = velocity > 0.33; // high velocity causes sharp switch
     timer = Timer.kr(trig);
+    freq = TRand.kr(trig:Delay2.kr(Dust.kr(1)));
     cutoff = SelectX.kr(BinaryOpUGen('<', cutoff, 0) * 2,
-        [ // Positive cutoff falls at the freq range 200..5000
-            TChoose.ar((timer > 0.25) * trig, [
-                LFDClipNoise.ar(az, 2250, 2750),
-                LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(1))), 2250, 2750)
-                ]
+        [ // Positive cutoff falls at the freq range 500..5000
+            TWChoose.kr((timer > 0.25) * trig,
+                [
+                    LFNoise0.ar(freq, mul, add),
+                    LFNoise1.ar(freq, mul, add),
+                    LFNoise2.ar(freq).clip2 * mul + add // quadratic interpolation can push beyond normal range of +-1
+                ],
+                [0.1, 0.3, 0.6]
             ),
             5666 // zero or negative cutoff means constant
         ]
@@ -393,6 +398,33 @@ SynthDef(\sr__e__analog, {
     in = Mix.fill(8, {LFSaw.ar((note + 0.1.rand2).midicps)});
     in = Limiter.ar(Mix.ar(in), amp * 0.2);
     signal = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq);
+    //Envelope.
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(outbus, out);
+}).add;
+
+
+SynthDef(\sr__e__gauss, {
+    arg bufnum=0, inbus=30, outbus=20,
+    amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
+    ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
+    offset=36, cutoff=0;
+    var note, scale, in, out, signal;
+    var cutOff, rq, dur, width;
+    // Conversion.
+    cutOff = distance.linexp(0.0, 1.0, 10000, 200); // different from arg!
+    rq = distance.linexp(0, 2.sqrt, 1, 0.2);
+    dur = SinOsc.ar(LinExp.kr(az, 0.001, 1, 0.05, 5000) * [1, 1.1]).range(0.0006, 0.01);
+    width = SinOsc.ar(0.5 * [1, 1.1]).range(0.01, 0.3);
+    // Synthesis.
+    in = LFGauss.ar(dur, width)
+        + SinOsc.ar(az.linexp(0, 1, 0.01, 5000) * [1, 1.1],
+            mul:(az.clip(0, 1) * velocity).sqrt); // sqrt boosts mul
+    in = Mix.fill(10, in);
+    in = Compander.ar(in, in, 0.002, slopeBelow: 0.33, slopeAbove: 0.5,
+        clampTime: 0.01, relaxTime: 0.01, mul: amp);
+    signal = RLPF.ar(RLPF.ar(Mix.ar(in), cutOff, rq), cutOff, rq);
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -514,6 +546,47 @@ SynthDef(\sr__e__radio, {
 }).add;
 
 
+SynthDef(\sr__e__wasp, {
+    arg bufnum=0, inbus=30, outbus=20,
+        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
+        offset=36, cutoff=0;
+    var note, scale, in, out, signal;
+    var cutOff, rq, azThresh=0.7;
+    // Conversion.
+    cutOff = distance.linexp(0.0, 1.0, 200, 10000); // different from arg!
+    rq = distance.linlin(0, 2.sqrt, 0.5, 1);
+    note = DegreeToKey.kr(bufnum, az * 15, 24, 1, 15);
+    // Synthesis.
+    in = Formlet.ar(
+        LPF.ar(
+            Saw.ar(
+                (1..5) * LFClipNoise.ar(SinOsc.ar(0.1, 0, 0.5, 1), 10, note), 0.3
+            )
+            +
+            SinOsc.ar((6..2), velocity ** 3).exprange(0.05, 50)
+            , 300
+        )
+        +
+        Impulse.ar(
+            (0..4) + SinOsc.ar(
+        (4..8) * 0.02).exprange(0.3, 300))
+        , (1..5)
+        * SinOsc.ar((5..9)*0.05).exprange(200, 2000)
+        * SinOsc.ar(SinOsc.ar((2..6) * 0.1, 0, 0.1), 0, 0.1, 1), 0.001, 0.0015
+    );
+    in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq);
+    in = Compander.ar(in, in, 0.002, slopeBelow: 0.33, slopeAbove: 0.5,
+        clampTime: 0.01, relaxTime: 0.01,
+        mul:(amp * velocity).scurve); // sigmoid: the faster, the more present
+    signal = Mix.ar(in);
+    //Envelope.
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(outbus, out);
+}).add;
+
+
 // DRUMS AND PERCUSSION
 // (Warning! Different enveloping.)
 //
@@ -602,17 +675,18 @@ SynthDef(\sr__s__ambisonic2, {
 
 SynthDef(\sr__s__ambisonic4, {
     arg inbus=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
+        azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=15;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim= [-0.25pi, -0.6pi, 0.6pi, 0.25pi], speakerElev= 0, speakerDist= [2, 2, 2, 2],
-        maxDist=3, scaleFlag=1,
+        speakerAzim= [-0.25pi, -0.6pi, 0.6pi, 0.25pi], speakerElev= [0, 0, 0, 0], speakerDist= [1.5, 1.5, 1.5, 1.5],
+        maxDist=1.5, scaleFlag=0,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);
     signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
     #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
-    out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
-        azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
+    // out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
+    // azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
+    out = FMHDecode1.quad(w, x, y, v);
     Out.ar(outbus, out);
 }).send(s);
 
@@ -638,14 +712,15 @@ SynthDef(\sr__s__vbap4, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
     var speakerAzim = #[-45, -140, 140, 45], speakerElev=0, speakerBuff, spread=0;
-    var in, signal, out;
+    var in, amp, signal, out;
     //Speakers config.
     speakerBuff= VBAPSpeakerArray.new(2, speakerAzim).loadToBuffer;
     //Conversion.
     azimuth = azimuth.linlin(-pi, pi, -180, 180);
     elevation = elevation.linlin(-0.5pi, 0.5pi, -90, 90);
-    spread = [50, 0, 4].asSpec.map(distance); // the closer the signal, the more speakers involved (welch-like)
-    in = In.ar(inbus, 1);
+    spread = [100, 0, 4].asSpec.map(distance); // the closer the signal, the more speakers involved (welch-like)
+    amp = distance.linexp(0.001, 2.sqrt, 1, 0.001); // and the louder it is.
+    in = In.ar(inbus, 1) * amp;
     signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
     out = VBAP.ar(4, signal, speakerBuff.bufnum, azimuth, elevation, spread);
     Out.ar(outbus, out);
@@ -747,7 +822,7 @@ SynthDef(\sr__k__lfnoise1, {
 SynthDef(\sr__k__lfnoise2, {
     arg freq=1, phase=0, mul=1, add=0, outbus=0, gate=1, att=1, rel=1;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var out = env * LFNoise2.kr(freq, mul, add);
+    var out = env * LFNoise2.kr(freq).clip2 * mul + add;
     Out.kr(outbus, out );
 }).add;
 
@@ -756,8 +831,8 @@ SynthDef(\sr__k__stepnoise, {
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
     var out = env * TWChoose.kr(
         Dust.ar(1),
-        [LFNoise0.kr(freq, mul, add), LFNoise1.kr(freq, mul, add), LFNoise2.kr(freq, mul, add)],
-        [0.1, 0.3, 0.6]
+        [LFNoise0.kr(freq, mul, add), LFNoise1.kr(freq, mul, add), LFNoise2.kr(freq).clip2 * mul + add],
+        [0.1, 0.4, 0.5]
     );
     Out.kr(outbus, out );
 }).add;

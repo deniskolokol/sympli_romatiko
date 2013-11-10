@@ -63,7 +63,7 @@ thePiece = (
                 // Physics parameters.
                 worldGrav: 0.98, worldMaxVel: 30, worldDamp: 0.01, starMass: 120, heavy: 5, initMass: 8,
                 springStiff: 1, springDamp: 0.1, springLen: 2,
-                repulsiveForce: 5, objAttract: true, // WARNING! switch it off when the skeleton enters!
+                repulsiveForce: 5, objAttract: true, // This should be set to false before skeleton enters!
                 // Particles.
                 particles: 0, partSigmoidRatio: 0.7, partFreq: 0.5, partAgeThresh: 80,
                 partInitAccel: 3, partGuide: "object", partSynth: \sr__e__analog,
@@ -315,23 +315,6 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         ),
         (
-            info: "2 heavy ringz",
-            message: \worldobj,
-            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 9)
-        ),
-        (
-            message: \worldobj,
-            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 9)
-        ),
-    ],
-    75: [
-        (
-            info: "Remove all",
-            message: \worldact, action: \remove, objects: \all
-        ),
-        (
             info: "Schedule granular waves",
             message: \task, name: \granWave, act: 1
         ),
@@ -339,24 +322,53 @@ thePiece = (
             info: "Ave __lowe",
             message: \worldobj,
             synth: (name: \sr__e__lowe, params: [\att, 10.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 6)
+            object: (type: "a RedObject", age: inf, mass: 7)
+        ),
+    ],
+    75: [
+        (
+            info: "2 heavy ringz with long release",
+            message: \worldobj,
+            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand, \rel, 60]),
+            object: (type: "a RedObject", age: inf, mass: 7)
+        ),
+        (
+            message: \worldobj,
+            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand, \rel, 60]),
+            object: (type: "a RedObject", age: inf, mass: 7)
+        ),
+    ],
+    76: [
+        (
+            info: "Remove ringz (!!! On a granular blast !!!)",
+            message: \worldact, action: \remove, objects: \all
+        ),
+        (
+            info: "2 heavy __melo with specific scale",
+            message: \worldobj,
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
+        (
+            message: \worldobj,
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
+            object: (type: "a RedObject", age: inf, mass: 9)
         ),
     ],
     78: [
         (
-            info: "Add ave __noisy",
+            info: "Add ave __noisy, long attack",
             message: \worldobj,
-            synth: (name: \sr__e__noisy, params: [\att, 10.0.rand, \rel, 10]),
+            synth: (name: \sr__e__noisy, params: [\att, 60, \rel, 10]),
             object: (type: "a RedBoid", age: inf, mass: 7)
         ),
     ],
     80: [
-        ( // Remove all objects.
+        (
             info: "GROOVE_1",
             message: \worldact, action: \remove, objects: \all
         ),
         ( // Stop schedule with sporadic \sr__e__cmb
-            info: "Remove all, stop sched",
             message: \task, name: \sporadicCMB, act: 0
         ),
         ( // Stop schedule with sporadic \sr__e__melo
@@ -380,18 +392,16 @@ thePiece = (
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 9]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
-    ],
-    82: [
         (
-            info: "add 2 heavy __melo with specific scale",
+            info: "2 heavy __melo with specific scale",
             message: \worldobj,
             synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
-            object: (type: "a RedObject", age: inf, mass: 9)
+            object: (type: "a RedObject", age: inf, mass: 10)
         ),
         (
             message: \worldobj,
             synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
-            object: (type: "a RedObject", age: inf, mass: 9)
+            object: (type: "a RedObject", age: inf, mass: 10)
         ),
     ],
     85: [
@@ -406,12 +416,16 @@ thePiece = (
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
         (
-            info: "Start heavy __entro",
+            info: "2 heavy __entro",
             message: \worldobj,
             synth: (name: \sr__e__entro),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
-
+        (
+            message: \worldobj,
+            synth: (name: \sr__e__entro),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
     ],
     90: [
         (
@@ -419,15 +433,20 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         ),
         (
-            info: "Leave one __noisy",
+            info: "Leave one heavy __noisy",
             message: \worldobj,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 8)
+            object: (type: "a RedObject", age: inf, mass: 9)
         ),
         (
-            info: "Add heavy __radio",
+            info: "add 2 heavy __gauss",
             message: \worldobj,
-            synth: (name: \sr__e__radio, params: [\att, 5.0.rand, \rel, 10]),
+            synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
+        (
+            message: \worldobj,
+            synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
     ],
@@ -482,7 +501,7 @@ task = (
 
             dictObjSeq[key.asInteger][0].choose.do{ |i|
                 next = msetObjSeq.next(key);
-                syn = [\sr__e__humm, \sr__e__radio][i % 2];
+                syn = [\sr__e__humm, \sr__e__radio][i % 2]; // alternate between synths
 
                 // Age spans over to the next object birth - no gaps!
                 // The lighter objects the faster they die, but their demography is denser.

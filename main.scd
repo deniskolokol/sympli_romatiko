@@ -46,7 +46,8 @@ var p_FACTORY_SETTINGS = (
 // List of svailable synths.
 var a_SYNTHS = #[\sr__g__reg, \sr__g__drone, \sr__g__gust, \sr__g__slic, \sr__g__loop, \sr__g__chunk,
     \sr__e__lowe, \sr__e__probe, \sr__e__cmb, \sr__e__melo, \sr__e__ringz, \sr__e__pulse, \sr__e__analog,
-    \sr__e__entro, \sr__e__noisy, \sr__e__humm, \sr__e__radio, \sr__p__kick, \sr__p__hat, \sr__p__snare];
+    \sr__e__entro, \sr__e__noisy, \sr__e__humm, \sr__e__radio, \sr__e__wasp,
+    \sr__p__kick, \sr__p__hat, \sr__p__snare];
 var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
 // Spec for mass control.
 var p_MASSSPEC = ControlSpec(1, 11, \lin, 1);
@@ -112,19 +113,25 @@ var p_INTRFACE = [
 var a_BUS_POOL = [30, 53]; // lowest and highest-1 number of bus used for objects' synths
 var c_KEY_OBJ = #[29, 18, 19, 20, 21, 23, 22, 26, 28, 25]; // keycodes for tracing objects 0-9. ORDER MATTERS!!!
 var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different kinds
-    12: ["a RedObject", \sr__g__reg],	// q
-    13: ["a RedObject", \sr__g__drone],	// w
-    14: ["a RedObject", \sr__g__gust],	// e
-    15: ["a RedBoid",   \sr__g__slic],	// r
-    17: ["a RedBoid",   \sr__g__loop],	// t
-    16: ["a RedObject", \sr__e__noisy],	// y
-    32: ["a RedObject", \sr__e__probe],	// u
-    34: ["a RedObject", \sr__e__cmb],	// i
-    31: ["a RedObject", \sr__e__entro], // o // 31: ["a RedObject", \sr__e__lowe],
-    35: ["a RedObject", \sr__e__melo],	// p
-    33: ["a RedBoid",   \sr__e__ringz],	// [
-    30: ["a RedBoid",   \sr__e__pulse],	// ]
+    12: ["a RedObject", \sr__e__wasp],	 // q
+    13: ["a RedObject", \sr__e__radio],  // w
+    14: ["a RedObject", \sr__e__humm],	 // e
+    15: ["a RedObject", \sr__e__gauss],  // r
+    17: ["a RedObject", \sr__e__entro],  // t
+    16: ["a RedObject", \sr__e__noisy],  // y
+    32: ["a RedObject", \sr__e__probe],  // u
+    34: ["a RedObject", \sr__e__cmb],	 // i
+    31: ["a RedObject", \sr__e__lowe],   // o
+    35: ["a RedObject", \sr__e__melo],	 // p
+    33: ["a RedObject", \sr__e__ringz],  // [
+    30: ["a RedBoid",   \sr__e__pulse],  // ]
     42: ["a RedObject", \sr__e__analog], // \ (the answer to the ultimate question ))
+
+    1:  ["a RedObject", \sr__g__reg],	 // s
+    2:  ["a RedObject", \sr__g__drone],  // d
+    3:  ["a RedObject", \sr__g__gust],	 // f
+    5:  ["a RedBoid",   \sr__g__slic],	 // g
+    4:  ["a RedBoid",   \sr__g__loop],	 // h
 );
 var c_CTRL_SYNTH_ARGS = #[ //[\synthName, kr_bus]
     [\kr_ml0, 0],
@@ -134,7 +141,7 @@ var c_CTRL_SYNTH_ARGS = #[ //[\synthName, kr_bus]
     [\kr_mg1, 4],
     [\kr_mh0, 5]];
 var o_SCHEDULER_ADDR = NetAddr.new("127.0.0.1", 57120);
-var o_SKELETON_ADDR = NetAddr("192.168.1.102", nil); // NetAddr("192.168.0.11", nil);
+var o_SKELETON_ADDR = NetAddr("192.168.1.103", nil); // NetAddr("192.168.0.11", nil);
 var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0], w_REDVEC_3D_0 = RedVector3D[0, 0, 0];
 
 
@@ -147,7 +154,7 @@ var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide, posGuide, ob
 var mass, pos, wind, springs, hand, applyForces=1;
 
 var synForm=nil, synSaw=nil, posFeet=[nil, nil], synthCtrl, currFormCtl=nil, currSawCtl=nil, startFeetSynths;
-var fillStream, streamList= [nil], runTask1, runTask2, isActiveTask1= 0, isActiveTask2= 0;
+var fillStream, streamList=[nil], runTask1, runTask2, isActiveTask1= 0, isActiveTask2= 0;
 var objColors= Array.fill(worldCapacity, {Color.rand});
 var skeletonObjectText;
 var rectimeRep;
@@ -1075,8 +1082,8 @@ currentChannels = {
     var chOut, chNum, str;
     chOut = params[\outbus];
     str = params[\confSurround].asString;
-    chNum = str[f.size-1..].asInteger;
-    if (chNum == 0) {chNum = str[f.size-2..].asInteger};
+    chNum = str[str.size-1..].asInteger;
+    if (chNum == 0) {chNum = str[str.size-2..].asInteger};
     [chOut, chNum]
 };
 

@@ -396,7 +396,8 @@ SynthDef(\sr__e__analog, {
     );
     // Synthesis.
     in = Mix.fill(8, {LFSaw.ar((note + 0.1.rand2).midicps)});
-    in = Limiter.ar(Mix.ar(in), amp * 0.2);
+    in = Compander.ar(in, in, 0.002, slopeBelow: 0.33, slopeAbove: 0.5,
+        clampTime: 0.01, relaxTime: 0.01, mul: amp);
     signal = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq);
     //Envelope.
     out = signal * master * EnvGen.kr(
@@ -684,9 +685,8 @@ SynthDef(\sr__s__ambisonic4, {
     in = In.ar(inbus, 1);
     signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
     #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
-    // out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
-    // azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
-    out = FMHDecode1.quad(w, x, y, v);
+    out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
+        azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
     Out.ar(outbus, out);
 }).send(s);
 

@@ -59,9 +59,9 @@ thePiece = (
             message: \worldpar,
             params: [
                 // Audio settings.
-                audioIn: true, inbus: 20, fieldDepth: 5, confSurround: "Ambisonic4", master: 1,
+                audioIn: true, inbus: 20, fieldDepth: 4, confSurround: "Ambisonic4", master: 1,
                 // Physics parameters.
-                worldGrav: 0.98, worldMaxVel: 30, worldDamp: 0.01, starMass: 120, heavy: 5, initMass: 8,
+                worldGrav: 0.98, worldMaxVel: 30, worldDamp: 0.01, starMass: 50, heavy: 5, initMass: 8,
                 springStiff: 1, springDamp: 0.1, springLen: 2,
                 repulsiveForce: 5, objAttract: true, // This should be set to false before skeleton enters!
                 // Particles.
@@ -83,16 +83,16 @@ thePiece = (
             id: \intro_bundle,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
                 ["/s_new", \sr__s__ambisonic4, \next_node_id, 1, \group_id, // add spatializer to new group's tail
-                    \inbus, 3, // getting signal from synth
+                    \inbus, 12, // getting signal from synth
                     \outbus, 0, // to main output
                     \azimuth, 0],
                 ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
-                    \outbus, 3, // feeding into spatilizer
-                    \velocity, 0.88, \att, 15, \amp, 0.08],
+                    \outbus, 12, // feeding into spatilizer
+                    \velocity, 0.88, \att, 20],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.5, \mul, 1pi, \outbus, 0],
                 ["/n_map", \group_id, \azimuth, 0],
                 ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.08,
-                    \mul, (2.sqrt - 0.3) * 0.5, \add, 2.sqrt - ((2.sqrt - 0.3) * 0.5), // range 0.3..0.7
+                    \mul, (1 - 0.2) * 0.5, \add, 1 - ((1 - 0.2) * 0.5), // range 0.1..1.41
                     \outbus, 1],
                 ["/n_map", \group_id, \distance, 1],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 2],
@@ -132,7 +132,13 @@ thePiece = (
         (
             info: "Schedule __analog cutoff= -1",
             message: \task, name: \sporadicAnalogCutoff, act: 1
-        )
+        ),
+        (
+            info: "Restore star mass",
+            message: \worldpar,
+            params: [starMass: 120]
+        ),
+
     ],
     30: [
         ( // Remove all objects.
@@ -156,13 +162,13 @@ thePiece = (
             message: \worldpar, params: [particles: 0]
         ),
         ( // remove intro group from server
-            message: \g_free, id: \intro_bundle, params: [\release, 10]
+            message: \g_free, id: \intro_bundle, params: [\release, 80]
         ),
         (
             info: "Ave __pulse, 2 heavy __analog default cutoff",
             message: \worldobj,
-            synth: (name: \sr__e__pulse, params: [\att, 1, \rel, 10]),
-            object: (type: "a RedBoid", age: rrand(80, 150), mass: 4),
+            synth: (name: \sr__e__pulse, params: [\att, 40, \rel, 10]),
+            object: (type: "a RedBoid", age: rrand(80, 150), mass: 5, pos: [350, 120, 750]),
         ),
         // Start 2 heavy sr__e__analog w/default cutoff and long attack
         (
@@ -359,8 +365,12 @@ thePiece = (
         (
             info: "Add ave __noisy, long attack",
             message: \worldobj,
-            synth: (name: \sr__e__noisy, params: [\att, 60, \rel, 10]),
+            synth: (name: \sr__e__noisy, params: [\att, 180, \rel, 10]),
             object: (type: "a RedBoid", age: inf, mass: 7)
+        ),
+        (
+            info: "Stop percussive granWave",
+            message: \task, name: \granWave, act: 0
         ),
     ],
     80: [
@@ -377,9 +387,6 @@ thePiece = (
         ( // Stop schedule lightPulseRingz
             info: "Remove all, stop sched",
             message: \task, name: \lightPulseRingz, act: 0
-        ),
-        ( // Stop percussive granWave.
-            message: \task, name: \granWave, act: 0
         ),
         (
             info: "2 heavy __noisy",
@@ -474,6 +481,21 @@ thePiece = (
                 partInitAccel: 3, partGuide: "object", partSynth: \sr__e__analog,
             ]
         ),
+        (
+            info: "2 light granular boids",
+            message: \worldobj,
+            synth: (name: \sr__g__reg, params: [\att, 5.0.rand, \rel, 10]),
+            object: (type: "a RedBoid", age: inf, mass: 6)
+        ),
+        (
+            message: \worldobj,
+            synth: (name: \sr__g__loop, params: [\att, 5.0.rand, \rel, 10]),
+            object: (type: "a RedObject", age: inf, mass: 6)
+        ),
+        ( // stop audioIn
+            message: \worldpar,
+            params: [audioIn: false]
+        )
     ],
     99: [
         (
@@ -508,7 +530,7 @@ task = (
                 age = next * (1 + (1/(next.pow(0.33))));
 
                 // Mass is: sqrt propotion to life cycle for \sr__e__ringz; constant for \sr__e__pulse.
-                mass = if (syn == \sr__e__pulse) {3} {next.sqrt.clip(3, 6)};
+                mass = next.sqrt.clip(1, 3);
 
                 // Send object creation message.
                 sendObjCreate.(
@@ -527,12 +549,12 @@ task = (
         var key, next;
         var particleParams = [ // list of acceptable configurations
             [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.3, \partAgeThresh, 40, \partInitAccel, 10 ],
-            [\partSynth, \sr__e__cmb,   \partSigmoidRatio, 0.8, \partAgeThresh, 5, \partInitAccel, 2.6],
-            [                           \partSigmoidRatio, 0.4, \partAgeThresh, 80,  \partInitAccel, 30 ],
+            [\partSynth, \sr__e__cmb,   \partSigmoidRatio, 0.8, \partAgeThresh, 5,  \partInitAccel, 2.6],
+            [                           \partSigmoidRatio, 0.4, \partAgeThresh, 80, \partInitAccel, 30 ],
             [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.7, \partAgeThresh, 5,  \partInitAccel, 8.0],
             [                           \partSigmoidRatio, 0.2, \partAgeThresh, 100,\partInitAccel, 0.1],
             [\partSynth, \sr__e__melo,  \partSigmoidRatio, 0.7, \partAgeThresh, 47, \partInitAccel, 2.0],
-            [\partSynth, \sr__e__pulse, \partSigmoidRatio, 0.2, \partAgeThresh, 2,  \partInitAccel, 20 ]
+            [\partSynth, \sr__e__pulse, \partSigmoidRatio, 0.2, \partAgeThresh, 10, \partInitAccel, 20 ],
         ];
         inf.do { |i|
             // Send object creation message.
@@ -552,18 +574,17 @@ task = (
         }
     }),
     sporadicAnalogCutoff: Task({
-        var next = 8.30;
         loop {
             // Send object creation message.
             sendObjCreate.(
                 (
                     message: \worldobj,
-                    synth: (name: \sr__e__analog, params: [\cutoff, -1]),
+                    synth: (name: \sr__e__analog, params: [\cutoff, -1, \rel, rrand(4, 6)]),
                     object: (age: rrand(1.70, 2.30), mass: 9, type: "a RedObject",
-                        pos: rrand(200, 500) ! 3)
+                        pos: rrand(200, 600) ! 3)
                 )
             );
-            (next + rand2(next * 0.25)).wait;
+            (10 + 2.0.rand2).wait;
         }
     }),
     sporadicPulse: Task({
@@ -574,10 +595,10 @@ task = (
                 (
                     message: \worldobj,
                     synth: (name: \sr__e__pulse, params: [\att, 1.5, \rel, 3]),
-                    object: (age: rrand(1.7, 3.0), mass: 8, type: "a RedBoid")
+                    object: (age: rrand(1.7, 5.0), mass: 8, type: "a RedBoid")
                 )
             );
-            (next + rand2(next * 0.25)).wait;
+            (next + rand2(next * 0.5)).wait;
         }
     }),
     sporadicCMB: Task({

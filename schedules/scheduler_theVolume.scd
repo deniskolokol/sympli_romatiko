@@ -84,15 +84,14 @@ thePiece = (
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
                 ["/s_new", \sr__s__ambisonic4, \next_node_id, 1, \group_id, // add spatializer to new group's tail
                     \inbus, 12, // getting signal from synth
-                    \outbus, 0, // to main output
-                    \azimuth, 0],
+                    \outbus, 0], // to main output
                 ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
                     \outbus, 12, // feeding into spatilizer
-                    \velocity, 0.88, \att, 20],
+                    \velocity, 0.88, \att, 30],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.5, \mul, 1pi, \outbus, 0],
                 ["/n_map", \group_id, \azimuth, 0],
                 ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.08,
-                    \mul, (1 - 0.2) * 0.5, \add, 1 - ((1 - 0.2) * 0.5), // range 0.1..1.41
+                    \mul, (1 - 0.2) * 0.5, \add, 1 - ((1 - 0.2) * 0.5), // range 0.2..1
                     \outbus, 1],
                 ["/n_map", \group_id, \distance, 1],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 2],
@@ -104,34 +103,27 @@ thePiece = (
     ],
     5: [
         (
-            info: "Particles ON!",
+            info: "Particles",
             message: \worldpar, params: [particles: 1, partGuide: "object"]
         ),
         (
-            info: "Schedule particles",
             message: \task, name: \randomParticles, act: 1
         ),
     ],
-    7: [
+    10: [
         (
-            info: "Schedule Intro",
+            info: "Intro",
             message: \task, name: \intro, act: 1
         )
     ],
-    10: [
-        (
-            info: "Schedule light __pulse & __ringz",
-            message: \task, name: \lightPulseRingz, act: 1
-        ),
-    ],
     20: [
+        (
+            info: "__analog cutoff= -1",
+            message: \task, name: \sporadicAnalogCutoff, act: 1
+        ),
         (
             info: "Remove mutual attraction",
             message: \worldpar, params: [objAttract: false]
-        ),
-        (
-            info: "Schedule __analog cutoff= -1",
-            message: \task, name: \sporadicAnalogCutoff, act: 1
         ),
         (
             info: "Restore star mass",
@@ -145,11 +137,8 @@ thePiece = (
             info: "SCI-FI",
             message: \worldact, action: \remove, objects: \all
         ),
-        ( // Stop schedule with occasional light \sr__e__pulse and \sr_rings
-            info: "Remove all, stop sched, particles OFF",
-            message: \task, name: \lightPulseRingz, act: 0
-        ),
         ( // Stop schedule with sporadic \sr__e__analog, cutoff= -1
+            info: "Remove all, stop sched, particles OFF",
             message: \task, name: \sporadicAnalogCutoff, act: 0
         ),
         ( // Clear \intro schedule
@@ -232,7 +221,7 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         ),
         (
-            info: "Leave 2 ave __analog ~Fade-out",
+            info: "2 heavy __analog ~fade-out",
             message: \worldobj,
             synth: ( name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 10)
@@ -243,7 +232,7 @@ thePiece = (
             object: (type: "a RedObject", age: inf, mass: 10)
         ),
         (
-            info: "Heavy __probe ~X-fade",
+            info: "Heavy __probe ~fade-in",
             message: \worldobj,
             synth: (name: \sr__e__probe, params: [\att, 1.0.rand, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 8),
@@ -255,13 +244,20 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         ),
         (
-            info: "Remove all",
             message: \worldobj,
             synth: (name: \sr__e__probe, params: [\att, 1.0.rand, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 11),
         ),
         (
-            info: "2 heavy __probe",
+            info: "heavy __probe - TAP twice for 2!",
+            message: \worldobj,
+            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
+            object: (type: "a RedObject", age: inf, mass: 11)
+        )
+    ],
+    51: [
+        (
+            info: "AIRY: heavy __probe 2",
             message: \worldobj,
             synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 11)
@@ -281,11 +277,13 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         ),
         (
-            info: "Leave one __probe",
+            info: "Leave __probe - TAP twice for __cmb!",
             message: \worldobj,
             synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
+    ],
+    58: [
         (
             info: "Heavy __cmb ~X-fade",
             message: \worldobj,
@@ -297,23 +295,19 @@ thePiece = (
         ( // Remove all objects.
             message: \worldact, action: \remove, objects: \all
         ),
-        ( // Start 2 heavy \sr__e__cmb.
+        (
+            info: "Heavy __cmb - TAP twice for 2!",
             message: \worldobj,
             synth: (name: \sr__e__cmb, params: [\att, 1.0.rand, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 9),
         ),
+    ],
+    61: [
         (
-            info: "Add another heavy __cmb",
             message: \worldobj,
             synth: (name: \sr__e__cmb, params: [\att, 3 + 2.0.rand2, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 9)
         )
-    ],
-    65: [
-        (
-            info: "Schedule light __pulse and __rings",
-            message: \task, name: \lightPulseRingz, act: 1
-        ),
     ],
     70: [
         (
@@ -379,14 +373,11 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         ),
         ( // Stop schedule with sporadic \sr__e__cmb
+            info: "Remove all, stop sched",
             message: \task, name: \sporadicCMB, act: 0
         ),
         ( // Stop schedule with sporadic \sr__e__melo
             message: \task, name: \sporadicMelo, act: 0
-        ),
-        ( // Stop schedule lightPulseRingz
-            info: "Remove all, stop sched",
-            message: \task, name: \lightPulseRingz, act: 0
         ),
         (
             info: "2 heavy __noisy",
@@ -542,7 +533,7 @@ task = (
                 );
                 next.wait;
             };
-            0.001.wait;
+            0.01.wait;
         }
     }),
     randomParticles: Task({
@@ -554,7 +545,7 @@ task = (
             [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.7, \partAgeThresh, 5,  \partInitAccel, 8.0],
             [                           \partSigmoidRatio, 0.2, \partAgeThresh, 100,\partInitAccel, 0.1],
             [\partSynth, \sr__e__melo,  \partSigmoidRatio, 0.7, \partAgeThresh, 47, \partInitAccel, 2.0],
-            [\partSynth, \sr__e__pulse, \partSigmoidRatio, 0.2, \partAgeThresh, 10, \partInitAccel, 20 ],
+            [\partSynth, \sr__e__pulse, \partSigmoidRatio, 0.2, \partAgeThresh, 2,  \partInitAccel, 20 ],
         ];
         inf.do { |i|
             // Send object creation message.
@@ -668,7 +659,7 @@ task = (
                     rrand((timeprop * 0.1).max(0.01),timeprop*0.4).wait
                 };
             }.fork;
-            rrand(12, 30).wait;
+            rrand(20, 60).wait;
         }
         }
     )

@@ -346,8 +346,8 @@ SynthDef(\sr__e__pulse, {
     );
     // Synthesis.
     in = Blip.ar(SinOsc.kr(0.5, 0, LFDNoise1.kr(1.5), note), 100, 0.2);
-    in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq, amp);
-    in = Limiter.ar(MidEQ.ar(Mix.ar(in), [200, 14000], 0.7, 8) * amp);
+    in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq);
+    in = Limiter.ar(MidEQ.ar(Mix.ar(in), [200, 14000], 0.7, 8), amp * 0.1);
     signal = Mix.ar(in);
     //Envelope.
     out = signal * master * EnvGen.kr(

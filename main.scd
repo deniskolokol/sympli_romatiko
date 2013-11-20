@@ -141,7 +141,7 @@ var c_CTRL_SYNTH_ARGS = #[ //[\synthName, kr_bus]
     [\kr_mg1, 4],
     [\kr_mh0, 5]];
 var o_SCHEDULER_ADDR = NetAddr.new("127.0.0.1", 57120);
-var o_SKELETON_ADDR = NetAddr("192.168.1.102", nil); // NetAddr("192.168.0.11", nil);
+var o_SKELETON_ADDR = NetAddr("192.168.1.104", nil); // NetAddr("192.168.0.11", nil);
 var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0], w_REDVEC_3D_0 = RedVector3D[0, 0, 0];
 
 
@@ -836,13 +836,14 @@ winWorld.draw{
                                         } { // Remove springs, if any, and take the mass off from hand.
                                             o.addForce(o.gravityForce(m[0]));
                                             o.addForce(o.gravityForce(m[4]));
-                                            hand= if(springs[o.identityHash] == m[0].identityHash, {m[0]}, {m[4]});
+                                            hand = if (springs[o.identityHash] == m[0].identityHash) {m[0]} {m[4]};
                                             hand.state[\totalmass]= (hand.state.atFail(\totalmass, {0}) - o.mass).max(0);
                                             springs.removeAt(o.identityHash);
                                         }
                                     }
                                 )
                             };
+
                             // The World's forces.
                             o.addForce(world.gravity);
                             o.addForce(wind);

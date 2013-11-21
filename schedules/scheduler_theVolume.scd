@@ -59,7 +59,7 @@ thePiece = (
             message: \worldpar,
             params: [
                 // Audio settings.
-                audioIn: true, inbus: 20, fieldDepth: 4, confSurround: "Ambisonic4", master: 1,
+                audioIn: false, inbus: 20, fieldDepth: 6, confSurround: "Ambisonic4", master: 1,
                 // Physics parameters.
                 worldGrav: 0.98, worldMaxVel: 30, worldDamp: 0.01, starMass: 50, heavy: 5, initMass: 8,
                 springStiff: 1, springDamp: 0.1, springLen: 2,
@@ -78,7 +78,7 @@ thePiece = (
     ],
     1: [
         (
-            info: "Intro, no objects, only .kr buses",
+            info: "INTRO, no objects, only .kr buses",
             message: \g_new,
             id: \intro_bundle,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
@@ -103,7 +103,7 @@ thePiece = (
     ],
     5: [
         (
-            info: "Particles",
+            info: "INTRO: Particles",
             message: \worldpar, params: [particles: 1, partGuide: "object"]
         ),
         (
@@ -112,13 +112,13 @@ thePiece = (
     ],
     10: [
         (
-            info: "Intro",
+            info: "INTRO: objects",
             message: \task, name: \intro, act: 1
         )
     ],
     20: [
         (
-            info: "__analog cutoff= -1",
+            info: "INTRO: __analog cutoff= -1",
             message: \task, name: \sporadicAnalogCutoff, act: 1
         ),
         (
@@ -154,7 +154,7 @@ thePiece = (
             message: \g_free, id: \intro_bundle, params: [\release, 80]
         ),
         (
-            info: "Ave __pulse, 2 heavy __analog default cutoff",
+            info: "Ave __pulse, 2 heavy __analog",
             message: \worldobj,
             synth: (name: \sr__e__pulse, params: [\att, 40, \rel, 10]),
             object: (type: "a RedBoid", age: rrand(80, 150), mass: 5, pos: [350, 120, 750]),
@@ -177,12 +177,19 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         ),
         (
-            info: "2 heavy __analog default cutoff",
+            info: "Schedule sporadic __pulse",
+            message: \task, name: \sporadicPulse, act: 1
+        ),
+        (
+            info: "heavy __analog - TAP twice for 2!",
             message: \worldobj,
             synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 10),
         ),
+    ],
+    36: [
         (
+            info: "SCI-FI: heavy __analog 2",
             message: \worldobj,
             synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 10)
@@ -192,10 +199,6 @@ thePiece = (
             message: \worldobj,
             synth: (name: \sr__e__lowe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
             object: (type: "a RedBoid", age: inf, mass: 4)
-        ),
-        (
-            info: "Schedule sporadic __pulse",
-            message: \task, name: \sporadicPulse, act: 1
         ),
     ],
     40: [
@@ -285,10 +288,10 @@ thePiece = (
     ],
     58: [
         (
-            info: "Heavy __cmb ~X-fade",
+            info: "Heavy __cmb",
             message: \worldobj,
             synth: (name: \sr__e__cmb, params: [\att, 1.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 8),
+            object: (type: "a RedObject", age: inf, mass: 9),
         )
     ],
     60: [
@@ -304,6 +307,7 @@ thePiece = (
     ],
     61: [
         (
+            info: "Heavy __cmb",
             message: \worldobj,
             synth: (name: \sr__e__cmb, params: [\att, 3 + 2.0.rand2, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 9)
@@ -318,44 +322,54 @@ thePiece = (
             info: "Schedule granular waves",
             message: \task, name: \granWave, act: 1
         ),
+        ( // ensure audioIn (grains)
+            message: \worldpar,
+            params: [audioIn: true]
+        ),
         (
             info: "Ave __lowe",
             message: \worldobj,
             synth: (name: \sr__e__lowe, params: [\att, 10.0.rand, \rel, 10]),
+            object: (type: "a RedObject", age: inf, mass: 6)
+        ),
+    ],
+    72: [
+        (
+            info: "Heavy __ringz - TAP twice for 2!",
+            message: \worldobj,
+            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
+            object: (type: "a RedObject", age: inf, mass: 7)
+        ),
+    ],
+    73: [
+        (
+            info: "Heavy __ringz 2",
+            message: \worldobj,
+            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
             object: (type: "a RedObject", age: inf, mass: 7)
         ),
     ],
     75: [
         (
-            info: "2 heavy ringz with long release",
-            message: \worldobj,
-            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand, \rel, 60]),
-            object: (type: "a RedObject", age: inf, mass: 7)
-        ),
-        (
-            message: \worldobj,
-            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand, \rel, 60]),
-            object: (type: "a RedObject", age: inf, mass: 7)
-        ),
-    ],
-    76: [
-        (
             info: "Remove ringz (!!! On a granular blast !!!)",
             message: \worldact, action: \remove, objects: \all
         ),
         (
-            info: "2 heavy __melo with specific scale",
-            message: \worldobj,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
-            object: (type: "a RedObject", age: inf, mass: 9)
-        ),
-        (
+            info: "2 heavy __melo - TAP twice for 2!",
             message: \worldobj,
             synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
     ],
-    78: [
+    76: [
+        (
+            info: "heavy __melo 2",
+            message: \worldobj,
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
+    ],
+    79: [
         (
             info: "Add ave __noisy, long attack",
             message: \worldobj,
@@ -365,6 +379,10 @@ thePiece = (
         (
             info: "Stop percussive granWave",
             message: \task, name: \granWave, act: 0
+        ),
+        ( // switch audioIn off
+            message: \worldpar,
+            params: [audioIn: true]
         ),
     ],
     80: [
@@ -380,21 +398,23 @@ thePiece = (
             message: \task, name: \sporadicMelo, act: 0
         ),
         (
-            info: "2 heavy __noisy",
+            info: "heavy __noisy + __melo - TAP twice for 2!",
             message: \worldobj,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 9]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
         (
-            message: \worldobj,
-            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 9]),
-            object: (type: "a RedObject", age: inf, mass: 9)
-        ),
-        (
-            info: "2 heavy __melo with specific scale",
             message: \worldobj,
             synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
             object: (type: "a RedObject", age: inf, mass: 10)
+        ),
+    ],
+    81: [
+        (
+            info: "GROOVE_1: heavy __noisy + __melo 2",
+            message: \worldobj,
+            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 9]),
+            object: (type: "a RedObject", age: inf, mass: 9)
         ),
         (
             message: \worldobj,
@@ -408,18 +428,20 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         ),
         (
-            info: "Leave one __noisy",
             message: \worldobj,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
         (
-            info: "2 heavy __entro",
+            info: "heavy __entro - TAP twice for 2!",
             message: \worldobj,
             synth: (name: \sr__e__entro),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
+    ],
+    86: [
         (
+            info: "BREAK GROOVE: heavy __entro 2",
             message: \worldobj,
             synth: (name: \sr__e__entro),
             object: (type: "a RedObject", age: inf, mass: 9)
@@ -431,38 +453,24 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         ),
         (
-            info: "Leave one heavy __noisy",
-            message: \worldobj,
-            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 9)
-        ),
-        (
-            info: "add 2 heavy __gauss",
-            message: \worldobj,
-            synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
-            object: (type: "a RedObject", age: inf, mass: 9)
-        ),
-        (
+            info: "heavy __gauss - TAP twice for 2!",
             message: \worldobj,
             synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
     ],
+    91: [
+        (
+            info: "GROOVE_2: heavy __gauss 2",
+            message: \worldobj,
+            synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        )
+    ],
     95: [
         ( // Remove all objects.
             info: "FADE AWAY",
             message: \worldact, action: \remove, objects: \all
-        ),
-        (
-            info: "2 heavy __noisy",
-            message: \worldobj,
-            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 9)
-        ),
-        (
-            message: \worldobj,
-            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 9)
         ),
         (
             info: "Particles ON",
@@ -483,10 +491,24 @@ thePiece = (
             synth: (name: \sr__g__loop, params: [\att, 5.0.rand, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 6)
         ),
-        ( // stop audioIn
+        ( // ensure audioIn (drums)
             message: \worldpar,
-            params: [audioIn: false]
-        )
+            params: [audioIn: true]
+        ),
+        (
+            info: "heavy __noisy - TAP twice for 2!",
+            message: \worldobj,
+            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
+    ],
+    96: [
+        (
+            info: "heavy __noisy 2",
+            message: \worldobj,
+            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
     ],
     99: [
         (
@@ -756,7 +778,7 @@ getKey = { |current=nil, next=1|
     var k, c;
     k = thePiece.keys.asArray.asInteger.sort;
     c = k.indexOf(current) ? -1;
-    k[c + next] ? k[0]; // Go back to beginning if nothing more left.
+    k[c + next] ? k[0]; // Go back to beginning upon reaching the upper threshold.
 };
 
 

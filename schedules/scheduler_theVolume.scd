@@ -63,7 +63,7 @@ thePiece = (
                 // Physics parameters.
                 worldGrav: 0.98, worldMaxVel: 30, worldDamp: 0.01, starMass: 50, heavy: 5, initMass: 8,
                 springStiff: 1, springDamp: 0.1, springLen: 2,
-                repulsiveForce: 5, objAttract: true, // This should be set to false before skeleton enters!
+                repulsiveForce: 5, objAttract: true, worldForces: false,
                 // Particles.
                 particles: 0, partSigmoidRatio: 0.7, partFreq: 0.5, partAgeThresh: 80,
                 partInitAccel: 3, partGuide: "object", partSynth: \sr__e__analog,
@@ -171,9 +171,25 @@ thePiece = (
             object: (type: "a RedObject", age: inf, mass: 9, pos: [470, 300, 250])
         )
     ],
+    31: [
+        (
+            info: "SCI-FI: Activate world forces",
+            message: \worldpar, params: [worldForces: true]
+        ),
+        (
+            info: "Schedule sporadic __pulse",
+            message: \task, name: \sporadicPulse, act: 1
+        ),
+        (
+            info: "Light __lowe ~heaviness",
+            message: \worldobj,
+            synth: (name: \sr__e__lowe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
+            object: (type: "a RedBoid", age: inf, mass: 4)
+        ),
+    ],
     35: [
         (
-            info: "Remove all",
+            info: "SCI-FI: Remove all",
             message: \worldact, action: \remove, objects: \all
         ),
         (
@@ -193,12 +209,6 @@ thePiece = (
             message: \worldobj,
             synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10]),
             object: (type: "a RedObject", age: inf, mass: 10)
-        ),
-        (
-            info: "Light __lowe ~heaviness",
-            message: \worldobj,
-            synth: (name: \sr__e__lowe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            object: (type: "a RedBoid", age: inf, mass: 4)
         ),
     ],
     40: [
@@ -594,7 +604,7 @@ task = (
                     message: \worldobj,
                     synth: (name: \sr__e__analog, params: [\cutoff, -1, \rel, rrand(4, 6)]),
                     object: (age: rrand(1.70, 2.30), mass: 9, type: "a RedObject",
-                        pos: rrand(200, 600) ! 3)
+                        pos: [rrand(100, 670), rrand(100, 200), 500])
                 )
             );
             (10 + 2.0.rand2).wait;

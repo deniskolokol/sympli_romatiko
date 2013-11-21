@@ -661,16 +661,20 @@ winWorld.draw{
                         3, {RedVector3D.newFrom(v[\r_elbow])},
                         4, {RedVector3D.newFrom(v[\r_hand])}
                     );
+
                     // update skeleton joint
                     sk.mass = params[\starMass];
                     sk.update;
                     world.contain(sk);
-                    // add object on spring
+
+                    // add object on spring (necessary to measure joint velocity)
                     sk.state[\guide]
-                    .spring(skeletonObject[k][i], 1, 0.1, 0.1)
-                    .addForce(world.gravity)
-                    .update;
+                        .spring(skeletonObject[k][i], 1, 0.1, 0.1)
+                        .addForce(world.gravity)
+                        .update;
                     world.contain(sk.state[\guide]);
+
+                    // visualize skeleton
                     if (params[\visualize].booleanValue) {
                         // Render objects.
                         Pen.fillColor = skeletonCoords[k][\color];
@@ -797,47 +801,25 @@ winWorld.draw{
                                         o.addForceArrive(m[4].loc);
                                     },
                                     "a RedObject", {
-                                        if (o.mass >= params[\heavy]) {
-                                            // Springs are for heavy objects.
-                                            // Springs _tend_ to stick to the "freer" hand, i.e. the one that have objects
-                                            // on springs, whose total mass is lighter than the other (thus the .reverse).
-                                            // .pow(2) increases chances of the "lighter" hand to be picked up.
-                                            hand = [m[0], m[4]].wchoose([
-                                                m[0].state.atFail(\totalmass, {0}),
-                                                m[4].state.atFail(\totalmass, {0})
-                                            ].pow(2).reverse.normalizeSum);
-                                            if (springs.keys.includes(o.identityHash).not) {
-                                                springs.put(o.identityHash, hand);
-                                                hand.state[\totalmass] = hand.state.atFail(\totalmass, {0}) + o.mass;
-                                            } {
-                                                //Spring params: target, stiffness, damping, length.
-                                                try {
-                                                    o.spring(springs[o.identityHash],
-                                                        params[\springStiff], params[\springDamp], params[\springLen])
-                                                } { |err|
-                                                    ("Error attaching spring to object: " ++ err).postln;
-                                                }
-                                            };
+                                        if (o.mass >= params[\heavy]) { // Springs are for heavy objects only.
+                                            // Springs tend to stick to the "lighter" hand, i.e. the one with
+                                            // bunch of objects on springs with total mass lighter than the other.
+                                            // .exp increases chances of the "lighter" hand to be picked up.
 
-                                            // Render springs.
-                                            // Works only here, since in any other place it's difficult to find the proper object.
-                                            if (params[\visualize].booleanValue) {
-                                                Pen.strokeColor= Color.cyan;
-                                                springs.keysValuesDo { |sp, h|
-                                                    try {
-                                                        Pen.line(
-                                                            planeCoords.value(o.loc, width, height, depth).asPoint,
-                                                            planeCoords.value(springs[o.identityHash].loc, width, height, depth).asPoint
-                                                        );
-                                                        Pen.stroke;
-                                                    }
-                                                }
-                                            }
+                                            if (springs.keys.includes(o.identityHash).not) {
+                                                springs[o.identityHash] = RedSpring(
+                                                    o,
+                                                    [m[0], m[4]].wchoose([
+                                                        m[0].state.atFail(\totalmass, {0}),
+                                                        m[4].state.atFail(\totalmass, {0})
+                                                    ].exp.reverse.normalizeSum),
+                                                    params[\springStiff], params[\springDamp], params[\springLen]);
+                                            } {
+                                                springs[o.identityHash].update
+                                            };
                                         } { // Remove springs, if any, and take the mass off from hand.
                                             o.addForce(o.gravityForce(m[0]));
                                             o.addForce(o.gravityForce(m[4]));
-                                            hand = if (springs[o.identityHash] == m[0].identityHash) {m[0]} {m[4]};
-                                            hand.state[\totalmass]= (hand.state.atFail(\totalmass, {0}) - o.mass).max(0);
                                             springs.removeAt(o.identityHash);
                                         }
                                     }
@@ -890,15 +872,41 @@ winWorld.draw{
         }
     };
 
+    // clean if the object or hand doesn't exists in the World anymore
+    springs.keysValuesDo { |k, v|
+        if (world.contains(v.object).not || world.contains(v.target).not) {
+            springs.removeAt(k)
+        } { // render springs
+            if (params[\visualize].booleanValue) {
+                Pen.strokeColor = Color.cyan;
+                Pen.line(
+                    planeCoords.value(v.object.loc, width, height, depth).asPoint,
+                    planeCoords.value(v.target.loc, width, height, depth).asPoint
+                );
+                Pen.stroke;
+            }
+        };
+    };
+
+    // total mass of each hand = sum (mass of all objects on springs)
+    skeletonObject.keysValuesDo { |k, v|
+        [0, 4].do { |i| // process hands only
+            v[i].state[\totalmass] = sum (all{: r.object.mass, r <- springs, r.target == v[i]} ? [0]);
+        }
+    };
+
     // Guide obj.
     if (objGuide.isNil.not) {
-        // Guidance source (free float affected by wind only, feet, hands).
+        // free float, affected by wind, attracted to feet or hands
         if (applyForces.booleanValue) {
             params[\partGuide].switch(
                 \wind, { }, // wind affects it anyway (see below)
                 \feet, {
                     try {
-                        objGuide.addForceArrive(skeletonCoords.at(skeletonCoords.keys.minItem)[[\r_foot, \l_foot].choose]);
+                        objGuide.addForceArrive(
+                            skeletonCoords.at(skeletonCoords.keys.minItem)[
+                                [\r_foot, \l_foot].choose]
+                        );
                     };
                 },
                 \object, {

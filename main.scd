@@ -20,7 +20,8 @@ var p_FACTORY_SETTINGS = (
     starSize:          10,
     heavy:             5, // heavy objects hang on springs, no gravity
     initMass:          5, // initial mass with which object is created
-    objAttract:        true, // do objects attract each other
+    objAttract:        false, // do objects attract each other?
+    worldForces:       true, // do world forces affect objects?
     repulsiveForce:    1, // behavior on collision (no repulsion if 1),
     springStiff:       0.1, // springs stiffness
     springDamp:        0.9, // springs damping
@@ -61,6 +62,7 @@ var p_INTRFACE = [
         visible: true,
         params: [
             (param: \objAttract, title: "Mutual attraction", element: \boolean),
+            (param: \worldForces, title: "World forces", element: \boolean),
             (param: \worldGrav, title: "World gravity", spec: ControlSpec(0, 2)),
             (param: \worldDamp, title: "World damping", spec: ControlSpec(0.01, 2.00)),
             (param: \worldMaxVel, title: "Max objects velocity", spec: ControlSpec(1, 100)),
@@ -104,9 +106,9 @@ var p_INTRFACE = [
         title: "Visualization",
         visible: true,
         params: [
-            (param: \fps, title: "FPS", spec: ControlSpec(20, 60, \lin, 1)),
             (param: \visualize, title: "Display Visualization", element: \boolean),
-            (param: \showCoords, title: "Display coordinates", element: \boolean)
+            (param: \showCoords, title: "Display coordinates", element: \boolean),
+            (param: \fps, title: "FPS", spec: ControlSpec(20, 60, \lin, 1)),
         ]
     )
 ];
@@ -151,7 +153,7 @@ var skelLimit=1;
 var w, world, width, height, depth;
 var worldCapacity=18;
 var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide, posGuide, objAudioIn=nil, posAudioIn;
-var mass, pos, wind, springs, applyForces=1;
+var mass, pos, wind, springs;
 
 var synForm=nil, synSaw=nil, posFeet=[nil, nil], synthCtrl, currFormCtl=nil, currSawCtl=nil, startFeetSynths;
 var fillStream, streamList=[nil], runTask1, runTask2, isActiveTask1= 0, isActiveTask2= 0;
@@ -583,7 +585,7 @@ winWorld.draw{
         Pen.strokeRect(Rect.aboutRedVector3D(RedVector[width*0.5, height*0.5, depth], width*0.5, width, height, depth));
 
         // Report if no forces.
-        if (applyForces.booleanValue.not) {
+        if (params[\worldForces].booleanValue.not) {
             Pen.fillColor= Color.white;
             Pen.stringAtPoint("NO FORCES!", [width-80, height-20].asPoint);
         };
@@ -784,8 +786,7 @@ winWorld.draw{
                         // The havier the object the fatter it is, linearly.
                         o.size = o.mass * 5;
 
-                        if (applyForces.booleanValue) {
-
+                        if (params[\worldForces].booleanValue) {
                             if (skeletonCoords.size == 0) {
                                 // In the absence of skeletons place a Star in the World.
                                 springs = Dictionary.new; // Clear all springs, that were potentially connected to a "ghost" skeleton.
@@ -898,7 +899,7 @@ winWorld.draw{
     // Guide obj.
     if (objGuide.isNil.not) {
         // free float, affected by wind, attracted to feet or hands
-        if (applyForces.booleanValue) {
+        if (params[\worldForces].booleanValue) {
             params[\partGuide].switch(
                 \wind, { }, // wind affects it anyway (see below)
                 \feet, {
@@ -962,7 +963,7 @@ winWorld.draw{
     };
 
     if (objAudioIn.isNil.not) {
-        if (applyForces.booleanValue) {
+        if (params[\worldForces].booleanValue) {
             objAudioIn.addForce(wind);
             objAudioIn.addForce(world.gravity);
             skeletonObject.do { |obj|
@@ -1370,7 +1371,13 @@ winWorld.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
         }
     }
     {keycode == 9} { // V - remove all forces
-        if( [0, 256].includes(modifiers), {applyForces= (1 - applyForces).abs});
+        if ([0, 256].includes(modifiers)) {
+            try { // factory settings is Boolean
+                params[\worldForces] = params[\worldForces].not
+            } { // but if loaded from file, becomes int (0 || 1)
+                params[\worldForces] = 1 - params[\worldForces]
+            }
+        }
     }
     {keycode == 6} { // Z - info
         if( [0, 256].includes(modifiers), {

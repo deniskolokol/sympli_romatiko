@@ -151,7 +151,7 @@ var skelLimit=1;
 var w, world, width, height, depth;
 var worldCapacity=18;
 var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide, posGuide, objAudioIn=nil, posAudioIn;
-var mass, pos, wind, springs, hand, applyForces=1;
+var mass, pos, wind, springs, applyForces=1;
 
 var synForm=nil, synSaw=nil, posFeet=[nil, nil], synthCtrl, currFormCtl=nil, currSawCtl=nil, startFeetSynths;
 var fillStream, streamList=[nil], runTask1, runTask2, isActiveTask1= 0, isActiveTask2= 0;

@@ -49,7 +49,7 @@ var a_SYNTHS = #[\sr__g__reg, \sr__g__drone, \sr__g__gust, \sr__g__slic, \sr__g_
     \sr__e__lowe, \sr__e__probe, \sr__e__cmb, \sr__e__melo, \sr__e__ringz, \sr__e__pulse, \sr__e__analog,
     \sr__e__entro, \sr__e__noisy, \sr__e__humm, \sr__e__radio, \sr__e__wasp,
     \sr__p__kick, \sr__p__hat, \sr__p__snare];
-var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic8];
+var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic6, \Ambisonic8];
 // Spec for mass control.
 var p_MASSSPEC = ControlSpec(1, 11, \lin, 1);
 // Interface descriptor.
@@ -72,7 +72,7 @@ var p_INTRFACE = [
             (param: \heavy, title: "Heavy objects", spec: p_MASSSPEC),
             (param: \worldDim, title: "World dimensions", spec: ControlSpec(1, 2000)),
             (param: \springStiff, title: "Spring stiffness", spec: ControlSpec(0.1, 2)),
-            (param: \springDamp, title: "Spring damping", spec: ControlSpec(0.1, 2)),
+            (param: \springDamp, title: "Spring damping", spec: ControlSpec(0.01, 2)),
             (param: \springLen, title: "Spring length", spec: ControlSpec(0.1, 10.0)),
         ]
     ),
@@ -143,7 +143,7 @@ var c_CTRL_SYNTH_ARGS = #[ //[\synthName, kr_bus]
     [\kr_mg1, 4],
     [\kr_mh0, 5]];
 var o_SCHEDULER_ADDR = NetAddr.new("127.0.0.1", 57120);
-var o_SKELETON_ADDR = NetAddr("192.168.1.104", nil); // NetAddr("192.168.0.11", nil);
+var o_SKELETON_ADDR = NetAddr("192.168.1.102", nil); // NetAddr("192.168.0.11", nil);
 var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0], w_REDVEC_3D_0 = RedVector3D[0, 0, 0];
 
 
@@ -453,7 +453,7 @@ drawPanels = { |win, elements|
                             numNormalColor, numTypingColor, background)
                     }
                 );
-                panelHeight = panelHeight + element.bounds.height;
+                panelHeight = panelHeight + (element.bounds.height + 5);
 
                 try { // set initial value and define action
                     element.value_(pm[\items].indexOf(paramVal));

@@ -59,10 +59,10 @@ thePiece = (
             message: \worldpar,
             params: [
                 // Audio settings.
-                audioIn: false, inbus: 20, fieldDepth: 6, confSurround: "Ambisonic4", master: 1,
+                audioIn: false, inbus: 20, fieldDepth: 4, confSurround: "Ambisonic6", master: 1,
                 // Physics parameters.
                 worldGrav: 0.98, worldMaxVel: 30, worldDamp: 0.01, starMass: 50, heavy: 5, initMass: 8,
-                springStiff: 1, springDamp: 0.1, springLen: 2,
+                springStiff: 2, springDamp: 0.01, springLen: 0.1,
                 repulsiveForce: 5, objAttract: true, worldForces: false,
                 // Particles.
                 particles: 0, partSigmoidRatio: 0.7, partFreq: 0.5, partAgeThresh: 80,
@@ -82,7 +82,7 @@ thePiece = (
             message: \g_new,
             id: \intro_bundle,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
-                ["/s_new", \sr__s__ambisonic4, \next_node_id, 1, \group_id, // add spatializer to new group's tail
+                ["/s_new", \sr__s__ambisonic6, \next_node_id, 1, \group_id, // add spatializer to new group's tail
                     \inbus, 12, // getting signal from synth
                     \outbus, 0], // to main output
                 ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
@@ -259,13 +259,13 @@ thePiece = (
         (
             message: \worldobj,
             synth: (name: \sr__e__probe, params: [\att, 1.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 11),
+            object: (type: "a RedObject", age: inf, mass: 9),
         ),
         (
             info: "heavy __probe - TAP twice for 2!",
             message: \worldobj,
             synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 11)
+            object: (type: "a RedObject", age: inf, mass: 9)
         )
     ],
     51: [
@@ -273,7 +273,7 @@ thePiece = (
             info: "AIRY: heavy __probe 2",
             message: \worldobj,
             synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 11)
+            object: (type: "a RedObject", age: inf, mass: 9)
         )
     ],
     55: [
@@ -691,7 +691,7 @@ task = (
                     rrand((timeprop * 0.1).max(0.01),timeprop*0.4).wait
                 };
             }.fork;
-            rrand(20, 60).wait;
+            rrand(20, 45).wait;
         }
         }
     )

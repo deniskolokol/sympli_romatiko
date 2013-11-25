@@ -384,8 +384,8 @@ SynthDef(\sr__e__analog, {
     );
     rq = SelectX.kr(BinaryOpUGen('==', cutoff, 5666) * 2,
         [ // If cutoff is variable, RQ depends on distance.
-            distance.linlin(0, 2.sqrt, 0.07, 1),
-            0.06 // constant cutoff means constant RQ
+            distance.linlin(0, 2.sqrt, 0.1, 1),
+            0.1 // constant cutoff means constant RQ
         ]
     );
     note = SelectX.kr(BinaryOpUGen('<', az, azThresh) * 2,
@@ -661,8 +661,8 @@ SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim = [-0.16pi, 0.16pi], speakerElev = 0, speakerDist = [0.35, 0.35],
-        maxDist=3, scaleFlag=1,
+        speakerAzim = [-0.16pi, 0.16pi], speakerElev = 0,
+        speakerDist = [2, 2], maxDist = 2, scaleFlag = 1,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);
@@ -678,8 +678,25 @@ SynthDef(\sr__s__ambisonic4, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=15;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim= [-0.25pi, -0.6pi, 0.6pi, 0.25pi], speakerElev= [0, 0, 0, 0], speakerDist= [1.5, 1.5, 1.5, 1.5],
-        maxDist=1.5, scaleFlag=0,
+        speakerAzim = [-0.25pi, -0.75pi, 0.75pi, 0.25pi], speakerElev = [-0.1pi, 0, 0, -0.1pi],
+        speakerDist = [1.5, 1.5, 1.5, 1.5], maxDist = 1.5, scaleFlag = 1,
+        in, signal, out;
+    distance = distance.linlin(0, 2.sqrt, 0.5, depth);
+    in = In.ar(inbus, 1);
+    signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
+    #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
+    out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
+        azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
+    Out.ar(outbus, out);
+}).send(s);
+
+
+SynthDef(\sr__s__ambisonic6, {
+    arg inbus=20, outbus=0, gate=1, rel=1,
+        azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=15;
+    var w, x, y, z, r, s, t, u, v,
+        speakerAzim = [-0.25pi, -0.4pi, -0.65pi, 0.65pi, 0.4pi, 0.25pi], speakerElev = [0, 0, 0, 0, 0, 0],
+        speakerDist = [8, 3, 4, 4, 3, 8], maxDist = 8, scaleFlag = 1,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);
@@ -695,8 +712,8 @@ SynthDef(\sr__s__ambisonic8, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim=[-0.20pi, -0.5pi, -0.70pi, -pi, 0.70pi, 0.5pi, 0.20pi, 0pi], speakerElev=0,
-        speakerDist=[6.3, 4.7, 6, 6, 6, 4.7, 6.3, 6.3], maxDist=6.3, scaleFlag=1,
+        speakerAzim = [-0.20pi, -0.5pi, -0.70pi, -1pi, 0.70pi, 0.5pi, 0.20pi, 0pi], speakerElev = 0,
+        speakerDist = [ 8, 8, 8, 8, 8, 8, 8, 8 ], maxDist = 6.3, scaleFlag = 1,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);

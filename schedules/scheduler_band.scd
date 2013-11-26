@@ -603,7 +603,7 @@ task = (
                 (
                     message: \worldobj,
                     synth: (name: \sr__e__analog, params: [\cutoff, -1, \rel, rrand(4, 6)]),
-                    object: (age: rrand(1.70, 2.30), mass: 9, type: "a RedObject",
+                    object: (age: rrand(3, 4), mass: 9, type: "a RedObject",
                         pos: [rrand(100, 670), rrand(100, 200), 500])
                 )
             );

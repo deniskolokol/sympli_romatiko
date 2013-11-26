@@ -39,7 +39,7 @@ var p_FACTORY_SETTINGS = (
     visualize:         true,
     showCoords:        false,
     // System
-    synthdefFile:      "/Users/deniskolokol/Documents/dev_music/sympli_romatiko/repo/sympli_romatiko/synthdef.scd",
+    synthdefFile:      "synthdef.scd",
     tempDir:           "~/tmp/SuperCollider/sounds/",
     // Aux
     synthForm:         1,
@@ -86,7 +86,7 @@ var p_INTRFACE = [
             (param: \partInitAccel, title: "Initial acceleration", spec: ControlSpec(0, 50, \lin, 0.1)),
             (param: \partSigmoidRatio, title: "Steep sigmoid func", spec: ControlSpec(0.1, 1, \lin, 0.01)),
             (param: \partGuide, title: "Guide", element: \dropdown,
-                items: #[\wind, \feet, \object]),
+                items: #[\wind, \object]),
             (param: \partSynth, title: "Synth", element: \dropdown, items: a_SYNTHS),
         ]
     ),
@@ -135,29 +135,18 @@ var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different
     5:  ["a RedBoid",   \sr__g__slic],	 // g
     4:  ["a RedBoid",   \sr__g__loop],	 // h
 );
-var c_CTRL_SYNTH_ARGS = #[ //[\synthName, kr_bus]
-    [\kr_ml0, 0],
-    [\kr_mg2, 1],
-    [\kr_mg0, 2],
-    [\kr_ml1, 3],
-    [\kr_mg1, 4],
-    [\kr_mh0, 5]];
-var o_SCHEDULER_ADDR = NetAddr.new("127.0.0.1", 57120);
-var o_SKELETON_ADDR = NetAddr("192.168.1.102", nil); // NetAddr("192.168.0.11", nil);
-var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0], w_REDVEC_3D_0 = RedVector3D[0, 0, 0];
+var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0],
+    w_REDVEC_3D_0 = RedVector3D[0, 0, 0];
 
 
 // VARIABLES
 //
-var skelLimit=1;
+var skelLimit;
 var w, world, width, height, depth;
-var worldCapacity=18;
-var synths, objects, objectsProp, currObj=0, currSynth=0, objGuide, posGuide, objAudioIn=nil, posAudioIn;
+var worldCapacity;
+var synths, objects, objectsProp, currObj, currSynth, objGuide, posGuide, objAudioIn=nil, posAudioIn;
 var mass, pos, wind, springs;
 
-var synForm=nil, synSaw=nil, posFeet=[nil, nil], synthCtrl, currFormCtl=nil, currSawCtl=nil, startFeetSynths;
-var fillStream, streamList=[nil], runTask1, runTask2, isActiveTask1= 0, isActiveTask2= 0;
-var objColors= Array.fill(worldCapacity, {Color.rand});
 var skeletonObjectText;
 var rectimeRep;
 var keyObjType;
@@ -198,8 +187,7 @@ var skeletonCoords, skeletonObject;
 var layoutHColor=Color.new255(100, 100, 100), layoutHFontColor=Color.new255(200, 200, 200), panelColor=Color.grey(0.8);
 var labelFont=Font("Helvetica", 9), layoutHFont=Font("Helvetica", 11);
 var winWorld, winCtl, drawPanels; // main control interface
-var cvObjCtrl, cvAux;
-var ezkObjCtrl;
+var cvObjCtrl, cvAux, ezkObjCtrl;
 var stringBackground = Color.grey(alpha:0.1),
     stringColor = layoutHColor,
     menuBackground = Color.white,
@@ -214,7 +202,8 @@ var stringBackground = Color.grey(alpha:0.1),
     numNormalColor = Color.black,
     numTypingColor = Color.black,
     knobColor = Color.black,
-    background = nil;
+    background = nil,
+    objColors;
 
 // System related.
 var shutDown;
@@ -264,6 +253,11 @@ if (File.type(~tempDir) == \not_found) { // error!
     ~tempDir = nil;
 };
 
+skelLimit = 1;
+worldCapacity = 18;
+currObj = 0;
+currSynth = 0;
+
 depth = width = height = params[\worldDim];
 objects = Array.fill(worldCapacity, {nil}); // container for physical objects
 objectsProp = Dictionary.new; // properties of objects
@@ -274,13 +268,13 @@ skeletonObject = Dictionary.new; // container for skeleton objects
 
 rootNodeID = s.nextNodeID; // root group Id for objects' synths
 s.sendMsg("/g_new", rootNodeID, 0, 1); // root group at the head of group 1
-synthCtrl = Array.fill(c_CTRL_SYNTH_ARGS.size, { nil });
 keyObjType = c_KEY_OBJ_SYNTH.keys().asArray; // for easy access to keycodes
 cyclicBuf = Buffer.alloc(s, s.sampleRate, 1); // 1s single channel Buffer
 isRecording = false;
 recProgress = 0;
 scaleBuf = Buffer.loadCollection(s, FloatArray[0, 3, 7, 10]); // default Scale buffer
 ezkObjCtrl = Array.fill(worldCapacity, {nil}); // EZ elements with similar style
+objColors = Array.fill(worldCapacity, {Color.rand});
 
 // PARTICLES
 //
@@ -291,7 +285,7 @@ sys.removeAction = { |o|
     removeGroup.(partSynths[o.identityHash], 1.0.rand);
     partSynths.removeAt(o.identityHash)
 };
-partGuideItems = [\wind, \feet, \object];
+partGuideItems = [\wind, \object];
 
 // CONTINOUS BUFFER RECORDING
 //
@@ -313,7 +307,7 @@ loadBufRout = Routine({
 oscSkeletonLost = OSCFunc({ arg msg, time, addr, recvPort;
     postf("from % received %\n", addr, msg);
     skeletonCoords.removeAt(msg[1].asInteger);
-}, '/lost_skel', o_SKELETON_ADDR);
+}, '/lost_skel');
 
 oscSkeletonNew = OSCFunc({ arg msg, time, addr, recvPort;
     postf("from % received %\n", addr, msg);
@@ -327,7 +321,7 @@ oscSkeletonNew = OSCFunc({ arg msg, time, addr, recvPort;
             )
         )
     }
-}, '/new_skel', o_SKELETON_ADDR);
+}, '/new_skel');
 
 oscSkeletonJoint = OSCFunc({ arg msg, time, addr, recvPort;
     var skel=nil, joint, x, y, z;
@@ -355,7 +349,7 @@ oscSkeletonJoint = OSCFunc({ arg msg, time, addr, recvPort;
         skel[joint] = [x, y, z];
         skel[\update] = Date.getDate.secStamp;
     }
-}, '/joint', o_SKELETON_ADDR);
+}, '/joint');
 
 // OSC function that catches scheduling and sequencing messages.
 // Message format:
@@ -369,7 +363,7 @@ oscObjScheduler = OSCFunc({ arg msg, time, addr, recvPort;
         objectPos: if (msg[4..6] == [0, 0, 0]) {[width, height, depth].rand} {msg[4..6]}
     );
     startSynth.value(synthName:msg[1], parm:msg[8..]); // [8..] are synth parameters
-}, '/worldobj', o_SCHEDULER_ADDR);
+}, '/worldobj');
 
 oscParmScheduler = OSCFunc({ arg msg, time, addr, recvPort;
     postf("from % received %\n", addr, msg);
@@ -378,7 +372,7 @@ oscParmScheduler = OSCFunc({ arg msg, time, addr, recvPort;
     } { |err|
         postf("Error updating parameter %:\n%\n", msg[1], err)
     }
-}, '/worldpar', o_SCHEDULER_ADDR);
+}, '/worldpar');
 
 oscActScheduler = OSCFunc({ arg msg, time, addr, recvPort;
     postf("from % received %\n", addr, msg);
@@ -392,7 +386,7 @@ oscActScheduler = OSCFunc({ arg msg, time, addr, recvPort;
             // What other acts can be sent to the World?
         }
     );
-}, '/worldact', o_SCHEDULER_ADDR);
+}, '/worldact');
 
 // Remove all OSC functions.
 oscRemoveFunc = {
@@ -542,22 +536,11 @@ Button(cvAux, 200@35)
         s.sendMsg("/n_set", mixerNode, \gate, 0)
     }
 });
+
 // Skeleton monitor.
 StaticText(cvAux, 150@20).font_(layoutHFont).string_(" Skel monitor ");
 skeletonObjectText = StaticText(cvAux, 50@20).string_("").font_(layoutHFont);
-// Formant & saw synths ctrls (hard wired to legs).
-EZSlider(cvAux, 200@25, " form ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-.font_(labelFont)
-.value_(params[\synthForm])
-.action_({ |e| params[\synthForm] = e.value})
-.setColors(stringBackground, stringColor, sliderBackground, numBackground,
-    numStringColor, numNormalColor, numTypingColor, knobColor, background);
-EZSlider(cvAux, 200@25, " lsaw ", \amp, labelWidth:30, unitWidth:0, numberWidth:30, margin:1@1)
-.font_(labelFont)
-.value_(params[\synthSaw])
-.action_({ |e| params[\synthSaw] = e.value})
-.setColors(stringBackground, stringColor, sliderBackground, numBackground,
-    numStringColor, numNormalColor, numTypingColor, knobColor, background);
+
 winCtl.layout.addSpanning(VLayout(cvAux), 7, 2, 2);
 winCtl.front;
 
@@ -692,39 +675,7 @@ winWorld.draw{
                         }
                     }
                 }
-            };
-
-            // Synths attached to FEET are controlled
-            // not by objects, but skeleton coordinates.
-            try {
-                posFeet[0]= Complex(
-                    v[\l_foot][1].linlin(0, width, 1, -1), // y
-                    v[\l_foot][0].linlin(0, height, -1, 1) // x
-                );
-                posFeet[1]= Complex(
-                    v[\r_foot][1].linlin(0, width, 1, -1), // y
-                    v[\r_foot][0].linlin(0, height, -1, 1) // x
-                )
-            };
-
-            if (synForm.isNil.not) {
-                synForm.set( // right controls \formant
-                    \azimuth, posFeet[1].theta,
-                    \distance, posFeet[1].rho,
-                    \elevation, v[\r_foot][2].linlin(0, depth, -0.5pi, 0.5pi),
-                    \amp, v[\r_foot][2].clip(0.4, 0.7),
-                    \master, params[\synthForm],
-                    \mod, "c"++(currFormCtl ? "").asString,
-                    \depth, params[\fieldDepth]);
-                synSaw.set(	// left controls \saw
-                    \azimuth, posFeet[0].theta,
-                    \distance, posFeet[0].rho,
-                    \elevation, v[\lFoot][2].linlin(0, depth, -0.5pi, 0.5pi),
-                    \amp, v[\lFoot][2].clip(0.4, 0.7),
-                    \master, params[\synthSaw],
-                    \mod, "c"++(currFormCtl ? "").asString,
-                    \depth, params[\fieldDepth]);
-            };
+            }
         };
         // Report skeletons.
         try {
@@ -898,18 +849,10 @@ winWorld.draw{
 
     // Guide obj.
     if (objGuide.isNil.not) {
-        // free float, affected by wind, attracted to feet or hands
+        // free float, affected by wind or hands
         if (params[\worldForces].booleanValue) {
             params[\partGuide].switch(
                 \wind, { }, // wind affects it anyway (see below)
-                \feet, {
-                    try {
-                        objGuide.addForceArrive(
-                            skeletonCoords.at(skeletonCoords.keys.minItem)[
-                                [\r_foot, \l_foot].choose]
-                        );
-                    };
-                },
                 \object, {
                     try {
                         skeletonObject.keysValuesDo { |id, obj|
@@ -1232,102 +1175,6 @@ startSynth = { |synthName='sr__e__silencio', updateBuf=false, parm=nil|
     }
 };
 
-startFeetSynths= { |gate, tFormAttRel, tSawAttRel|
-    // synths controlled by feet enter slowly and remain quiet
-    // Warning! master volume is separate from the rest synths master
-    if(gate != 0, {
-        if(synForm == nil, {
-            synForm= Synth.head(rootNodeID, \sr__e__form,
-                [\att, tFormAttRel, \amp, 0.4, \master, params[\synthForm],
-                    \azimuth, pi.bilinrand, \spread, 10.rrand(50), \mod, "c"]);
-            synSaw= Synth.head(rootNodeID, \sr__e__lsaw,
-                [\att, tSawAttRel, \amp, 0.4, \master, params[\synthSaw],
-                    \azimuth, pi.bilinrand, \spread, 10.rrand(50), \mod, "c"]);
-            c_CTRL_SYNTH_ARGS.size.do({ |i|
-                synthCtrl[i]= s.nextNodeID;
-                s.sendBundle(0.1, ["/s_new", c_CTRL_SYNTH_ARGS[i][0].asString, synthCtrl[i]],
-                    ["/n_set", synthCtrl[i], "outbus", c_CTRL_SYNTH_ARGS[i][1]]);
-            });
-        });
-        }, {
-            if(synForm != nil, {
-                synForm.set(\gate, 0, \done, 2, \rel, tFormAttRel);
-                synSaw.set(\gate, gate, \done, 2, \rel, tSawAttRel);
-                synForm= nil; synSaw= nil;
-                synthCtrl.size.do({ |i|
-                    s.sendMsg("/n_free", synthCtrl[i]); // clear if the synth is "stuck"
-                    synthCtrl[i]= nil;
-                });
-            });
-    });
-};
-
-// Tasks.
-fillStream = { |curr|
-    var arrBase= #[0, 2, 3, 6], arrDer0= #[ 2, 3, 6, 7 ];
-    streamList[curr]= Prout({
-        loop {
-            rrand(2,10).do({
-                0.yield;
-                arrBase.choose.yield;
-                2.yield;
-                arrDer0.choose.yield;
-            });
-            rrand(3,6).do({
-                (arrDer0.choose + #[12, 24].choose).yield;
-            });
-        }
-    }).asStream
-};
-
-runTask1 = { |on|
-    if(on.booleanValue) {
-        fillStream.value(0); // create the stream
-        {
-            streamList[0].do{ |val|
-                var dur;
-                synForm.set(\mnote, val.midicps);
-                synSaw.set(\mnote, (val * 0.2).midicps, \mod, val.linlin(0,32, 0, -1));
-                dur= if(val < 18, {0.25}, {2.0.rand});
-                dur.wait;
-            }
-        }.fork(TempoClock());
-    } {
-        streamList[0].stop; streamList[0]= nil;
-    }
-};
-
-runTask2= { |on|
-    if(on.booleanValue) {
-        fillStream.value(0); // create the stream
-        {
-            streamList[0].do{ |val|
-                var dur;
-                synForm.set(\mnote, val.midicps, \mod, 0);
-                synSaw.set(\mnote, (val * 0.2).midicps);
-                synForm.set(\gate, 1, \att, 0.5);
-                synSaw.set(\gate, 0, \done, 0, \rel, 0.5);
-                if(val < 18, {
-                    synSaw.set(\gate, 1, \att, 0.5);
-                    2.0.rand.wait;
-                    synSaw.set(\gate, 0, \done, 0, \rel, 0.1);
-                    if(0.3.coin, {
-                        synForm.set(\mnote, val.midicps-12, \mod, val.linexp(0,18, 0.1, 0.6));
-                        [0.15, 0.5].choose.wait;
-                    });
-                    }, {
-                        synSaw.set(\gate, 0, \done, 0, \rel, 0.75);
-                        [0.25, 0.75].choose.wait;
-                        synSaw.set(\gate, 1, \att, 0.5);
-                });
-                dur= if(val < 18, {0.25}, {rrand(0.5, 1.5)});
-                dur.wait;
-            }
-        }.fork(TempoClock());
-    } {
-        streamList[0].stop; streamList[0]= nil;
-    }
-};
 
 //--keyboard control
 winWorld.view.keyUpAction= { arg view, char, modifiers, unicode, keycode;
@@ -1391,89 +1238,6 @@ winWorld.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
             params.order.do{ |k| postf("%: %\n", k, params[k])};
         });
     }
-    {keycode == 37} { // L - start/stop "feet" synths
-        case
-        {[0, 256].includes(modifiers)} { // synths controlled by feet enter slowly and remain quiet
-            if(synForm == nil,
-                {startFeetSynths.value(1, 120, 240)},
-                {startFeetSynths.value(0, 30, 30)}
-            );
-        }
-        {[524576, 524608].includes(modifiers)} {
-            if(synForm == nil,
-                {startFeetSynths.value(1, 0.1, 0.1)},
-                {startFeetSynths.value(0, 0.1, 0.1)}
-            );
-        }
-    }
-    {keycode == 4} { // H - run/stop Task 1
-        if( [0, 256].includes(modifiers), {
-            if(synForm != nil, {
-                if(isActiveTask2.booleanValue, { // clear opposite task
-                    isActiveTask2= 0;
-                    runTask2.value( isActiveTask2 );
-                });
-                isActiveTask1= 1-isActiveTask1;
-                runTask1.value( isActiveTask1 );
-            });
-        });
-    }
-    {keycode == 38} { // J - run/stop Task 2
-        if( [0, 256].includes(modifiers), {
-            if(synForm != nil, {
-                if(isActiveTask1.booleanValue, { // clear opposite task
-                    isActiveTask1= 0;
-                    runTask1.value( isActiveTask1 );
-                });
-                isActiveTask2= 1-isActiveTask2;
-                runTask2.value( isActiveTask2 );
-            });
-        });
-    }
-    {keycode == 40} { // K - reset synForm & synSaw after Tasks
-        if( [0, 256].includes(modifiers), {
-            if(synForm != nil, {
-                synForm.set(\mnote, 0);
-                synSaw.set(\mnote, 0);
-            });
-        });
-    }
-    {keycode == 123} { //[<-] prev ctrl for synSaw
-        if(currSawCtl == nil, {
-            currSawCtl= c_CTRL_SYNTH_ARGS.size-1
-            },
-            {
-                currSawCtl= currSawCtl-1;
-                if(currSawCtl < 0, {currSawCtl= nil});
-        });
-    }
-    {keycode == 124} { //[->] next ctrl for synSaw
-        if(currSawCtl == nil, {
-            currSawCtl= 0
-            },
-            {
-                currSawCtl= currSawCtl+1;
-                if(currSawCtl == c_CTRL_SYNTH_ARGS.size, {currSawCtl= nil});
-        });
-    }
-    {keycode == 125} { // [down] next ctrl for synForm
-        if(currFormCtl == nil, {
-            currFormCtl= 0
-            },
-            {
-                currFormCtl= currFormCtl+1;
-                if(currFormCtl == c_CTRL_SYNTH_ARGS.size, {currFormCtl= nil});
-        });
-    }
-    {keycode == 126} { // [up] prev ctrl for synForm
-        if(currFormCtl == nil, {
-            currFormCtl= c_CTRL_SYNTH_ARGS.size-1
-            },
-            {
-                currFormCtl= currFormCtl-1;
-                if(currFormCtl < 0, {currFormCtl= nil});
-        });
-    }
     {keycode == 51} { // [return] - delete last created object
         if( [0, 256].includes(modifiers), {
             removeObject.value(objects.at(if(currObj > 0, {currObj-1}, {9})));
@@ -1511,8 +1275,6 @@ shutDown = {
     // Release objects and particles synths.
     synths.keys.do { |k| s.sendMsg("/n_free", synths[k])};
     partSynths.keys.do { |k| s.sendMsg("/n_free", partSynths[k])};
-    // Release specific synths.
-    synForm.free; synSaw.free;
     // Close windows.
     if (winWorld.isClosed.not) {winWorld.close};
     if (winCtl.isClosed.not) {winCtl.close};

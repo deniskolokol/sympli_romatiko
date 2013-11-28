@@ -40,10 +40,7 @@ var p_FACTORY_SETTINGS = (
     showCoords:        false,
     // System
     synthdefFile:      "synthdef.scd",
-    tempDir:           "~/tmp/SuperCollider/sounds/",
-    // Aux
-    synthForm:         1,
-    synthSaw:          1);
+    tempDir:           "~/tmp/SuperCollider/sounds/");
 // List of svailable synths.
 var a_SYNTHS = #[\sr__g__reg, \sr__g__drone, \sr__g__gust, \sr__g__slic, \sr__g__loop, \sr__g__chunk,
     \sr__e__lowe, \sr__e__probe, \sr__e__cmb, \sr__e__melo, \sr__e__ringz, \sr__e__pulse, \sr__e__analog,

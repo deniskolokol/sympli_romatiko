@@ -367,7 +367,7 @@ thePiece = (
         (
             info: "2 heavy __melo - TAP twice for 2!",
             message: \worldobj,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
     ],
@@ -375,7 +375,7 @@ thePiece = (
         (
             info: "heavy __melo 2",
             message: \worldobj,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
     ],
@@ -415,7 +415,7 @@ thePiece = (
         ),
         (
             message: \worldobj,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
             object: (type: "a RedObject", age: inf, mass: 10)
         ),
     ],
@@ -428,7 +428,7 @@ thePiece = (
         ),
         (
             message: \worldobj,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum: scales[1].bufnum]),
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
             object: (type: "a RedObject", age: inf, mass: 10)
         ),
     ],
@@ -647,7 +647,7 @@ task = (
                 (
                     message: \worldobj,
                     synth: (name: \sr__e__melo, params: [\att, 1.5, \rel, 3,
-                        \bufnum: scales[1].bufnum // specific scale for __melo!
+                        \bufnum, scales[1].bufnum // specific scale for __melo!
                     ]),
                     object: (age: rrand(5, 10), mass: 4, type: "a RedObject")
                 )

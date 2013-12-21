@@ -661,8 +661,9 @@ SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim = [-0.16pi, 0.16pi], speakerElev = 0,
-        speakerDist = [2, 2], maxDist = 2, scaleFlag = 1,
+    // speakerAzim = [-0.15pi, 0.15pi], speakerElev = 0,
+        speakerAzim = [0.15pi, -0.15pi], speakerElev = 0,
+        speakerDist = [1, 0.7], maxDist = 1, scaleFlag = 1,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);

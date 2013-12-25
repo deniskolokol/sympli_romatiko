@@ -42,10 +42,13 @@ var p_FACTORY_SETTINGS = (
     synthdefFile:      "synthdef.scd",
     tempDir:           "~/tmp/SuperCollider/sounds/");
 // List of svailable synths.
-var a_SYNTHS = #[\sr__g__reg, \sr__g__drone, \sr__g__gust, \sr__g__slic, \sr__g__loop, \sr__g__chunk,
-    \sr__e__lowe, \sr__e__probe, \sr__e__cmb, \sr__e__melo, \sr__e__ringz, \sr__e__pulse, \sr__e__analog,
-    \sr__e__entro, \sr__e__noisy, \sr__e__humm, \sr__e__radio, \sr__e__wasp,
-    \sr__p__kick, \sr__p__hat, \sr__p__snare];
+var a_SYNTHS = #[
+    \sr__g__reg, \sr__g__drone, \sr__g__gust, \sr__g__slic, // granular
+    \sr__g__loop, \sr__g__chunk, \sr__g__scratch,
+    \sr__e__lowe, \sr__e__probe, \sr__e__cmb, \sr__e__melo, // electronic
+    \sr__e__ringz, \sr__e__pulse, \sr__e__analog, \sr__e__entro,
+    \sr__e__noisy, \sr__e__humm, \sr__e__radio, \sr__e__wasp,
+    \sr__p__kick, \sr__p__hat, \sr__p__snare]; // percussive
 var a_SURROUND_CONFIG = #[\VBAP4, \Ambisonic2, \Ambisonic4, \Ambisonic6, \Ambisonic8];
 // Spec for mass control.
 var p_MASSSPEC = ControlSpec(1, 11, \lin, 1);
@@ -131,6 +134,7 @@ var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different
     3:  ["a RedObject", \sr__g__gust],	 // f
     5:  ["a RedBoid",   \sr__g__slic],	 // g
     4:  ["a RedBoid",   \sr__g__loop],	 // h
+    38: ["a RedObject", \sr__g__scratch],// j
 );
 var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0],
     w_REDVEC_3D_0 = RedVector3D[0, 0, 0];
@@ -560,6 +564,11 @@ worldStar = RedObject(world,
 winWorld = RedQWindow("tracking", Rect(800, 300, width, height)).background_(Color.black).front;
 winWorld.draw{
     if (params[\visualize].booleanValue) {
+        // Update input bus for __buffloop.
+        try {
+            s.sendMsg("/n_set", cyclicSynthID, \busnum, params[\inbus]);
+        };
+
         // Draw the floor.
         Pen.strokeColor= Color.grey(0.5);
         Pen.strokeRect(Rect.aboutRedVector3D(RedVector[width*0.5, height*0.5, depth], width*0.5, width, height, depth));
@@ -705,8 +714,8 @@ winWorld.draw{
     world.objects.do { |o, i|
 
         // Everybody attracts each other, regardless of the object type or function
-        // and even when the World's forces switched off. This helps keeping objects
-        // in swarm, while at the same time slowly affects position of the Star.
+        // and even when the World's forces switched off. Helps keeping objects in swarm,
+        // affects position of the Star. Doesn't work when skeleton is around.
         if (params[\objAttract].booleanValue && (skeletonObject.size == 0)) {
             world.objects.do { |oo, j|
                 if (i != j) {
@@ -1087,7 +1096,7 @@ initObject = { |objectMass=5, objectType="a RedObject", objectAge=inf, objectPos
     // Try to determine the initial position of the object.
     if (objectPos.isNil) {
         initPos = RedVector3D[width, height, depth].rand;
-    } { arg error; // Random if unsuccessful.
+    } {
         initPos = RedVector3D.newFrom(objectPos);
     };
     // Create new object.
@@ -1192,7 +1201,7 @@ winWorld.view.keyUpAction= { arg view, char, modifiers, unicode, keycode;
 
 winWorld.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     var checkRout;
-    // [char, modifiers, unicode, keycode].postln;
+    [char, modifiers, unicode, keycode].postln;
     case
     {keycode == 45} { // N - new object (???)
         checkRout= Routine({

@@ -134,6 +134,29 @@ SynthDef(\sr__g__slic, { // slicing
 }).add;
 
 
+SynthDef(\sr__g__scratch, { // ~ chunks of sound
+    arg bufnum=0, inbus=30, outbus=20,
+        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
+        offset=0, cutoff=0;
+    var in, signal, out;
+    var rate, ds, pos;
+    // Conversion.
+    rate = az.linlin(0, 1, 0.1, 1.9);
+    ds = distance/3.44;
+    pos = ax * BufDur.kr(bufnum);
+    // Synthesis.
+    in = BufRd.ar(1, bufnum, Lag.ar(K2A.ar(BufFrames.ir(bufnum) * pos), 4), 1) * amp;
+    signal = RLPF.ar(
+        DelayL.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5);
+    //Envelope.
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(outbus, out);
+}).send(s);
+
+
 SynthDef(\sr__g__loop, {
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,

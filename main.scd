@@ -117,7 +117,7 @@ var c_KEY_OBJ = #[29, 18, 19, 20, 21, 23, 22, 26, 28, 25]; // keycodes for traci
 var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different kinds
     12: ["a RedObject", \sr__e__wasp],	 // q
     13: ["a RedObject", \sr__e__radio],  // w
-    14: ["a RedObject", \sr__e__humm],	 // e
+    14: ["a RedBoid", \sr__e__humm],	 // e
     15: ["a RedObject", \sr__e__gauss],  // r
     17: ["a RedObject", \sr__e__entro],  // t
     16: ["a RedObject", \sr__e__noisy],  // y
@@ -558,47 +558,18 @@ objGuide = RedBoid(world,
 // Center of the World.
 worldStar = RedObject(world,
     RedVector3D[height/2, width/3, depth/2], w_REDVEC_3D_0, w_REDVEC_3D_0,
-    mass:params[\starMass], size:10);
+    params[\starMass], params[\starSize]);
 
 // World engine.
 winWorld = RedQWindow("tracking", Rect(800, 300, width, height)).background_(Color.black).front;
 winWorld.draw{
-    if (params[\visualize].booleanValue) {
-        // Update input bus for __buffloop.
-        try {
-            s.sendMsg("/n_set", cyclicSynthID, \busnum, params[\inbus]);
-        };
-
-        // Draw the floor.
-        Pen.strokeColor= Color.grey(0.5);
-        Pen.strokeRect(Rect.aboutRedVector3D(RedVector[width*0.5, height*0.5, depth], width*0.5, width, height, depth));
-
-        // Report if no forces.
-        if (params[\worldForces].booleanValue.not) {
-            Pen.fillColor= Color.white;
-            Pen.stringAtPoint("NO FORCES!", [width-80, height-20].asPoint);
-        };
-
-        // Show coordinates (all objects).
-        if (params[\showCoords].booleanValue) {
-            world.objects.do { |o, i|
-                planeDot = [5, height - ((i+1) * 22)].asPoint;
-                Pen.fillColor= Color.white;
-                try { // Skeletons can be lost.
-                    Pen.stringAtPoint([o.loc[0], o.loc[1], o.loc[2]].round(10).asString, planeDot);
-                    Pen.strokeColor = Color.white;
-                    Pen.line(
-                        planeCoords.value(o.loc, width, height, depth).asPoint,
-                        planeDot + [110, 8]
-                    );
-                    Pen.stroke;
-                }
-            }
-        }
-    };
-
     // Measure the length of rec.
     if(isRecording, {recProgress = recProgress + 1});
+
+    // Update input bus for __buffloop.
+    try {
+        s.sendMsg("/n_set", cyclicSynthID, \busnum, params[\inbus])
+    };
 
     // Force: wind blowing (trig it every 30s).
     wind = sin(2pi * ((winWorld.frame % (30 * params[\fps])) / width));
@@ -619,7 +590,7 @@ winWorld.draw{
         // Skeleton "trash cleaner" (if a skel stuck for more than 5sec, clear it out).
         skeletonCoords.keys.do{ |k|
             if ((Date.getDate.secStamp.asInteger - skeletonCoords[k][\update].asInteger) >= 5) {
-                skeletonObject[k].do{|so|
+                skeletonObject[k].do{ |so|
                     world.remove(so); so.free; so= nil;
                 };
                 skeletonObject.removeAt(k);
@@ -664,22 +635,6 @@ winWorld.draw{
                         .addForce(world.gravity)
                         .update;
                     world.contain(sk.state[\guide]);
-
-                    // visualize skeleton
-                    if (params[\visualize].booleanValue) {
-                        // Render objects.
-                        Pen.fillColor = skeletonCoords[k][\color];
-                        Pen.strokeColor = skeletonCoords[k][\color];
-                        Pen.fillOval(Rect.aboutRedObject3D(sk));
-                        // Draw feet (no objects).
-                        Pen.fillOval(Rect.aboutRedVector3D(v[\r_foot], v[\r_foot][2].linlin(0,depth, 5,30), width, height, depth));
-                        Pen.fillOval(Rect.aboutRedVector3D(v[\l_foot], v[\l_foot][2].linlin(0,depth, 5,30), width, height, depth));
-                        try { // connect joints
-                            Pen.line(planeCoords.value(sk.loc, width, height, depth).asPoint,
-                                planeCoords.value(skeletonObject[k][i-1].loc, width, height, depth).asPoint)
-                            .stroke;
-                        }
-                    }
                 }
             }
         };
@@ -687,27 +642,25 @@ winWorld.draw{
         try {
             skeletonObjectText.string= skeletonObject.keys.asArray.asString
             .replace("[ ","").replace(" ]","");
-        }
+        };
+        // Remove Star from the World.
+        world.remove(worldStar);
     } {
         // World Star.
-        worldStar.mass = params[\starMass];
-        worldStar.size = params[\starSize];
         if (winWorld.mouse != RedVector2D[0, 0]) {
             try {
-                worldStar.loc = [winWorld.mouse[0]] ++ [winWorld.mouse[1]] ++ [winWorld.mouse.mean]
+                worldStar.loc = [winWorld.mouse[0], winWorld.mouse[1], winWorld.mouse.mean]
             } {
                 worldStar.loc = RedVector3D[width/2, height/3, depth/3]
             }
         } {
             worldStar.loc = RedVector3D[width/2, height/3, depth/3]
         };
+        if (world.objects.includes(worldStar).not) {
+            world.add(worldStar);
+        };
         worldStar.update;
         world.contain(worldStar);
-
-        if (params[\visualize].booleanValue) {
-            Pen.fillColor = Color.new(*[0.71, 0.99, 0.99] * worldStar.loc[2].linlin(0, height, 1, 0.3));
-            Pen.fillOval(Rect.aboutRedObject3D(worldStar));
-        }
     };
 
     // Render objects.
@@ -728,121 +681,102 @@ winWorld.draw{
         };
 
         // Process only synth objects (skeleton objects must always be the heaviest ones).
-        if ([objGuide, objAudioIn].includes(o).not && (o.mass < params[\starMass])) {
+        if ([worldStar, objGuide, objAudioIn].includes(o).not && (o.mass < params[\starMass])) {
             if (objects.indexOf(o) == nil) {
                 // Hot trash cleaner.
-                world.remove(o); o.free; o= nil;
-            } {
-                if (objectsProp.keys.includes(o.hash)) {
-                    // control object's age!
-                    objectsProp[o.hash].put(\age, objectsProp[o.hash].at(\age) - (1/params[\fps]));
-                    if (objectsProp[o.hash].at(\age) <= 0) {
-                        // Time to die.
-                        removeObject.value(o)
-                    } {
-                        // The havier the object the fatter it is, linearly.
-                        o.size = o.mass * 5;
+                world.remove(o);
+                o.free;
+                objectsProp.removeAt(o.identityHash);
+            };
 
-                        if (params[\worldForces].booleanValue) {
-                            if (skeletonCoords.size == 0) {
-                                // In the absence of skeletons place a Star in the World.
-                                springs = Dictionary.new; // Clear all springs, that were potentially connected to a "ghost" skeleton.
-                                o.addForce(o.gravityForce(worldStar));
-                                if (o.asString == "a RedBoid") {o.addForceArrive(worldStar.loc)};
-                            } {
-                                // Sceleton gravity or springs.
-                                // Pick up the first recognized sceleton.
-                                m = skeletonObject[skeletonObject.keys.asArray.minItem];
-                                o.asString.switch(
-                                    "a RedBoid", {
-                                        o.addForceArrive(m[0].loc);
-                                        o.addForceArrive(m[4].loc);
-                                    },
-                                    "a RedObject", {
-                                        if (o.mass >= params[\heavy]) { // Springs are for heavy objects only.
-                                            // Springs tend to stick to the "lighter" hand, i.e. the one with
-                                            // bunch of objects on springs with total mass lighter than the other.
-                                            // .exp increases chances of the "lighter" hand to be picked up.
+            if (objectsProp.keys.includes(o.identityHash)) {
 
-                                            if (springs.keys.includes(o.identityHash).not) {
-                                                springs[o.identityHash] = RedSpring(
-                                                    o,
-                                                    [m[0], m[4]].wchoose([
-                                                        m[0].state.atFail(\totalmass, {0}),
-                                                        m[4].state.atFail(\totalmass, {0})
-                                                    ].exp.reverse.normalizeSum),
-                                                    params[\springStiff], params[\springDamp], params[\springLen]);
-                                            } {
-                                                springs[o.identityHash].update
-                                            };
-                                        } { // Remove springs, if any, and take the mass off from hand.
-                                            o.addForce(o.gravityForce(m[0]));
-                                            o.addForce(o.gravityForce(m[4]));
-                                            springs.removeAt(o.identityHash);
-                                        }
+                // Aging.
+                objectsProp[o.identityHash].put(\age,
+                    objectsProp[o.identityHash].at(\age) - (1/params[\fps]));
+
+                if (objectsProp[o.identityHash].at(\age) <= 0) { // time to die
+                    removeObject.value(o)
+                } {
+                    o.size = o.mass * 5; // size linearly depend of mass
+
+                    if (params[\worldForces].booleanValue) {
+                        if (skeletonCoords.size == 0) {
+                            // In the absence of skeletons place a Star in the World.
+                            springs = Dictionary.new; // Clear all springs, that were potentially connected to a "ghost" skeleton.
+                            o.addForce(o.gravityForce(worldStar));
+                            if (o.asString == "a RedBoid") {o.addForceArrive(worldStar.loc)};
+                        } {
+                            // Sceleton gravity or springs.
+                            // Pick up the first recognized sceleton.
+                            m = skeletonObject[skeletonObject.keys.asArray.minItem];
+                            o.asString.switch(
+                                "a RedBoid", {
+                                    o.addForceArrive(m[0].loc);
+                                    o.addForceArrive(m[4].loc);
+                                },
+                                "a RedObject", {
+                                    if (o.mass >= params[\heavy]) { // Springs are for heavy objects only.
+                                        // Springs tend to stick to the "lighter" hand, i.e. the one with
+                                        // bunch of objects on springs with total mass lighter than the other.
+                                        // .exp increases chances of the "lighter" hand to be picked up.
+
+                                        if (springs.keys.includes(o.identityHash).not) {
+                                            springs[o.identityHash] = RedSpring(
+                                                o,
+                                                [m[0], m[4]].wchoose([
+                                                    m[0].state.atFail(\totalmass, {0}),
+                                                    m[4].state.atFail(\totalmass, {0})
+                                                ].exp.reverse.normalizeSum),
+                                                params[\springStiff], params[\springDamp], params[\springLen]);
+                                        } {
+                                            springs[o.identityHash].update
+                                        };
+                                    } { // Remove springs, if any, and take the mass off from hand.
+                                        o.addForce(o.gravityForce(m[0]));
+                                        o.addForce(o.gravityForce(m[4]));
+                                        springs.removeAt(o.identityHash);
                                     }
-                                )
-                            };
-
-                            // The World's forces.
-                            o.addForce(world.gravity);
-                            o.addForce(wind);
+                                }
+                            )
                         };
-                        o.update;
-                        world.contain(o);
-                    }
-                };
-                // Render objects.
-                if (params[\visualize].booleanValue) {
-                    try {
-                        Pen.fillColor = objColors[objects.indexOf(o)].alpha_(o.loc[2].linlin(0, height, 1.0, 0.3));
-                    } {
-                        Pen.fillColor = Color.rand;
+
+                        // The World's forces.
+                        o.addForce(world.gravity);
+                        o.addForce(wind);
                     };
-                    Pen.fillOval(Rect.aboutRedObject3D(o));
-                    Pen.fillColor = Color.white;
-                    Pen.stringAtPoint(
-                        objects.indexOf(o).asString,
-                        (planeCoords.value(o.loc, width, height, depth, scale:1, focal:0.5) - [5, 5]).asPoint
-                    );
+                    o.update;
+                    world.contain(o);
                 };
-                // Control object's synth.
-                if (synths.at(o.hash).isNil.not) {
-                    pos = Complex(
-                        o.loc[1].linlin(0, width, 1, -1), // y
-                        o.loc[0].linlin(0, height, -1, 1) // x
-                    );
-                    try {
-                        s.sendMsg("/n_set", synths.at(o.identityHash).asInteger,
-                            \azimuth, pos.theta,
-                            \distance, pos.rho, // distance from the center
-                            \elevation, o.loc[2].linlin(0, depth, 0.5pi, -0.5pi), // How high the object is (inverse).
-                            \amp, o.mass.linlin(1,11, 0.01,0.8) + (o.vel.mag * 0.01), // The faster the louder.
-                            \ax, o.loc[0] / width, \ay, o.loc[1] / height, \az, o.loc[2] / depth,
-                            \velocity, o.vel.mag / world.maxVel,
-                            \master, params[\master],
-                            \depth, params[\fieldDepth]
-                        )
-                    };
-                    p_MASSSPEC.map(o.mass);
-                }
+            };
+
+            // Control object's synth.
+            if (synths.at(o.identityHash).isNil.not) {
+                pos = Complex(
+                    o.loc[1].linlin(0, width, 1, -1), // y
+                    o.loc[0].linlin(0, height, -1, 1) // x
+                );
+                try {
+                    s.sendMsg("/n_set", synths.at(o.identityHash).asInteger,
+                        \azimuth, pos.theta,
+                        \distance, pos.rho, // distance from the center
+                        \elevation, o.loc[2].linlin(0, depth, 0.5pi, -0.5pi), // How high the object is (inverse).
+                        \amp, o.mass.linlin(1,11, 0.01,0.8) + (o.vel.mag * 0.01), // The faster the louder.
+                        \ax, o.loc[0] / width, \ay, o.loc[1] / height, \az, o.loc[2] / depth,
+                        \velocity, o.vel.mag / world.maxVel,
+                        \master, params[\master],
+                        \depth, params[\fieldDepth]
+                    )
+                };
+                p_MASSSPEC.map(o.mass);
             }
         }
     };
-
     // clean if the object or hand doesn't exists in the World anymore
     springs.keysValuesDo { |k, v|
         if (world.contains(v.object).not || world.contains(v.target).not) {
             springs.removeAt(k)
         } { // render springs
-            if (params[\visualize].booleanValue) {
-                Pen.strokeColor = Color.cyan;
-                Pen.line(
-                    planeCoords.value(v.object.loc, width, height, depth).asPoint,
-                    planeCoords.value(v.target.loc, width, height, depth).asPoint
-                );
-                Pen.stroke;
-            }
         };
     };
 
@@ -876,12 +810,7 @@ winWorld.draw{
         };
         objGuide.update;
         world.contain(objGuide);
-        if (params[\visualize].booleanValue) {
-            try {
-                Pen.fillColor = Color.white.alpha_(objGuide.loc[2].linlin(0, height, 1.0, 0.3));
-                Pen.fillOval(Rect.aboutRedObject3D(objGuide));
-            }
-        };
+
         posGuide= Complex(
             objGuide.loc[1].linlin(0, width, 1, -1), // x
             objGuide.loc[0].linlin(0, height, -1, 1) // y
@@ -927,14 +856,6 @@ winWorld.draw{
         objAudioIn.update;
         world.contain(objAudioIn);
 
-        // Render Object Audio in.
-        if (params[\visualize].booleanValue) {
-            try {
-                Pen.fillColor= Color.blue(0.7, 0.8).alpha_(objAudioIn.loc[2].linlin(0, height, 1.0, 0.3));
-                Pen.fillOval(Rect.aboutRedObject3D(objAudioIn));
-            }
-        };
-
         // Parameters for synths.
         posAudioIn = Complex(
             objAudioIn.loc[1].linlin(0, width, 1, -1), // y
@@ -964,14 +885,14 @@ winWorld.draw{
                     value:g.vel.mag.linlin(0, world.maxVel, world.maxVel.neg, world.maxVel));
                 if (partProb.coin.booleanValue) {
                     // particle has inertia (follows trajectory of its guide)
-                    newPart = RedParticle(world, g.loc, 0, objGuide.vel.tanh * params[\partInitAccel].max(0.01), 10, 10)
+                    newPart = RedParticle(world, g.loc, 0, objGuide.vel.tanh * params[\partInitAccel].max(0.01), 10, 5)
                     .age_(params[\partAgeThresh].logistic);
                     sys.add(newPart);
                     partSynths[newPart.identityHash] = initGroup.(params[\partSynth],
                         parm: [\inbus, params[\inbus], \cr, 4, \att, 0.1]);
-                };
-            };
-        };
+                }
+            }
+        }
     };
 
     // Control Particles synths.
@@ -997,18 +918,105 @@ winWorld.draw{
                         value:(p.age * p.vel.mag.linlin(0, world.maxVel, world.maxVel.neg, world.maxVel))),
                     \master, params[\master],
                     \depth, params[\fieldDepth]]
+            )
+        }
+    };
+
+    // Visualization.
+    if (params[\visualize].booleanValue) {
+        var setColors = { |fillColor, strokeColor=nil|
+            Pen.strokeColor = (strokeColor ?? fillColor).scaleByAlpha;
+            Pen.fillColor = fillColor.scaleByAlpha;
+        };
+        var scale = { |val, lo, hi| val.linlin(0, depth, lo, hi)};
+
+        // The floor.
+        setColors.(Color.grey(0.5));
+        Pen.strokeRect(Rect.aboutRedVector3D(
+            RedVector[width*0.5, height*0.5, depth], width*0.5, width, height, depth));
+
+        // Report if no forces.
+        if (params[\worldForces].booleanValue.not) {
+            setColors.(Color.white);
+            Pen.stringAtPoint("NO FORCES!", [width-80, height-20].asPoint);
+        };
+
+        // Show coordinates (all objects).
+        if (params[\showCoords].booleanValue) {
+            world.objects.do { |o, i|
+                planeDot = [5, height - ((i+1) * 22)].asPoint;
+                setColors.(Color.white);
+                try { // Skeletons can be lost.
+                    Pen.stringAtPoint([o.loc[0], o.loc[1], o.loc[2]].round(10).asString, planeDot);
+                    Pen.line(
+                        planeCoords.value(o.loc, width, height, depth).asPoint,
+                        planeDot + [110, 8]
+                    );
+                    Pen.stroke;
+                }
+            }
+        };
+
+        // Skeleton(s).
+        skeletonCoords.keysValuesDo { |k, v|
+            // Order matters! Used for connecting!
+            var joints = [\l_hand, \l_elbow, \neck, \r_elbow, \r_hand, \r_foot, \l_foot];
+            var paint = { |joint|
+                Pen.fillOval(Rect.aboutRedVector3D(joint, scale.(joint[2], 2, 20), width, height, depth))
+            };
+
+            setColors.(skeletonCoords[k][\color]);
+            joints.do { |jointName, j|
+                paint.(v[jointName]);
+
+                if (j < 5) { // connect only arms and neck
+                    try {
+                        Pen.line(
+                            planeCoords.(v[jointName], width, height, depth).asPoint,
+                            planeCoords.(v[joints[j-1]], width, height, depth).asPoint
+                        ).stroke;
+                    }
+                }
+            }
+        };
+
+        // World objects.
+        world.objects.do { |o, i|
+            // Render objects.
+            switch ( o,
+                objGuide,   { setColors.(Color(1, 1, 1, scale.(o.loc[2], 1, 0.2)))},
+                objAudioIn, { setColors.(Color(0.2, 0.3, 0.8, scale.(o.loc[2], 1, 0.2)))},
+                worldStar,  { setColors.(Color.new(0.99, 0.2, 0.2, scale.(o.loc[2], 1, 0.2)))},
+                { // ordinary object
+                    try {
+                        setColors.(objColors[objects.indexOf(o)].alpha_(scale.(o.loc[2], 1.0, 0.2)));
+                    } {
+                        setColors.(Color(0.7, 0.7, 0.7, scale.(o.loc[2], 1.0, 0.2)));
+                    };
+                }
+            );
+            Pen.fillOval(Rect.aboutRedObject3D(o));
+            setColors.(Color.white);
+            Pen.stringAtPoint(
+                objects.indexOf(o).asString.replace("nil",""),
+                (planeCoords.value(o.loc, width, height, depth, scale:1, focal:0.5) - [5, 5]).asPoint
             );
         };
 
-        // Render particles.
-        if (params[\visualize].booleanValue) {
-            try {
-                Pen.fillColor= Color.red(p.age / params[\partAgeThresh], 1)
-                .alpha_(p.loc[2].linlin(0, height, 1.0, 0.3));
-                Pen.fillOval(Rect.aboutRedObject3D(p));
-            } { |err|
-                err.postln;
-            }
+        // Springs.
+        springs.values.do { |v|
+            setColors.(Color.cyan);
+            Pen.line(
+                planeCoords.value(v.object.loc, width, height, depth).asPoint,
+                planeCoords.value(v.target.loc, width, height, depth).asPoint
+            );
+            Pen.stroke;
+        };
+
+        // Particles.
+        sys.do{ |p|
+            setColors.(Color.yellow(p.age / params[\partAgeThresh], scale.(p.loc[2], 1.0, 0.3)));
+            Pen.fillOval(Rect.aboutRedObject3D(p));
         }
     };
 };
@@ -1062,33 +1070,40 @@ recBufStart = { arg bufnum, inbus, numchannels, path, headformat= 'aiff', bitdep
 
 // Release recording synth.
 recBufStop = { |bnum|
-    try{recSynth.free};
+    try { recSynth.free };
     s.sendMsg("/b_close", bnum, ["/b_free", bnum]);
     isRecording = false;
 };
 
 // Remove object from the world, release the corresponding synth.
 removeObject= { |o|
-    var objInd, objId;
+    var objInd;
+
     if(objects.includes(o), {
-        objInd = objects.indexOf(o);
-        objId = o.identityHash;
-        { ezkObjCtrl[objInd].enabled_(false) }.defer; // Disable mass ctrl.
-        if(springs.keys.includes(objId), {springs.removeAt(objId)}); // free springs
-        if(synths.at(objId).isNil.not, {
-            removeGroup.(synths[objId], 2.0.rand); // release corresponding group
-            synths.removeAt(objId);
-            objectsProp.removeAt(objId); // wipe out object properties
+        if (springs.keys.includes(o.identityHash)) { // free springs
+            springs.removeAt(o.identityHash)
+        };
+
+        if(synths.at(o.identityHash).isNil.not, {
+            removeGroup.(synths[o.identityHash], 2.0.rand); // release corresponding group
+            synths.removeAt(o.identityHash);
+            objectsProp.removeAt(o.identityHash); // wipe out object properties
         });
+
+        objInd = objects.indexOf(o);
+        { ezkObjCtrl[objInd].enabled_(false) }.defer; // Disable mass ctrl.
         objects[objInd] = nil;
-        world.remove(o); o.free; o = nil;
+
+        world.remove(o);
+        o.free;
+        o = nil;
     });
 };
 
 // Init new object, record its properties, control stack index.
 initObject = { |objectMass=5, objectType="a RedObject", objectAge=inf, objectPos= nil|
     var newObject, initPos;
-    if(currObj == objects.size, {currObj= 0}); // Objects are in FIFO stack.
+    if(currObj == objects.size, {currObj = 0}); // Objects are in FIFO stack.
     if(objects.at(currObj).isNil.not, { // Is currObj index already occupied?
         if(objects.indexOf(nil) != nil, {currObj = objects.indexOf(nil)});
     });

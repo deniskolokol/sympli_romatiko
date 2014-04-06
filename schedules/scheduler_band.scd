@@ -8,10 +8,12 @@ var guideBuff, samples, scales; // buffers (sound files and scales)
 var synths=Dictionary.new; // temp dictionary of the synths symbolic IDs vs. server Nodes
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 var key, current, next, syn, obj, age, mass; // object's properties
-var processEvents, sendObjCreate, sendSNew, sendParam, groupNew, groupFree; // main logic functions
-var getKey, displayEventInfo, convertTime; // helper functions
 var win, info, buttons, stCurrNum, stCurrInfo, stNextNum, stNextInfo, timeLabel; // interface
 var shade, count=0, animate=false; // schedule animation
+var getKey, displayEventInfo, convertTime; // helper functions
+var processEvents, groupNew, groupFree, taskPlay,
+    sendObjCreate, sendSNew, sendParam, sendAct; // acting functions
+
 
 // INITIAL
 //
@@ -49,7 +51,10 @@ samples = List.new; // fill samples
 scales = List.new; // fill scales
 [
     FloatArray[0, 3, 7, 10], // scales[0] is the main scale
-    FloatArray[0, 1, 3, 7, 8] // the rest are specific to thePiece's parts
+    FloatArray[0, 1, 3, 7, 8], // the rest are specific to thePiece's parts
+    FloatArray[0, 2, 4, 6, 9],
+    FloatArray[0, 3, 6, 9, 11],
+    FloatArray[0, 1, 3, 7, 10],
 ].do { |a| scales.add(Buffer.loadCollection(s, a)) };
 
 thePiece = (
@@ -229,28 +234,6 @@ thePiece = (
             message: \task, name: \sporadicPulse, act: 0
         ),
     ],
-    45: [
-        ( // Remove all objects.
-            message: \worldact, action: \remove, objects: \all
-        ),
-        (
-            info: "2 heavy __analog ~fade-out",
-            message: \worldobj,
-            synth: ( name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 10)
-        ),
-        (
-            message: \worldobj,
-            synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 10)
-        ),
-        (
-            info: "Heavy __probe ~fade-in",
-            message: \worldobj,
-            synth: (name: \sr__e__probe, params: [\att, 1.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 8),
-        )
-    ],
     50: [
         (
             info: "AIRY",
@@ -329,6 +312,34 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         ),
         (
+            info: "2 heavy __melo - TAP twice for 2!",
+            message: \worldobj,
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
+    ],
+    71: [
+        (
+            info: "heavy __melo 2",
+            message: \worldobj,
+            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
+    ],
+    72: [
+        (
+            info: "Schedule scale switch",
+            message: \task, name: \switchScale, act: 1
+        ),
+    ],
+    75: [
+        ( // IMPORTANT! switchScale sends sclaes as buffers to all nodes
+          // It should be stopped before starting granWave to prevent
+          // sending scales instead of samples.
+            info: "Stop switching scales",
+            message: \task, name: \switchScale, act: 0
+        ),
+        (
             info: "Schedule granular waves",
             message: \task, name: \granWave, act: 1
         ),
@@ -336,46 +347,29 @@ thePiece = (
             message: \worldpar,
             params: [audioIn: true]
         ),
-        (
-            info: "Ave __lowe",
-            message: \worldobj,
-            synth: (name: \sr__e__lowe, params: [\att, 10.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 6)
-        ),
     ],
-    72: [
+    77: [
+        ( // Remove all - switch to ringz
+            message: \worldact, action: \remove, objects: \all
+        ),
         (
             info: "Heavy __ringz - TAP twice for 2!",
             message: \worldobj,
             synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
-            object: (type: "a RedObject", age: inf, mass: 7)
+            object: (type: "a RedObject", age: inf, mass: 9)
+        ),
+        (
+            info: "Ave __lowe Boid",
+            message: \worldobj,
+            synth: (name: \sr__e__lowe, params: [\att, 10.0.rand, \rel, 10]),
+            object: (type: "a RedBoid", age: inf, mass: 6)
         ),
     ],
-    73: [
+    78: [
         (
             info: "Heavy __ringz 2",
             message: \worldobj,
             synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
-            object: (type: "a RedObject", age: inf, mass: 7)
-        ),
-    ],
-    75: [
-        (
-            info: "Remove ringz (!!! On a granular blast !!!)",
-            message: \worldact, action: \remove, objects: \all
-        ),
-        (
-            info: "2 heavy __melo - TAP twice for 2!",
-            message: \worldobj,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
-            object: (type: "a RedObject", age: inf, mass: 9)
-        ),
-    ],
-    76: [
-        (
-            info: "heavy __melo 2",
-            message: \worldobj,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
             object: (type: "a RedObject", age: inf, mass: 9)
         ),
     ],
@@ -396,40 +390,19 @@ thePiece = (
         ),
     ],
     80: [
-        (
-            info: "GROOVE_1",
-            message: \worldact, action: \remove, objects: \all
-        ),
         ( // Stop schedule with sporadic \sr__e__cmb
-            info: "Remove all, stop sched",
+            info: "GROOVE_1",
             message: \task, name: \sporadicCMB, act: 0
         ),
         ( // Stop schedule with sporadic \sr__e__melo
+            info: "Stop sched",
             message: \task, name: \sporadicMelo, act: 0
         ),
         (
-            info: "heavy __noisy + __melo - TAP twice for 2!",
+            info: "Add one heavy __noisy",
             message: \worldobj,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 9]),
             object: (type: "a RedObject", age: inf, mass: 9)
-        ),
-        (
-            message: \worldobj,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
-            object: (type: "a RedObject", age: inf, mass: 10)
-        ),
-    ],
-    81: [
-        (
-            info: "GROOVE_1: heavy __noisy + __melo 2",
-            message: \worldobj,
-            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 9]),
-            object: (type: "a RedObject", age: inf, mass: 9)
-        ),
-        (
-            message: \worldobj,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
-            object: (type: "a RedObject", age: inf, mass: 10)
         ),
     ],
     85: [
@@ -655,6 +628,15 @@ task = (
             ((next + rand2(next * 0.25))/2).wait;
         }
     }),
+    switchScale: Task({
+        inf.do{ |i|
+            // WARNING! This works weird! Compare with example of
+            // DegreeToKey from the doc! Investigate!!!
+            //
+            s.sendMsg("/n_set", nil, \bufnum, scales[i % scales.size].bufnum);
+            (4..8).choose.wait;
+        }
+    }),
     granWave: Task({
         var buff, age, next=20;
         var introSynths = [\sr__g__loop, \sr__g__slic, \sr__g__drone, \sr__g__reg, \sr__g__gust];
@@ -693,8 +675,7 @@ task = (
             }.fork;
             rrand(20, 45).wait;
         }
-        }
-    )
+    })
 );
 
 // Send synth to server.
@@ -714,8 +695,8 @@ sendSNew = { |data|
 groupNew = { |data, time=0.1|
     var nodeID = s.nextNodeID, messages = data[\params];
 
-    messages.do{ |l, i|
-        l.do{ |m, j| // replace keywords with node ids
+    messages.do { |l, i|
+        l.do { |m, j| // replace keywords with node ids
             m.switch(
                 \group_id, { messages[i][j] = nodeID},
                 \next_node_id, {messages[i][j] = s.nextNodeID}
@@ -736,7 +717,6 @@ groupFree = { |data|
 
     try {params.putPairs(data.atFail(\params, {[]}))};
     release = params.atFail(\release, {2});
-    release.postln;
 
     Routine({
         [
@@ -783,6 +763,29 @@ sendParam = { |data|
 };
 
 
+// Send action to the World.
+sendAct = { |action, objects|
+    if ((action.asString != "") && (action.isNil.not)) {
+        receiverNet.sendMsg("/worldact", action, objects);
+    };
+};
+
+
+// Run or stop task.
+taskPlay = { |task, play=false|
+    try {
+        if (play) {
+            task.play(doReset:true)
+        } {
+            task.stop;
+            task.reset;
+        }
+    } { |err|
+        postf("Error while trying to switch task % on or off:\n%\n", task, err);
+    };
+};
+
+
 // Obtain the key next/prev to current.
 getKey = { |current=nil, next=1|
     var k, c;
@@ -822,26 +825,30 @@ processEvents = { |k=nil|
     var val = thePiece.atFail(k, {[]});
     val.do { |d, l|
         d[\message].switch(
-            \task, { // Launch/stop a task.
-                try {
-                    if (d[\act].booleanValue) {task[d[\name]].play()} {task[d[\name]].stop}
-                } { |err|
-                    postf("Error while trying to switch task % on or off:\n%\n", d[\name], err);
-                };
+            \task, { // launch/stop a task
+                taskPlay.(task[d[\name]], d[\act].booleanValue)
             },
-            \worldobj, {sendObjCreate.(d)}, // Single object creation.
-            \worldpar, {sendParam.(d)}, // Send World parameter(s).
-            \worldact, { // Send an act signal to the World.
-                if (d.atFail(\action, {\}) != \) {
-                    receiverNet.sendMsg("/worldact", d[\action], d[\objects]);
-                };
+            \worldact, { // send action to the World
+                sendAct.(d.atFail(\action, {\}), d[\objects])
             },
-            \s_new, {sendSNew.(d)}, // Send a new synth message directly to the server.
-            \n_set, { // Send a 'set params' message directly to the server.
+            \worldobj, { // single object creation
+                sendObjCreate.(d)
+            },
+            \worldpar, { // send World parameter(s)
+                sendParam.(d)
+            },
+            \s_new, { // send a new synth message directly to the server
+                sendSNew.(d)
+            },
+            \n_set, { // send params directly to the synth on the server
                 s.listSendMsg(["/n_set", synths.at(d[\synth][\id])] ++ d[\synth].atFail(\params, {[]}))
             },
-            \g_new, {groupNew.(d)}, // Send bundle to the server, place everything into the group.
-            \g_free, {groupFree.(d)}, // Release group.
+            \g_new, { // send bundle to the server, place everything into the group
+                groupNew.(d)
+            },
+            \g_free, { // release group
+                groupFree.(d)
+            },
         )
     }
 };

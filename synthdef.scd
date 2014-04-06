@@ -240,7 +240,7 @@ SynthDef(\sr__e__probe, {
     var note, in, out, signal;
     var rate=1, dtl=0.01, dtr=0.05;
     // Conversion.
-    rate = (velocity * 5).max(0.5) * exprand(3, 8);
+    rate = (velocity * 5).max(0.1) * exprand(3, 8);
     note = DegreeToKey.kr(bufnum, az * 15, 24, 1, 15);
     // Synthesis.
     in = LPZ2.ar(
@@ -301,7 +301,11 @@ SynthDef(\sr__e__melo, {
         offset=36, cutoff=0;
     var note, in, out, signal;
     // Conversion.
-    note = DegreeToKey.kr(bufnum, az * 15, 24, 1, 15).midicps;
+    note = (
+        DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 15), 12, 1, offset)
+        + LFNoise1.kr([3,3], 0.04)    // add some low freq stereo detuning
+    ).midicps;
+
     // Synthesis.
     in = RLPF.ar(
         LFSaw.ar(note)
@@ -309,7 +313,10 @@ SynthDef(\sr__e__melo, {
         + Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
             LFNoise0.kr(1.0.rand, 2, 10), r: LFNoise0.kr(1.0.rand, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
         LFNoise0.kr(0.2, 38, 115).midicps, 0.1,
-        mul:(amp * velocity * 0.5).scurve // sigmoid: the faster, the more present
+        // mul:(amp * velocity * 0.5).scurve // sigmoid: the faster, the more present
+
+        // WARNING! This sounds more natural!!
+        mul:velocity
     );
     in = [in, DelayN.ar(in, 0.04, 0.04)];
     4.do({in = AllpassN.ar(in, 0.05, [0.05.rand, 0.05.rand], 4)});
@@ -542,7 +549,8 @@ SynthDef(\sr__e__radio, {
     var freq, in, out, signal;
     var trig, timer;
     // Conversion.
-    freq = (36..38).midicps;
+    // freq = (36..38).midicps;
+    freq = (az * (60..72)).midicps;
     trig = velocity > 0.3;
     timer = Timer.kr(trig);
     cutoff = TChoose.ar((timer > 0.25) * trig, [
@@ -559,7 +567,7 @@ SynthDef(\sr__e__radio, {
             (1..5)
             * SinOsc.ar(velocity).exprange(20, 2000)
             * SinOsc.ar(SinOsc.ar(velocity, 0, 0.1), 0, 0.1, 1), 0.001, 0.0015,
-            mul:velocity * 0.5
+            mul:velocity
         )
     );
     signal = Mix.ar(in);
@@ -578,31 +586,27 @@ SynthDef(\sr__e__wasp, {
     var note, scale, in, out, signal;
     var cutOff, rq, azThresh=0.7;
     // Conversion.
-    cutOff = distance.linexp(0.0, 1.0, 200, 10000); // different from arg!
+    cutOff = distance.linexp(0.0, 1.0, 500, 10000); // different from arg!
     rq = distance.linlin(0, 2.sqrt, 0.5, 1);
-    note = DegreeToKey.kr(bufnum, az * 15, 24, 1, 15);
+    note = DegreeToKey.kr(bufnum, az * 15, 24, 1, offset);
     // Synthesis.
     in = Formlet.ar(
-        LPF.ar(
-            Saw.ar(
-                (1..5) * LFClipNoise.ar(SinOsc.ar(0.1, 0, 0.5, 1), 10, note), 0.3
-            )
-            +
-            SinOsc.ar((6..2), velocity ** 3).exprange(0.05, 50)
-            , 300
-        )
-        +
-        Impulse.ar(
+        LPF.ar(Saw.ar((1..5) * LFClipNoise.ar(SinOsc.ar(0.1, 0, 0.5, 1), 10, note))
+            + SinOsc.ar((6..2), velocity ** 3).exprange(0.05, 50), 300)
+        + Impulse.ar(
             (0..4) + SinOsc.ar(
-        (4..8) * 0.02).exprange(0.3, 300))
-        , (1..5)
-        * SinOsc.ar((5..9)*0.05).exprange(200, 2000)
-        * SinOsc.ar(SinOsc.ar((2..6) * 0.1, 0, 0.1), 0, 0.1, 1), 0.001, 0.0015
+                (4..8) * 0.02).exprange(0.3, 300)), (1..5)
+        // * SinOsc.ar((5..9) * 0.05).exprange(200, 2000)
+        // * SinOsc.ar(SinOsc.ar((2..6) * 0.1, 0, 0.1), 0, 0.1, 1),
+        * SinOsc.ar((5..9) * az*0.05).exprange(200, 2000)
+        * SinOsc.ar(SinOsc.ar((2..6) * az*0.1, 0, 0.1), 0, 0.1, 1),
+        velocity.linlin(0, 1, 0.100, 0.0010),
+        velocity.linlin(0, 1, 0.015, 0.0015)
     );
     in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq);
-    in = Compander.ar(in, in, 0.002, slopeBelow: 0.33, slopeAbove: 0.5,
+    in = Compander.ar(in, in, 0.002, slopeBelow: 0.33, slopeAbove: 0.33,
         clampTime: 0.01, relaxTime: 0.01,
-        mul:(amp * velocity).scurve); // sigmoid: the faster, the more present
+        mul:velocity.clip); // sigmoid: the faster, the more present
     signal = Mix.ar(in);
     //Envelope.
     out = signal * master * EnvGen.kr(
@@ -684,9 +688,8 @@ SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-    // speakerAzim = [-0.15pi, 0.15pi], speakerElev = 0,
-        speakerAzim = [0.15pi, -0.15pi], speakerElev = 0,
-        speakerDist = [1, 0.7], maxDist = 1, scaleFlag = 1,
+        speakerAzim = [-0.17pi, 0.17pi], speakerElev = 0,
+        speakerDist = [2, 2], maxDist = 2, scaleFlag = 1,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);
@@ -702,8 +705,8 @@ SynthDef(\sr__s__ambisonic4, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=15;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim = [-0.25pi, -0.75pi, 0.75pi, 0.25pi], speakerElev = [-0.1pi, 0, 0, -0.1pi],
-        speakerDist = [1.5, 1.5, 1.5, 1.5], maxDist = 1.5, scaleFlag = 1,
+        speakerAzim = [-0.15pi, -0.7pi, 0.7pi, 0.15pi], speakerElev = [-0.1pi, 0, 0, -0.1pi],
+        speakerDist = [2.5, 2.5, 2.5, 2.5], maxDist = 2.5, scaleFlag = 1,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);

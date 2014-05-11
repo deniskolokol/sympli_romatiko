@@ -1,3 +1,6 @@
+// TO-DO:
+// - why springs are being re-attached to 1 hand so often??
+
 (
 // CONSTANTS
 // f_ile management, p_arameters, a_udio, o_SC, c_ontrol, w_orld.
@@ -174,6 +177,9 @@ var scaleBuf;
 
 // Objects management.
 var initObject, removeObject;
+
+// Springs.
+var removeSpring;
 
 // Particles.
 var sys, guides, newPart, posPart, partSynths, partGuideItems, partProb;
@@ -379,9 +385,16 @@ oscActScheduler = OSCFunc({ arg msg, time, addr, recvPort;
     postf("from % received %\n", addr, msg);
     msg[1].switch(
         \remove, {
-            if (msg[2] == \all) {
-                objects.do({|o| removeObject.value(o)})
-            }
+            msg[2].switch(
+                \all, { objects.do({|o| removeObject.value(o)}) },
+                \springs, {
+                    springs.do({|g| removeSpring.value(g)});
+                    springs = Dictionary.new; // initialize container
+                },
+            );
+            // if (msg[2] == \all) {
+            //     objects.do({|o| removeObject.value(o)})
+            // }
         },
         \add, {
             // What other acts can be sent to the World?
@@ -665,7 +678,6 @@ winWorld.draw{
 
     // Render objects.
     world.objects.do { |o, i|
-
         // Everybody attracts each other, regardless of the object type or function
         // and even when the World's forces switched off. Helps keeping objects in swarm,
         // affects position of the Star. Doesn't work when skeleton is around.
@@ -703,7 +715,7 @@ winWorld.draw{
                     if (params[\worldForces].booleanValue) {
                         if (skeletonCoords.size == 0) {
                             // In the absence of skeletons place a Star in the World.
-                            springs = Dictionary.new; // Clear all springs, that were potentially connected to a "ghost" skeleton.
+                            springs = Dictionary.new; // Clear all springs potentially connected to a "ghost" skeleton.
                             o.addForce(o.gravityForce(worldStar));
                             if (o.asString == "a RedBoid") {o.addForceArrive(worldStar.loc)};
                         } {
@@ -716,12 +728,13 @@ winWorld.draw{
                                     o.addForceArrive(m[4].loc);
                                 },
                                 "a RedObject", {
-                                    if (o.mass >= params[\heavy]) { // Springs are for heavy objects only.
+                                    if (o.mass >= params[\heavy]) { // Springs are for heavy bodies only.
                                         // Springs tend to stick to the "lighter" hand, i.e. the one with
                                         // bunch of objects on springs with total mass lighter than the other.
                                         // .exp increases chances of the "lighter" hand to be picked up.
-
-                                        if (springs.keys.includes(o.identityHash).not) {
+                                        if (springs.keys.includes(o.identityHash)) {
+                                            springs[o.identityHash].update
+                                        } {
                                             springs[o.identityHash] = RedSpring(
                                                 o,
                                                 [m[0], m[4]].wchoose([
@@ -729,8 +742,6 @@ winWorld.draw{
                                                     m[4].state.atFail(\totalmass, {0})
                                                 ].exp.reverse.normalizeSum),
                                                 params[\springStiff], params[\springDamp], params[\springLen]);
-                                        } {
-                                            springs[o.identityHash].update
                                         };
                                     } { // Remove springs, if any, and take the mass off from hand.
                                         o.addForce(o.gravityForce(m[0]));
@@ -1075,8 +1086,14 @@ recBufStop = { |bnum|
     isRecording = false;
 };
 
+// Removes springs from the world.
+removeSpring = { |spring|
+    world.remove(spring);
+    springs.removeAt(o.identityHash);
+};
+
 // Remove object from the world, release the corresponding synth.
-removeObject= { |o|
+removeObject = { |o|
     var objInd;
 
     if(objects.includes(o), {

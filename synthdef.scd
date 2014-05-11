@@ -180,6 +180,34 @@ SynthDef(\sr__g__loop, {
 }).add;
 
 
+SynthDef(\sr__g__unst, {
+    arg bufnum=0, busnum=0, pos=0, amp=1, master=1, gate=1, rate=1, att=1, rel=1, crva=3, crvr= -3,
+    azimuth=0, elevation=0, distance=1, velocity=10, depth=5;
+    var w, x, y, z, r, s, t, u, v,
+    speakerAzim= [-0.25pi, -0.6pi, 0.6pi, 0.25pi], speakerElev= 0, speakerDist= [6.34, 4.88, 4.88, 6.34],
+    maxDist=3, scaleFlag=1, dist;
+    var in, signal, out, ds;
+    ds = distance/3.44;
+    in = PlayBuf.ar(1, bufnum,
+        TWChoose.kr(
+            Dust.kr(0.01),
+            [
+                BufRateScale.kr(bufnum) * TRand.kr(0.5, 1.5, Dust.kr(0.2)),
+                BufRateScale.kr(bufnum) * TRand.kr(-0.5, 2, Dust.kr(0.2)),
+            ],
+        [0.8, 0.2]),
+        Dust.kr(0.2),
+        TRand.kr(0, BufFrames.ir(bufnum), Dust.kr(0.2))
+    );
+    signal = RLPF.ar(
+        DelayL.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds), 0.3, ds),
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5);
+    //Envelope.
+    out = signal * master * EnvGen.kr(Env.asr(att, 1, rel, [crva, crvr]), gate: gate, doneAction:2);
+    Out.ar(busnum, out)
+}).send(s);
+
+
 SynthDef(\sr__g__chunk, { // ~ chunks of sound
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
@@ -313,10 +341,8 @@ SynthDef(\sr__e__melo, {
         + Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
             LFNoise0.kr(1.0.rand, 2, 10), r: LFNoise0.kr(1.0.rand, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
         LFNoise0.kr(0.2, 38, 115).midicps, 0.1,
-        // mul:(amp * velocity * 0.5).scurve // sigmoid: the faster, the more present
-
-        // WARNING! This sounds more natural!!
-        mul:velocity
+        mul:(amp * velocity * 0.5).scurve // sigmoid: the faster, the more present
+        // mul:velocity // simply the faster the louder
     );
     in = [in, DelayN.ar(in, 0.04, 0.04)];
     4.do({in = AllpassN.ar(in, 0.05, [0.05.rand, 0.05.rand], 4)});
@@ -444,7 +470,7 @@ SynthDef(\sr__e__gauss, {
     var note, scale, in, out, signal;
     var cutOff, rq, dur, width;
     // Conversion.
-    cutOff = distance.linexp(0.0, 1.0, 10000, 200); // different from arg!
+    cutOff = distance.linexp(0.0, 1.0, 10000, 200); // different from arg cutoff!
     rq = distance.linexp(0, 2.sqrt, 1, 0.2);
     dur = SinOsc.ar(LinExp.kr(az, 0.001, 1, 0.05, 5000) * [1, 1.1]).range(0.0006, 0.01);
     width = SinOsc.ar(0.5 * [1, 1.1]).range(0.01, 0.3);
@@ -549,8 +575,7 @@ SynthDef(\sr__e__radio, {
     var freq, in, out, signal;
     var trig, timer;
     // Conversion.
-    // freq = (36..38).midicps;
-    freq = (az * (60..72)).midicps;
+    freq = (az * (36..72)).midicps;
     trig = velocity > 0.3;
     timer = Timer.kr(trig);
     cutoff = TChoose.ar((timer > 0.25) * trig, [
@@ -560,17 +585,20 @@ SynthDef(\sr__e__radio, {
     );
     // Synthesis.
     in = (
-        LFSaw.ar(freq, mul:velocity * 0.02)
-        + Impulse.ar(SinOsc.ar(cutoff).exprange(48, 10000), mul:velocity * 0.02)
+        LFSaw.ar(freq, mul:velocity)
+        + Impulse.ar(SinOsc.ar(cutoff).exprange(48, 10000), mul:velocity)
         + Formlet.ar(
             Impulse.ar(freq + SinOsc.ar(freq * 0.02).exprange(0.3, cutoff / 3.67)),
             (1..5)
             * SinOsc.ar(velocity).exprange(20, 2000)
             * SinOsc.ar(SinOsc.ar(velocity, 0, 0.1), 0, 0.1, 1), 0.001, 0.0015,
-            mul:velocity
+            mul:velocity.scurve
         )
-    );
-    signal = Mix.ar(in);
+    ) * 0.01;
+    signal = RLPF.ar(
+        FreeVerb.ar(in, distance, distance/3.44, 0.2),
+    distance.linlin(0, 2.sqrt, 10000, 500), 0.5);
+    signal = Mix.ar(signal);
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);

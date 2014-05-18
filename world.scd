@@ -58,8 +58,8 @@ var removeGroup;
 
 // SKELETON
 var skeleton = Dictionary.new,
-skeletonParticles, skeletonRemove,
-chooseSource;
+    skeletonParticles, skeletonRemove,
+    chooseSource;
 
 // INTERFACE
 //
@@ -180,16 +180,17 @@ view.drawFunc = {
         handleBoundaryCollisions.value(particle);
 
         if (particle == star) {
-            Pen.color = Color.cyan;
+            Pen.color = Color.red;
             Pen.fillOval(Rect.aboutPoint(Point(particle.position.x, particle.position.y),
                 10 * particle.position.z.linlin(0, world.depth, 1, 0.1),
                 10 * particle.position.z.linlin(0, world.depth, 1, 0.1)));
-        } {
-            Pen.color = Color.white;
+        } { // the heavier the object, the redder it appears
+            Pen.color = Color(particle.mass.linlin(0, 1, 0.2, 1),
+                particle.mass.linlin(0, 1, 0.7, 1), 1 - particle.mass);
             Pen.fillOval(Rect.aboutPoint(
                 Point(particle.position.x, particle.position.y),
-                particle.mass * 10 * particle.position.z.linlin(0, world.depth, 1, 0.1),
-                particle.mass * 10 * particle.position.z.linlin(0, world.depth, 1, 0.1)));
+                5 * particle.position.z.linlin(0, world.depth, 1, 0.1),
+                5 * particle.position.z.linlin(0, world.depth, 1, 0.1)));
         };
 
         // Age control: particles age "backwards",
@@ -290,7 +291,7 @@ chooseSource = {
     // choose among those with the minimum load
     sources.findKeysForValue(sources.values.minItem).choose
     ??
-    // if there are none, simply choose any of them
+    // if there are none, the probabilities of picking any of them are equal
     skeleton.choose[world.springSrcSkel.choose]
 };
 

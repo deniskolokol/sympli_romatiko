@@ -130,6 +130,10 @@ thePiece = (
             message: \task, name: \intro, act: 1
         )
     ],
+    // TO-DO:
+    // This is necessary for objects on springs proper behavior
+    // Hovewer this makes freely floating particles sluggish.
+    // Invent something!
     20: [
         (info: "Physics environment change",
         message: \physics, params: [\gravity, 0, 0, -2]),

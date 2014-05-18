@@ -40,10 +40,10 @@ SynthDef(\sr__g__reg, {
     pos = Integrator.kr(BrownNoise.kr(azimuth));
     ds = distance/3.44;
     // Synthesis.
-    in = TGrains.ar(2, clk, bufnum, BufRateScale.kr(bufnum) * rate, pos, dur, amp: amp);
+    in = TGrains.ar(2, clk, bufnum, BufRateScale.kr(bufnum) * rate, pos, dur);
     signal = RLPF.ar(
         DelayL.ar(FreeVerb.ar(Mix.ar(in), distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
-        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5);
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp;
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -66,10 +66,10 @@ SynthDef(\sr__g__drone, {
     pos = ax * BufDur.kr(bufnum);
     ds = distance/3.44;
     // Synthesis.
-    in = TGrains.ar(2, clk, bufnum, BufRateScale.kr(bufnum) * rate, pos + TRand.kr(0, 0.01, clk), dur, amp: amp);
+    in = TGrains.ar(2, clk, bufnum, BufRateScale.kr(bufnum) * rate, pos + TRand.kr(0, 0.01, clk), dur);
     signal = RLPF.ar(
         DelayL.ar(FreeVerb.ar(Mix.ar(in), distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
-        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5);
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp;
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -96,11 +96,11 @@ SynthDef(\sr__g__gust, { // ~ gusts of wind
         rate: Dseq([1, 1, zz.value, 0.5, 0.5, 0.2, 0.1, 0.1, 0.1, 0.1], inf) * pos + 1,
         centerPos: Dseq(zz.dup(8), inf) / pos,
         dur: Dseq([1, d.value, 1, zz.value, 0.5, 0.5, 0.1, zz.value] * 2, inf) / trate,
-        amp: Dseq([1, 0, zz.value.min(1.3), 0, 0.6, 0.3, 1, 0.1, 0.1], inf) * amp
+        amp: Dseq([1, 0, zz.value.min(1.3), 0, 0.6, 0.3, 1, 0.1, 0.1], inf)
     );
     signal = RLPF.ar(
         DelayL.ar(FreeVerb.ar(Mix.ar(in), distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
-        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5);
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp;
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -123,10 +123,10 @@ SynthDef(\sr__g__slic, { // slicing
     pos = ax * BufDur.kr(bufnum);
     ds = distance/3.44;
     // Synthesis.
-    in = TGrains.ar(2, clk, bufnum, (2 ** WhiteNoise.kr(2)) * rate, BufFrames.ir(bufnum) * pos, dur, 0, amp);
+    in = TGrains.ar(2, clk, bufnum, (2 ** WhiteNoise.kr(2)) * rate, BufFrames.ir(bufnum) * pos, dur, 0);
     signal = RLPF.ar(
         DelayL.ar(FreeVerb.ar(Mix.ar(in), distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
-        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5);
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp;
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -146,10 +146,10 @@ SynthDef(\sr__g__scratch, { // ~ chunks of sound
     ds = distance/3.44;
     pos = ax * BufDur.kr(bufnum);
     // Synthesis.
-    in = BufRd.ar(1, bufnum, Lag.ar(K2A.ar(BufFrames.ir(bufnum) * pos), 4), 1) * amp;
+    in = BufRd.ar(1, bufnum, Lag.ar(K2A.ar(BufFrames.ir(bufnum) * pos), 4), 1);
     signal = RLPF.ar(
         DelayL.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
-        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5);
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp;
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -172,7 +172,7 @@ SynthDef(\sr__g__loop, {
         Impulse.ar(BufDur.kr(bufnum).reciprocal), BufFrames.ir(bufnum) * startPos);
     signal = RLPF.ar(
         DelayL.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
-        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5);
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp;
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -192,16 +192,15 @@ SynthDef(\sr__g__unst, {
         TWChoose.kr(
             Dust.kr(0.01),
             [
-                BufRateScale.kr(bufnum) * TRand.kr(0.5, 1.5, Dust.kr(0.2)),
-                BufRateScale.kr(bufnum) * TRand.kr(-0.5, 2, Dust.kr(0.2)),
+                BufRateScale.kr(bufnum) * TRand.kr(0.8, 1.3, Dust.kr(0.2)),
+                BufRateScale.kr(bufnum) * TRand.kr(-0.8, -1.3, Dust.kr(0.2)),
             ],
         [0.8, 0.2]),
         Dust.kr(0.2),
         TRand.kr(0, BufFrames.ir(bufnum), Dust.kr(0.2))
     );
-    signal = RLPF.ar(
-        DelayL.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds), 0.3, ds),
-        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5);
+    signal = RLPF.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds),
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp;
     //Envelope.
     out = signal * master * EnvGen.kr(Env.asr(att, 1, rel, [crva, crvr]), gate: gate, doneAction:2);
     Out.ar(busnum, out)
@@ -226,7 +225,7 @@ SynthDef(\sr__g__chunk, { // ~ chunks of sound
     );
     signal = RLPF.ar(
         DelayL.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
-        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5);
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp;
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);

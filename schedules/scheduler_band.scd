@@ -623,20 +623,15 @@ task = (
         inf.do{ |j|
             // Start fade-in synth before the wave.
             buff = voices[(j % voices.size).asInt];
-            syn = [\sr__g__unst, \sr__g__loop, \sr__g__gust].wchoose([0.7, 0.2, 0.1]);
-            sendSNew.(
-                ( // Start drum loop.
-                    message: \s_new,
-                    synth: (
-                        id: \voice_synth,
-                        name: syn,
-                        params: [\att, 2, \busnum, 20, \bufnum, buff.bufnum]
-                    )
+            syn = [\sr__g__unst, \sr__g__loop, \sr__g__gust].wchoose([0.9, 0.08, 0.02]);
+            sendObjCreate.(
+                (
+                    message: \worldobj,
+                    synth: (name: syn, params: [\att, 2, \bufnum, buff.bufnum]),
+                    object: (age: 6 + 3.0.rand2, mass: 3, type: "a RedBoid")
                 )
             );
-            rrand(2, 5).wait;
-            s.listSendMsg(["/n_set", synths.at(\voice_synth), \gate, 0, \rel, 5]);
-            rrand(2, 15).wait;
+            rrand(15, 20).wait;
         }
     }),
     sporadicAnalogCutoff: Task({

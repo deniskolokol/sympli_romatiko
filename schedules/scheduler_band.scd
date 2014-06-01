@@ -256,13 +256,19 @@ thePiece = (
     ],
     40: [
         (
-            info: "HEAVY",
+            info: "HEAVY __analog default - TAP twice for 2!",
             message: \worldobj,
             synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 20]),
             object: (type: "a RedObject", age: inf, mass: 10),
         ),
         (
-            info: "2 more heavy __analog default and -1 cutoff",
+            info: "Stop sporadic __pulse",
+            message: \task, name: \sporadicPulse, act: 0
+        ),
+    ],
+    45: [
+        (
+            info: "one more heavy __analog -1 cutoff",
             message: \worldobj,
             synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 20, \cutoff, -1]),
             object: (type: "a RedObject", age: inf, mass: 10)

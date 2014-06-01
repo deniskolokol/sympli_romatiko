@@ -420,7 +420,8 @@ SynthDef(\sr__e__analog, {
     var rq, azThresh=0.7;
     var freq, trig, timer, mul, add;
     // Conversion.
-    mul = 2250; add = 2750;
+    mul = velocity.linlin(0, 1, 1850, 2350);
+    add = velocity.linlin(0, 1, 2250, 2800);
     trig = velocity > 0.33; // high velocity causes sharp switch
     timer = Timer.kr(trig);
     freq = TRand.kr(trig:Delay2.kr(Dust.kr(1)));
@@ -430,7 +431,7 @@ SynthDef(\sr__e__analog, {
                 [
                     LFNoise0.ar(freq, mul, add),
                     LFNoise1.ar(freq, mul, add),
-                    LFNoise2.ar(freq).clip2 * mul + add // quadratic interpolation can push beyond normal range of +-1
+                    LFNoise2.ar(freq).clip2 * mul + add // quadratic interpolation can push beyond [-1..1]
                 ],
                 [0.1, 0.3, 0.6]
             ),
@@ -438,8 +439,8 @@ SynthDef(\sr__e__analog, {
         ]
     );
     rq = SelectX.kr(BinaryOpUGen('==', cutoff, 5666) * 2,
-        [ // If cutoff is variable, RQ depends on distance.
-            distance.linlin(0, 2.sqrt, 0.1, 1),
+        [ // If cutoff is variable, RQ depends on velocity.
+            velocity.linlin(0, 1, 0.5, 0.1),
             0.1 // constant cutoff means constant RQ
         ]
     );
@@ -453,6 +454,8 @@ SynthDef(\sr__e__analog, {
     in = Mix.fill(8, {LFSaw.ar((note + 0.1.rand2).midicps)});
     in = Compander.ar(in, in, 0.002, slopeBelow: 0.33, slopeAbove: 0.5,
         clampTime: 0.01, relaxTime: 0.01, mul: amp);
+    // in = Limiter.ar(MidEQ.ar(in, 14000, 0.7, 8) * amp);
+
     signal = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq);
     //Envelope.
     out = signal * master * EnvGen.kr(
@@ -713,10 +716,10 @@ SynthDef(\sr__p__snare, {
 //
 SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
+        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim = [-0.17pi, 0.17pi], speakerElev = 0,
-        speakerDist = [2, 2], maxDist = 2, scaleFlag = 1,
+        speakerAzim = [-0.25pi, 0.25pi], speakerElev = 0,
+        speakerDist = [1.3, 1.3], maxDist = 1.3, scaleFlag = 1,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);
@@ -730,7 +733,7 @@ SynthDef(\sr__s__ambisonic2, {
 
 SynthDef(\sr__s__ambisonic4, {
     arg inbus=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=15;
+        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=15;
     var w, x, y, z, r, s, t, u, v,
         speakerAzim = [-0.15pi, -0.7pi, 0.7pi, 0.15pi], speakerElev = [-0.1pi, 0, 0, -0.1pi],
         speakerDist = [2.5, 2.5, 2.5, 2.5], maxDist = 2.5, scaleFlag = 1,
@@ -747,7 +750,7 @@ SynthDef(\sr__s__ambisonic4, {
 
 SynthDef(\sr__s__ambisonic6, {
     arg inbus=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=15;
+        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=15;
     var w, x, y, z, r, s, t, u, v,
         speakerAzim = [-0.25pi, -0.4pi, -0.65pi, 0.65pi, 0.4pi, 0.25pi], speakerElev = [0, 0, 0, 0, 0, 0],
         speakerDist = [8, 3, 4, 4, 3, 8], maxDist = 8, scaleFlag = 1,
@@ -764,7 +767,7 @@ SynthDef(\sr__s__ambisonic6, {
 
 SynthDef(\sr__s__ambisonic8, {
     arg inbus=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.1pi, distance=0, depth=5;
+        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
         speakerAzim = [-0.20pi, -0.5pi, -0.70pi, -1pi, 0.70pi, 0.5pi, 0.20pi, 0pi], speakerElev = 0,
         speakerDist = [ 8, 8, 8, 8, 8, 8, 8, 8 ], maxDist = 6.3, scaleFlag = 1,

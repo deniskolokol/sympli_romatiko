@@ -235,6 +235,15 @@ SynthDef(\sr__g__chunk, { // ~ chunks of sound
 
 // ELECTRONIC SYNTHS
 //
+SynthDef(\sr__e__silent, {
+	arg outbus=0, gate=1, att=1, rel=1, ca=3, cr= -3;
+	Out.ar(outbus,
+        Silent.ar() * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2)
+    );
+}).add;
+
+
 SynthDef(\sr__e__lowe, { // the "lowe"st
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
@@ -332,7 +341,6 @@ SynthDef(\sr__e__melo, {
         DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 15), 12, 1, offset)
         + LFNoise1.kr([3,3], 0.04)    // add some low freq stereo detuning
     ).midicps;
-
     // Synthesis.
     in = RLPF.ar(
         LFSaw.ar(note)
@@ -454,8 +462,6 @@ SynthDef(\sr__e__analog, {
     in = Mix.fill(8, {LFSaw.ar((note + 0.1.rand2).midicps)});
     in = Compander.ar(in, in, 0.002, slopeBelow: 0.33, slopeAbove: 0.5,
         clampTime: 0.01, relaxTime: 0.01, mul: amp);
-    // in = Limiter.ar(MidEQ.ar(in, 14000, 0.7, 8) * amp);
-
     signal = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq);
     //Envelope.
     out = signal * master * EnvGen.kr(
@@ -507,7 +513,7 @@ SynthDef(\sr__e__noisy, {
         LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(0.5))), 2450, 2550), 0.01, 0.1
     ).softclip;
     in = [in, DelayN.ar(in, 0.04, 0.4)];
-    4.do({in = AllpassN.ar(in, 0.5, [0.5.rand, 0.5.rand], 4, amp * 1.5)});
+    4.do({in = AllpassN.ar(in, 0.5, [0.5.rand, 0.5.rand], 4, amp)});
     signal = RLPF.ar(
         FreeVerb.ar(LeakDC.ar(Mix.ar(in) * 0.03), distance, distance/3.44, 0.5),
         distance.linlin(0, 2.sqrt, 10000, 500), 0.5);
@@ -556,11 +562,12 @@ SynthDef(\sr__e__humm, {
         mnote=0, freqBase=36, mod=0; // WARNING! This is obsolete, remove when finishing notes via .kr bus!
     var note, in, out, signal;
     // Conversion.
-    note = DegreeToKey.kr(bufnum, az, 24, 1, freqBase).midicps;
+    note = (DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 15), 12, 1, offset)
+        + LFNoise1.kr([3, 3], 0.04)).midicps;    // add some low freq stereo detuning
     // Synthesis.
-    in = LFSaw.ar((1..5) * note, velocity)
+    in = LFSaw.ar((1..5) * note, abs(velocity * 2), velocity)
          + Impulse.ar((0..4) + SinOsc.ar((4..8) * note).exprange(0.3, 300));
-    in = Mix.ar(in) * amp * 0.2;
+    in = Mix.ar(in) * amp * 0.1;
     signal = RLPF.ar(in, LinLin.kr(velocity, 0, 1, 80, 30).midicps, velocity);
     //Envelope.
     out = signal * master * EnvGen.kr(
@@ -596,10 +603,10 @@ SynthDef(\sr__e__radio, {
             * SinOsc.ar(SinOsc.ar(velocity, 0, 0.1), 0, 0.1, 1), 0.001, 0.0015,
             mul:velocity.scurve
         )
-    ) * 0.01;
+    ) * (amp * 0.05);
     signal = RLPF.ar(
         FreeVerb.ar(in, distance, distance/3.44, 0.2),
-    distance.linlin(0, 2.sqrt, 10000, 500), 0.5);
+        distance.linlin(0, 2.sqrt, 10000, 500), 0.5);
     signal = Mix.ar(signal);
     //Envelope.
     out = signal * master * EnvGen.kr(
@@ -718,8 +725,8 @@ SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim = [-0.25pi, 0.25pi], speakerElev = 0,
-        speakerDist = [1.3, 1.3], maxDist = 1.3, scaleFlag = 1,
+        speakerAzim = [-0.25pi, -0.75pi], speakerElev = 0,
+        speakerDist = [2.5, 2.5], maxDist = 2.5, scaleFlag = 1,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);

@@ -59,7 +59,21 @@ voices = List.new; // fill samples
 [
     "~/Music/Sympli_Romatiko/solo/Audio/narration0.wav",
     "~/Music/Sympli_Romatiko/solo/Audio/narration1.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration2.wav"
+    "~/Music/Sympli_Romatiko/solo/Audio/narration2.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration3.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration4.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration5.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration6.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration7.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration8.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration9.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration10.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration11.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration12.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration13.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration14.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration15.wav",
+    "~/Music/Sympli_Romatiko/solo/Audio/narration16.wav",
 ].do { |f|
     voices.add(Buffer.readChannel(s, PathName(f).fullPath, channels: [0]));
 };
@@ -634,10 +648,10 @@ task = (
                 (
                     message: \worldobj,
                     synth: (name: syn, params: [\att, 2, \bufnum, buff.bufnum]),
-                    object: (age: 6 + 3.0.rand2, mass: 3, type: "a RedBoid")
+                    object: (age: 7 + 3.0.rand2, mass: 3, type: "a RedBoid")
                 )
             );
-            rrand(15, 20).wait;
+            rrand(5, 20).wait;
         }
     }),
     sporadicAnalogCutoff: Task({

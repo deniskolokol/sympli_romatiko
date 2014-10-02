@@ -24,6 +24,7 @@ var world = (
     repulsion: 100,
     gravity: (x: 0, y: 0, z: 0),
     drag: 0.5,
+    maxVel: 70,
 
     // springs behavior
     springRestLen: 5,
@@ -31,12 +32,27 @@ var world = (
     springDamp: 2,
 
     // to what joints a particle can be attached by spring
-    springSrcSkel: [\r_hand, \l_hand]
+    springSrcSkel: [\r_hand, \l_hand],
+
+    // particles
+    particles:         0, // run particles
+    partSigmoidRatio:  0.7, // steepness of sigmoid function determiming probability of particle being born
+    partFreq:          0.8, // generate a new particle \partFreq times per second
+    partAgeThresh:     0.84, // maximum particle age in cycles (sec)
+    partInitAccel:     5, // particle initial acceleration
+    partSynth:         \sr__e__analog
 );
 
 var audio = (
     surround: "ambisonic2",
     fountainSynth: \sr__e__analog,
+    depth: 5,
+    in: 20,
+    out: 0
+);
+
+var skel = (
+    waitBeforeRemove: 5
 );
 
 // COMMUNICATION
@@ -49,23 +65,23 @@ var oscParticle, oscPhysics, oscAudio, oscAction,
 var star;
 var physics, particles, pos, repulsion;
 var initParticle, removeParticle, removeAll,
-    registerParticle, unregisterParticle,
+    registerParticle, unregisterParticle, particleSystem,
     handleBoundaryCollisions, applyAttractions, applySpring,
-    removeSpring;
+    removeSpring, removeAttraction;
 
 // AUDIO
-var removeGroup;
+var removeGroup, initGroup;
 
 // SKELETON
 var skeleton = Dictionary.new,
     skeletonParticles, skeletonRemove,
-    chooseSource;
+    getGuide, getSource, chooseSource;
 
 // INTERFACE
 //
 var win = Window("Sympli Romatikó :: WORLD", Rect(0, 500, world.width, world.height), false);
 var view = UserView(win, Rect(0, 0, world.width, world.height)).background = Color.black;
-var fps = 60;
+var frame = 0, fps = 30;
 
 // HELPER FUNCTIONS
 //
@@ -89,7 +105,12 @@ var mag3D = { |vec|
 // Simple sigmoid function.
 var sigmoid = { |ratio, value| 1 / (1 + exp((ratio * value).neg))};
 
+// Increments integers with a limit: resets to `lo` every time in + step reaches `hi`.
+var clipInc = { |in=0, step=1, lo=0, hi=inf| ((in + step).clip(lo, hi) % hi).clip(lo, hi)};
 
+
+// INTERFACE
+//
 view.mouseDownAction = {|v, x, y|
     star.position.set(x, y, 0);
 };
@@ -113,7 +134,7 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
             ["/s_new", \sr__s__ambisonic2, s.nextNodeID, 1, g, // add spatializer to new group's tail
                 \inbus, 4, // getting signal from synth
                 \outbus, 0], // to main output
-            ["/s_new", \sr__e__melo, s.nextNodeID, 0, g, // add synth to new group's head
+            ["/s_new", \sr__e__analog, s.nextNodeID, 0, g, // add synth to new group's head
                 \outbus, 4, // feeding into spatilizer
                 \depth, 3,
                 \bufnum, k.bufnum
@@ -145,6 +166,8 @@ view.drawFunc = {
     var paramsChanged = false;
     var particlesOnSprings = [];
 
+    frame = frame + 1;
+
     // world: gravity
     if (physics.gravity != TraerVector3D.newFromDict(world.gravity)) {
         physics.setGravity(world.gravity.x, world.gravity.y, world.gravity.z);
@@ -164,6 +187,20 @@ view.drawFunc = {
         paramsChanged = true;
     };
 
+    // Control skeletons.
+    skeleton.keys.do { |id|
+        if ((Date.getDate.secStamp.asInteger - skeleton[id][\update].asInteger) >= skel.waitBeforeRemove) {
+            skeletonRemove.(id)
+        }
+    };
+
+    // Particle system.
+    if (world.particles.booleanValue) {
+        if (frame % (fps * world.partFreq + (world.partFreq * 0.5).rand2).round == 0) {
+            particleSystem.(getGuide.())
+        }
+    };
+
     // Manage and visualize particles.
     physics.particles.do { |particle|
         // Re-apply world forces, if there was any change in its parameters
@@ -176,9 +213,7 @@ view.drawFunc = {
                 applyAttractions.(particle, world.mutualAttraction)
             }
         };
-
         handleBoundaryCollisions.value(particle);
-
         if (particle == star) {
             Pen.color = Color.red;
             Pen.fillOval(Rect.aboutPoint(Point(particle.position.x, particle.position.y),
@@ -192,7 +227,6 @@ view.drawFunc = {
                 5 * particle.position.z.linlin(0, world.depth, 1, 0.1),
                 5 * particle.position.z.linlin(0, world.depth, 1, 0.1)));
         };
-
         // Age control: particles age "backwards",
         // i.e. age = 0 is a death and positive age is afterlife.
         if (particle.age >= 0) { particle.dead = true };
@@ -203,7 +237,7 @@ view.drawFunc = {
     };
 
     // Manage and visualize springs.
-    physics.springs.do{ |spring, i|
+    physics.springs.do { |spring, i|
         Pen.color = Color.white;
         Pen.moveTo(Point(spring.getOneEnd.position.x, spring.getOneEnd.position.y));
         Pen.lineTo(Point(spring.getTheOtherEnd.position.x, spring.getTheOtherEnd.position.y));
@@ -216,12 +250,11 @@ view.drawFunc = {
             particle.position.x.linlin(0, world.width, 1, -1), // y
             particle.position.y.linlin(0, world.height, -1, 1) // x
         );
-
         s.sendMsg("/n_set", node,
             \azimuth, pos.theta,
             \distance, pos.rho, // distance from the center
             \elevation, particle.position.z.linlin(0, world.depth, 0.5pi, -0.5pi), // how high the object is (inverse)
-            \amp, mag3D.(particle.velocity).distort.pow(10) * particle.mass,
+            \amp, mag3D.(particle.velocity).distort * particle.mass,
             \ax, particle.position.x / world.width,
             \ay, particle.position.y / world.height,
             \az, particle.position.z.linlin(0, world.depth, 1, 0),
@@ -233,6 +266,7 @@ view.drawFunc = {
 
     physics.tick;
 };
+
 
 // Handle collisions with World boundaries.
 handleBoundaryCollisions = { |p|
@@ -251,6 +285,14 @@ handleBoundaryCollisions = { |p|
         p.position.z.clip(0, world.depth));
 };
 
+
+// Apply spring: choose a source and connect particle to it.
+applySpring = { |particle, ks, d, r|
+    physics.makeSpring(getSource.(), particle,
+        ks ? world.springStrength, d ? world.springDamp, r ? world.springRestLen);
+};
+
+
 // Apply forces.
 applyAttractions = { |particle, mutual=false|
     // Attraction of the Star.
@@ -260,7 +302,7 @@ applyAttractions = { |particle, mutual=false|
     };
 
     // Mututal attraction / repulsion.
-    if (mutual) {
+    if (mutual.booleanValue) {
         physics.particles.do { |part|
             if ((particle != part) && (particle != star) && (part != star)) {
                 physics.removeAttraction(particle);
@@ -269,6 +311,7 @@ applyAttractions = { |particle, mutual=false|
         }
     }
 };
+
 
 // Choose a source (skeleton with the "lightest" hand).
 chooseSource = {
@@ -295,33 +338,39 @@ chooseSource = {
     skeleton.choose[world.springSrcSkel.choose]
 };
 
-// Apply spring: choose a source and connect particle to it.
-applySpring = { |particle, ks, d, r|
-    var source;
-    // Decide upon source depending on the presence of skeleton.
-    if (skeleton.keys.size > 0) {
-        source = chooseSource.();
-    } {
-        source = star;
-    };
-    physics.makeSpring(source, particle,
-        ks ? world.springStrength, d ? world.springDamp, r ? world.springRestLen);
+
+// Select source of force depending on the presence of skeleton.
+getSource = {
+    if (skeleton.keys.size > 0) { chooseSource.() } { star }
 };
 
+
+// Select guide (where obj appears) depending on objects velocity.
+getGuide = {
+    var guides = IdentityDictionary[star -> mag3D.(star.velocity)];
+    skeleton.keysValuesDo { |skel, joints|
+        joints.keysValuesDo { |joint, p|
+            guides[joint] = mag3D.(joint.velocity);
+        }
+    };
+    // the faster the object, the bigger a chance to become a guide
+    guides.findKeysForValue(guides.values.wchoose(guides.values.exp.normalizeSum))[0]
+};
+
+
 // Init new particle.
-initParticle = { |mass, x, y, z, age|
-    var particle, guides, guide;
+initParticle = { |mass, x, y, z, age, vel|
+    var particle, guide;
     if ([x, y, z].any({ |i| i < 0 })) { // negative coordinates ask for guide
-        // TO-DO: add skeleton's hands here
-        guides = [star];
-        guides = all{: g.position, g <- guides};
-        guide = guides.wchoose(mag3D.(guides).exp.normalizeSum); // the fastest one is a guide
+        guide = getGuide.();
         #x, y, z = [guide.x, guide.y, guide.z];
     } {
         #x, y, z = [x ? world.width.rand, y ? world.height.rand, z ? world.depth.rand]
     };
     particle = physics.makeParticle(mass ? world.particleDefaultMass, x, y, z);
-
+    try {
+        particle.velocity.set(vel[0], vel[1], vel[2])
+    };
     // Particles age "backwards": age == 0 is death, age >= 0 is afterlife.
     try {
         particle.age = (age * fps).abs.neg;
@@ -331,21 +380,58 @@ initParticle = { |mass, x, y, z, age|
     particle
 };
 
+
+// Particle system.
+particleSystem = { |guide|
+    var pos, vel, prob;
+
+    // probability of the birth of particle depends on the guide's velocity
+    prob = sigmoid.(
+        ratio:world.partSigmoidRatio,
+        value:mag3D.(guide.velocity).linlin(0, world.maxVel, world.maxVel.neg, world.maxVel));
+
+    if (prob.coin.booleanValue) {
+        pos = guide.position;
+        vel = guide.velocity;
+        registerParticle.(
+            initParticle.(0.2, pos.x, pos.y, pos.z,
+                world.partAgeThresh.logistic,
+                [vel.x, vel.y, vel.z].neg * world.partInitAccel.max(0.01)),
+            initGroup.(
+                world.partSynth, audio.surround, params:[\att, 2.0.rand]
+            )
+        );
+    }
+};
+
+
 // Remove spring.
 removeSpring = { |spring|
     physics.removeSpring(spring);
 };
 
+
+// Remove attraction.
+removeAttraction = { |attraction|
+    physics.removeAttraction(attraction);
+};
+
+
 // Remove a particle.
 removeParticle = { |particle|
-    physics.removeParticle(particle);
-
-    // control springs
+    // remove springs
     physics.springs.do { |spring|
         if ([spring.getOneEnd, spring.getTheOtherEnd].includes(particle)) {
             removeSpring.(spring)
         }
-    }
+    };
+    // remove attractions
+    physics.attractions.do { |attr|
+        if ([attr.getOneEnd, attr.getTheOtherEnd].includes(particle)) {
+            removeAttraction.(attr)
+        }
+    };
+    physics.removeParticle(particle);
 };
 
 // Remove all particles from the world and stop all synths.
@@ -355,6 +441,7 @@ removeAll = { |cleanSynths=true|
         removeParticle.(particle);
     }
 };
+
 
 // Register and unregister particle are separate functions
 // from init and remove to support the case when an existing
@@ -373,6 +460,7 @@ unregisterParticle = { |nodeId|
     removeGroup.(nodeId);
     particle
 };
+
 
 // SYNTHS
 //
@@ -395,22 +483,57 @@ removeGroup = { |groupID, release=2|
     }).play;
 };
 
+
+initGroup = { |synth, spatial, bufnum, busnum, params|
+    // WARNING - TEST ONLY!
+    //
+    // Physics engine should send a msg with a node number to audio engine.
+    // It is audio engine's job to create group on server.
+    //
+    var node, l=30, h=53;
+    spatial = spatial.asString;
+    if (spatial.beginsWith("sr__s__").not) {
+        spatial = "sr__s__" ++ spatial.toLower
+    };
+    node = s.nextNodeID;
+    if (busnum.isNil) {
+        busnum = clipInc.(~route ?? l, lo:l, hi:h);
+        ~route = busnum;
+    };
+    s.sendBundle(0.01,
+        ["/error", 1], // turn errors off (locally)
+        ["/g_new", node],
+        ["/s_new", spatial, s.nextNodeID, 1, node, // add spatializer to new group's tail
+            \inbus, busnum, // getting signal from synth
+        \outbus, audio.out], // to main output
+        ["/s_new", synth, s.nextNodeID, 0, node, // add synth to new group's head
+            \inbus, audio.in, // getting signal from external input
+            \outbus, busnum, // feeding into spatilizer
+        \bufnum, bufnum] ++ (params ? [])
+    );
+    node // return ID of the Group created
+};
+
+
 // SKELETON
 //
 // Creates a particle for each joint of the skeleton.
 skeletonParticles = { |id, joint, x, y, z|
+    var part;
     if (skeleton.keys.includes(id).not) {
         skeleton[id] = (complete: false);
     };
-
     if (joint.isNil.not) {
         if (skeleton[id].keys.includes(joint).not) {
-            skeleton[id][joint] = initParticle.(world.starMass, x, y, z);
-            skeleton[id][joint].makeFixed;
+            part = initParticle.(world.starMass, x, y, z);
+            part.makeFixed;
+            skeleton[id][joint] = part;
         };
         skeleton[id][joint].position.set(x, y, z);
     };
+    skeleton[id][\update] = Date.getDate.secStamp;
 };
+
 
 // Removes skeleton particles.
 skeletonRemove = { |id|
@@ -420,7 +543,9 @@ skeletonRemove = { |id|
         // TO-DO:
         // don't just remove particles, but better remove all springs,
         // update particles' age and let them die slowly
-    }
+        // something like p.age = -3;
+    };
+    skeleton.removeAt(id)
 };
 
 
@@ -441,11 +566,10 @@ oscParticle = OSCFunc({ |msg, time, addr, recvPort|
             };
             particle = initParticle.(mass, x, y, z, age);
             registerParticle.(particle, node);
-            if (msg[3].booleanValue) { // springs
-                applySpring.(particle);
-            } { // attractions
-                applyAttractions.(particle);
-            };
+            if (msg[3].booleanValue) {
+                applySpring.(particle)
+            } {
+                applyAttractions.(particle) };
         },
         0, { // remove particle
             particle = unregisterParticle.(node);
@@ -453,6 +577,7 @@ oscParticle = OSCFunc({ |msg, time, addr, recvPort|
         }
     );
 }, '/particle');
+
 
 // Catch messages related to physics.
 oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
@@ -467,20 +592,12 @@ oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
             };
             world.gravity = (x: x, y: y, z: z)
         },
-        \drag, {
-            world.drag = msg[2].asFloat
-        },
-        \repulsion, {
-            world.repulsion = msg[2].asFloat
-        },
+        \drag, { world.drag = msg[2].asFloat },
+        \repulsion, { world.repulsion = msg[2].asFloat },
         \star, {
             msg[2].switch(
-                \fixed, {
-                    star.makeFixed
-                },
-                \free, {
-                    star.makeFree
-                },
+                \fixed, { star.makeFixed },
+                \free, { star.makeFree },
                 \mass, {
                     try {
                         world.starMass = msg[3].asFloat
@@ -495,9 +612,13 @@ oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
                     star.position.set(x, y, z);
                 }
             );
+        },
+        { // default action
+            try { world[msg[1]] = msg[2]};
         }
     );
 }, '/physics');
+
 
 // Catch action messages.
 oscAction = OSCFunc({ |msg, time, addr, recvPort|
@@ -516,11 +637,13 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
     );
 }, '/action');
 
+
 // Catch messages related to audio setup.
 oscAudio= OSCFunc({ |msg, time, addr, recvPort|
     postf("from % received %\n", addr, msg);
     audio.putPairs(msg[1..]);
 }, '/audio');
+
 
 // Catch messages related to skeleton.
 oscSkeletonLost = OSCFunc({ |msg, time, addr, recvPort|
@@ -528,10 +651,12 @@ oscSkeletonLost = OSCFunc({ |msg, time, addr, recvPort|
     skeletonRemove.(msg[1]);
 }, '/lost_skel');
 
+
 oscSkeletonNew = OSCFunc({ |msg, time, addr, recvPort|
     postf("from % received %\n", addr, msg);
     skeletonParticles.(msg[1]);
 }, '/new_skel');
+
 
 oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
     var id, joint, x, y, z;
@@ -546,6 +671,7 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
     skeletonParticles.(id, joint, x, y, z);
 }, '/joint');
 
+
 // Remove all OSC functions.
 oscRemoveFunc = {
     oscParticle.free;
@@ -553,6 +679,7 @@ oscRemoveFunc = {
     oscSkeletonLost.free;
     oscSkeletonJoint.free;
 };
+
 
 // PHYSICS
 //
@@ -576,6 +703,6 @@ if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
 
 CmdPeriod.doOnce({
     oscRemoveFunc.();
-    win.close
+    win.close;
 });
 )

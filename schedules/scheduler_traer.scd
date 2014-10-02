@@ -1,19 +1,23 @@
 (
 var thePiece; // main dictionary with the sequence of scheduled tasks
+var samplesDir;
 var surround, mainInput, mainOutput; // audio setup for the current piece
+var depth=5, inbus=12, outbus=0; // to main output
 var worldSize; // assume the World is a cube
 var parmDir = Dictionary.new; // Global params of the piece dictionary.
 var sGroupId; // root group
 var receiver; // communication
 var task; // tasks dictionary
-var guideBuff, samples, scales; // buffers (sound files and scales)
+var guideBuff, samples, scales, voices; // buffers (sound files and scales)
 var synths=Dictionary.new; // temp dictionary of the synths symbolic IDs vs. server Nodes
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 var key, current, next, syn, obj, age, mass; // object's properties
 var win, info, buttons, stCurrNum, stCurrInfo, stNextNum, stNextInfo, timeLabel; // interface
+var btPrev, btNext;
 var shade, count=0, animate=false; // schedule animation
 var getKey, displayEventInfo, convertTime, clipInc; // helper functions
-var processEvents, groupNew, groupFree, taskPlay, groupInit, sendWorld,
+var midiServerVolume, midiNext, midiPrev, midiClean;
+var processEvents, groupNew, groupFree, taskPlay, sendWorld,
     sendParticle, sendSNew, sendPhysics, sendAudio, sendAct; // acting functions
 
 
@@ -34,20 +38,31 @@ dictObjSeq = (
 msetObjSeq = MarkovSetN([], 2);
 dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 
+samplesDir = "~/Music/Sympli_Romatiko/samples/";
+
 // fill buff with sample connected to guide object
 guideBuff = Buffer.readChannel(s,
-    PathName("~/Music/Sympli_Romatiko/solo/Audio/DRLATPOL.WAV").fullPath,
+    PathName(samplesDir ++ "drumguide.wav").fullPath,
+    // PathName("~/Music/Sympli_Romatiko/solo/Audio/drumguide.wav").fullPath,
     channels: [0]);
 
 samples = List.new; // fill samples
 [
-    "~/Music/Sympli_Romatiko/solo/Audio/bboxbeay2.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/17boxloop.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/BBOX75.WAV",
-    "~/Music/Sympli_Romatiko/solo/Audio/BBOX90.WAV",
-    "~/Music/Sympli_Romatiko/solo/Audio/loop_clean.wav"
-].do { |f|
-    samples.add(Buffer.readChannel(s, PathName(f).fullPath, channels: [0]));
+    "drumloop00.wav", "drumloop01.wav", "drumloop02.WAV", "drumloop03.WAV", "drumloop04.wav"
+].do { |f, i|
+    samples.add(Buffer.readChannel(s, PathName(samplesDir ++ f).fullPath, channels: [0]));
+};
+
+voices = List.new; // fill voices
+[
+    "marcin00.wav", "agata00.wav", "marcin01.wav", "agata01.wav", "marcin02.wav", "agata02.wav",
+    "marcin03.wav", "agata03.wav", "marcin04.wav", "agata04.wav", "marcin05.wav", "agata05.wav",
+    "marcin06.wav", "agata06.wav", "marcin07.wav", "agata07.wav", "marcin08.wav", "agata08.wav",
+    "marcin09.wav", "agata09.wav", "marcin10.wav", "agata10.wav", "marcin11.wav", "agata11.wav",
+    "marcin12.wav", "agata12.wav", "marcin13.wav", "agata13.wav", "marcin14.wav", "agata14.wav",
+    "marcin15.wav", "marcin16.wav"
+].do { |f, i|
+    voices.add(Buffer.readChannel(s, PathName(samplesDir ++ f).fullPath, channels: [0]));
 };
 
 scales = List.new; // fill scales
@@ -57,7 +72,9 @@ scales = List.new; // fill scales
     FloatArray[0, 2, 4, 6, 9],
     FloatArray[0, 3, 6, 9, 11],
     FloatArray[0, 1, 3, 7, 10],
-].do { |a| scales.add(Buffer.loadCollection(s, a)) };
+].do { |c, i|
+    scales.add(Buffer.loadCollection(s, c));
+};
 
 surround = "ambisonic2";
 mainOutput = 0;
@@ -69,14 +86,14 @@ thePiece = (
         (message: \action,  params: [\action, \remove, \all],
             info: "Remove all before start"),
         (message: \audio,   params: [\surround, surround]),
+        (message: \audio,   params: [\depth: depth]),
         (message: \physics, params: [\gravity, 0, 0, 0],
             info: "Initial settings"),
         (message: \physics, params: [\drag, 0.001]),
         (message: \physics, params: [\repulsion, 100]),
         (message: \physics, params: [\starMass, 1]),
         (message: \physics, params: [\starSize, 10]),
-        (message: \physics, params: [\particleDefaultMass, 5]),
-        (message: \physics, params: [\particleDefaultAge, inf]),
+        (message: \physics, params: [\particles, 0]),
         (message: \physics, params: [\springRestLen, 5]),
         (message: \physics, params: [\springStrength, 2]),
         (message: \physics, params: [\springDamp, 2]),
@@ -84,50 +101,88 @@ thePiece = (
     ],
     1: [
         // TO-DO:
-        // Re-write it to use groupInit, get read of groupNew,
+        // Re-write it to use ~groupInit, get read of groupNew,
         (
             info: "INTRO, no objects, only .kr buses",
             message: \g_new,
             id: \intro_bundle,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
                 ["/s_new", "sr__s__"++surround, \next_node_id, 1, \group_id, // add spatializer to new group's tail
+                    \depth, depth,
                     \inbus, 12, // getting signal from synth
-                    \outbus, 0], // to main output
+                    \outbus, mainOutput], // to main output
                 ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
                     \outbus, 12, // feeding into spatilizer
-                    \velocity, 0.88, \att, 30],
-                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.5, \mul, 1pi, \outbus, 0],
+                    \velocity, 0.5, \att, 30, \bufnum, scales[4].bufnum],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.2, \mul, 1pi, \outbus, 0],
                 ["/n_map", \group_id, \azimuth, 0],
-                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.08,
-                    \mul, (1 - 0.2) * 0.5, \add, 1 - ((1 - 0.2) * 0.5), // range 0.2..1
-                    \outbus, 1],
+                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.08, \mul, 2.3, \add, 2.7, \outbus, 1],
                 ["/n_map", \group_id, \distance, 1],
-                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 2],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 1, \mul, 0.2, \add, 0.6, \outbus, 2],
                 ["/n_map", \group_id, \velocity, 2],
-                ["/s_new", \sr__k__sin, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 3],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.01, \mul, 0.1, \add, 0.1, \outbus, 3],
                 ["/n_map", \group_id, \az, 3]
             ]
         )
     ],
     //
-    // TO-DO:
-    // - One more task here: (slowly increase repuslion 10..100, star mass 1..10)
-    // - Re-desing processing particles for Traer.
-    // - Re-write \randomParticles
-    //
-    // 5: [
-    //     (
-    //         info: "INTRO: Particles",
-    //         message: \worldpar, params: [particles: 1, partGuide: "object"]
-    //     ),
-    //     (
-    //         message: \task, name: \randomParticles, act: 1
-    //     ),
-    // ],
+    // TO-DO: slowly increase repuslion 10..100, star mass 1..10
+    5: [
+        (
+            info: "INTRO: Particles",
+            message: \physics, params: [particles: 1]
+        ),
+        (
+            message: \physics, params: [\maxVel, 2]
+        ),
+        (
+            info: "Silent object",
+            message: \particle,
+            synth: (name: \sr__e__silent),
+            particle: (mass: 1, x: 470, y: 300, z: 250)
+        ),
+        (
+            message: \task, name: \randomParticles, act: 1
+        ),
+    ],
     10: [
+        ( // Remove all objects.
+            message: \action,  params: [\action, \remove, \all]
+        ),
         (
             info: "INTRO: objects",
             message: \task, name: \intro, act: 1
+        )
+    ],
+    11: [
+        (
+            info: "INTRO: long noisy",
+            message: \g_new,
+            id: \intro_noisy,
+            params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
+                ["/s_new", "sr__s__"++surround, \next_node_id, 1, \group_id, // add spatializer to new group's tail
+                    \depth, depth,
+                    \inbus, 13, // getting signal from synth
+                    \outbus, mainOutput], // to main output
+                ["/s_new", \sr__e__noisy, \next_node_id, 0, \group_id, // add synth to new group's head
+                    \outbus, 13, // feeding into spatilizer
+                    \velocity, 0.5, \att, 120],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.2, \mul, 1pi, \outbus, 4],
+                ["/n_map", \group_id, \azimuth, 4],
+                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.08, \mul, 2.3, \add, 2.7, \outbus, 5],
+                ["/n_map", \group_id, \distance, 5],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 1, \mul, 0.2, \add, 0.6, \outbus, 6],
+                ["/n_map", \group_id, \velocity, 6]
+            ]
+        )
+    ],
+    12: [
+        (
+            info: "INTRO: voices",
+            message: \task, name: \voices, act: 1
+        ),
+        (
+            message: \physics, params: [audioIn: true]
         )
     ],
     // TO-DO:
@@ -139,7 +194,16 @@ thePiece = (
         message: \physics, params: [\gravity, 0, 0, -2]),
         (message: \physics, params: [\drag, 0.5]),
         (message: \physics, params: [\repulsion, 10]),
-        (message: \physics, params: [\starMass, 1])
+        (message: \physics, params: [\maxVel, 150]),
+    ],
+    22: [
+        (
+            info: "INTRO: stop voices",
+            message: \task, name: \voices, act: 0
+        ),
+        (
+            message: \physics, params: [audioIn: false]
+        )
     ],
     30: [
         (
@@ -151,11 +215,11 @@ thePiece = (
         //
         // (
         //     info: "Remove mutual attraction",
-        //     message: \worldpar, params: [objAttract: false]
+        //     message: \physics, params: [objAttract: false]
         // ),
         // (
         //     info: "Restore star mass",
-        //     message: \worldpar,
+        //     message: \physics,
         //     params: [starMass: 1]
         // ),
     ],
@@ -171,14 +235,17 @@ thePiece = (
         ( // Clear \intro schedule
             message: \task, name: \intro, act: 0
         ),
-        // ( // Stop occasional particles
-        //     message: \task, name: \randomParticles, act: 0
-        // ),
-        // ( // switch particles OFF
-        //     message: \worldpar, params: [particles: 0]
-        // ),
+        ( // Stop occasional particles
+            message: \task, name: \randomParticles, act: 0
+        ),
+        ( // switch particles OFF
+            message: \physics, params: [particles: 0]
+        ),
         ( // remove intro group from server
             message: \g_free, id: \intro_bundle, params: [\release, 80]
+        ),
+        ( // remove intro group from server
+            message: \g_free, id: \intro_noisy, params: [\release, 80]
         ),
         (
             info: "Ave __pulse, 2 heavy __analog",
@@ -198,14 +265,11 @@ thePiece = (
             particle: (mass: 1, x: 470, y: 300, z: 250)
         )
     ],
-    32: [
-        //
-        // IS IT STILL NECESSARY?
-        //
-        // (
-        //     info: "SCI-FI: Activate world forces",
-        //     message: \worldpar, params: [worldForces: true]
-        // ),
+    35: [
+        (
+            info: "SCI-FI: Remove all",
+            message: \action,  params: [\action, \remove, \all]
+        ),
         (
             info: "Schedule sporadic __pulse",
             message: \task, name: \sporadicPulse, act: 1
@@ -216,39 +280,33 @@ thePiece = (
             synth: (name: \sr__e__lowe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
             particle: (mass: 0.6, x: 470, y: 300, z: 250)
         ),
-    ],
-    35: [
-        (
-            info: "SCI-FI: Remove all",
-            message: \action,  params: [\action, \remove, \all]
-        ),
         (
             info: "heavy __analog - TAP twice for 2!",
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 1),
+            synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 10, \bufnum, scales[0].bufnum]),
+            particle: (mass: 1, spring: 1)
         ),
     ],
     36: [
         (
             info: "SCI-FI: heavy __analog 2",
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 1)
+            synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10, \bufnum, scales[0].bufnum]),
+            particle: (mass: 1, spring: 1)
         ),
     ],
     40: [
         (
             info: "HEAVY",
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 1),
+            synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 10, \bufnum, scales[0].bufnum]),
+            particle: (age: inf, mass: 1, spring: 1),
         ),
         (
             info: "2 more heavy __analog default and -1 cutoff",
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10, \cutoff, -1]),
-            particle: (type: "a RedObject", age: inf, mass: 1)
+            synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10, \cutoff, -1, \bufnum, scales[0].bufnum]),
+            particle: (age: inf, mass: 1, spring: 1)
         ),
         (
             info: "Stop sporadic __pulse",
@@ -261,23 +319,18 @@ thePiece = (
             message: \action,  params: [\action, \remove, \all]
         ),
         (
-            message: \particle,
-            synth: (name: \sr__e__probe, params: [\att, 1.0.rand, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9),
-        ),
-        (
             info: "heavy __probe - TAP twice for 2!",
             message: \particle,
-            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10, \bufnum, scales[0].bufnum]),
+            particle: (age: inf, mass: 0.9, spring: 1)
         )
     ],
     51: [
         (
             info: "AIRY: heavy __probe 2",
             message: \particle,
-            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10, \bufnum, scales[0].bufnum]),
+            particle: (age: inf, mass: 0.9, spring: 1),
         )
     ],
     55: [
@@ -297,7 +350,7 @@ thePiece = (
             info: "Leave __probe - TAP twice for __cmb!",
             message: \particle,
             synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (age: inf, mass: 0.9, spring: 1)
         ),
     ],
     58: [
@@ -305,7 +358,7 @@ thePiece = (
             info: "Heavy __cmb",
             message: \particle,
             synth: (name: \sr__e__cmb, params: [\att, 1.0.rand, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9),
+            particle: (age: inf, mass: 0.9, spring: 1),
         )
     ],
     60: [
@@ -316,7 +369,7 @@ thePiece = (
             info: "Heavy __cmb - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__cmb, params: [\att, 1.0.rand, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9),
+            particle: (age: inf, mass: 0.9, spring: 1),
         ),
     ],
     61: [
@@ -324,7 +377,7 @@ thePiece = (
             info: "Heavy __cmb",
             message: \particle,
             synth: (name: \sr__e__cmb, params: [\att, 3 + 2.0.rand2, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (age: inf, mass: 0.9, spring: 1)
         )
     ],
     70: [
@@ -336,7 +389,7 @@ thePiece = (
             info: "2 heavy __melo - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (age: inf, mass: 0.9, spring: 1)
         ),
     ],
     71: [
@@ -344,7 +397,7 @@ thePiece = (
             info: "heavy __melo 2",
             message: \particle,
             synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (age: inf, mass: 0.9, spring: 1)
         ),
     ],
     72: [
@@ -355,8 +408,8 @@ thePiece = (
     ],
     75: [
         ( // IMPORTANT! switchScale sends sclaes as buffers to all nodes
-          // It should be stopped before starting granWave to prevent
-          // sending scales instead of samples.
+            // It should be stopped before starting granWave to prevent
+            // sending scales instead of samples.
             info: "Stop switching scales",
             message: \task, name: \switchScale, act: 0
         ),
@@ -365,7 +418,7 @@ thePiece = (
             message: \task, name: \granWave, act: 1
         ),
         ( // ensure audioIn (grains)
-            message: \worldpar,
+            message: \physics,
             params: [audioIn: true]
         ),
     ],
@@ -406,7 +459,7 @@ thePiece = (
             message: \task, name: \granWave, act: 0
         ),
         ( // switch audioIn off
-            message: \worldpar,
+            message: \physics,
             params: [audioIn: true]
         ),
     ],
@@ -478,7 +531,7 @@ thePiece = (
         ),
         (
             info: "Particles ON",
-            message: \worldpar,
+            message: \physics,
             params: [
                 particles: 1, partSigmoidRatio: 0.7, partFreq: 0.02, partAgeThresh: 80,
                 partInitAccel: 3, partGuide: "object", partSynth: \sr__e__analog,
@@ -496,7 +549,7 @@ thePiece = (
             particle: (type: "a RedObject", age: inf, mass: 0.6)
         ),
         ( // ensure audioIn (drums)
-            message: \worldpar,
+            message: \physics,
             params: [audioIn: true]
         ),
         (
@@ -521,7 +574,7 @@ thePiece = (
         ),
         (
             info: "Remove all, particles OFF",
-            message: \worldpar, params: [particles: 0]
+            message: \physics, params: [particles: 0]
         ),
     ]
 );
@@ -534,35 +587,28 @@ task = (
     randomParticles: Task({
         var key, next;
         var particleParams = [ // list of acceptable configurations
-            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.3, \partAgeThresh, 40, \partInitAccel, 10 ],
-            [\partSynth, \sr__e__cmb,   \partSigmoidRatio, 0.8, \partAgeThresh, 5,  \partInitAccel, 2.6],
-            [                           \partSigmoidRatio, 0.4, \partAgeThresh, 80, \partInitAccel, 30 ],
-            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.7, \partAgeThresh, 5,  \partInitAccel, 8.0],
-            [                           \partSigmoidRatio, 0.2, \partAgeThresh, 100,\partInitAccel, 0.1],
-            [\partSynth, \sr__e__melo,  \partSigmoidRatio, 0.7, \partAgeThresh, 47, \partInitAccel, 2.0],
-            [\partSynth, \sr__e__pulse, \partSigmoidRatio, 0.2, \partAgeThresh, 2,  \partInitAccel, 20 ],
+            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.3, \partAgeThresh, 1.67, \partInitAccel, 10 ],
+            [\partSynth, \sr__e__cmb,   \partSigmoidRatio, 0.8, \partAgeThresh, 0.08, \partInitAccel, 2.6],
+            [                           \partSigmoidRatio, 0.4, \partAgeThresh, 1.04, \partInitAccel, 30 ],
+            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.7, \partAgeThresh, 1.08, \partInitAccel, 8.0],
+            [                           \partSigmoidRatio, 0.2, \partAgeThresh, 1.67, \partInitAccel, 1.0],
+            [\partSynth, \sr__e__melo,  \partSigmoidRatio, 0.7, \partAgeThresh, 0.78, \partInitAccel, 2.0],
+            [\partSynth, \sr__e__pulse, \partSigmoidRatio, 0.2, \partAgeThresh, 1.03, \partInitAccel, 20 ],
         ];
         inf.do { |i|
             2.do { |j|
                 key = msetObjSeq.dict.keys.asArray.sort.wchoose([0.3, 0.6, 0.1]);
                 next = msetObjSeq.next(key);
                 next = (next + rand2(next * 0.25));
-                // WARNING! RE-write this: use a pice of code from main.scd
-                // controlling behavior of particles.
-                // Use a solution of negative coordinates to inform the world
-                // that a particle needs a guide:
-                // #x, y, z = (-1 ! 3);
                 sendPhysics.(
-                    (
-                        message: \physics,
-                        params: [partFreq: next.linlin(20, 5, 0.1, 1)] ++ particleParams[i % particleParams.size]
-                    )
+                    (message: \physics, params: particleParams[i % particleParams.size]),
                 );
                 next.wait;
             };
             0.01.wait;
         }
     }),
+
     // INTRO:
     // Picks up a key and the number of iterations randomly (average
     // sequences are the most probable, long are the least probable).
@@ -576,24 +622,41 @@ task = (
             key = msetObjSeq.dict.keys.asArray.sort.wchoose([0.1, 10, 1].normalizeSum);
             dictObjSeq[key.asInteger][0].choose.do{ |i|
                 next = msetObjSeq.next(key);
-
                 age = next * (1 + (1/(next.pow(0.33))));
                 mass = next.sqrt.clip(0.1, 0.3);
                 #x, y, z = (worldSize ! 3).rand;
                 synth = (name: [\sr__e__humm, \sr__e__radio][i % 2]); // alternate
                 sendParticle.(synth: synth, particle: (mass:mass, x:x, y:y, z:z, age:age));
-
+                if (0.5.coin) {
+                    synth = (name: [\sr__e__radio, \sr__e__humm].choose);
+                    sendParticle.(synth: synth, particle: (mass:mass, x:x, y:y, z:z,
+                        age:age + ((age * 0.25).rand2)));
+                };
                 next.wait;
             };
             0.01.wait;
         }
     }),
+    voices: Task({
+        var buff, syn, age, x, y, z;
+        inf.do { |j|
+            buff = voices[(j % voices.size).asInt];
+            age = buff.numFrames / buff.numChannels / buff.sampleRate;
+            syn = [\sr__g__unst, \sr__g__loop, \sr__g__reg].wchoose([0.5, 0.3, 0.2]);
+            #x, y, z = (50 ! 3).rand + [100, 500].choose;
+            sendParticle.(
+                particle: (mass:0.5, x:x, y:z, z:z, age:age),
+                synth: (name:syn, params:[\att, 2, \bufnum, buff.bufnum])
+            );
+            if (0.3.coin) { (age * 0.25).wait } { (age + rrand(4, 10)).wait }
+        }
+    }),
     sporadicAnalogCutoff: Task({
         var x, y, z;
         loop {
-            #x, y, z = (50 ! 3).rand2 + 350;
+            #x, y, z = (100 ! 3).rand2 + 350;
             sendParticle.(
-                particle: (mass:1, x:x, y:z, z:z, age:rrand(3, 4)),
+                particle: (mass:0.7, x:x, y:z, z:z, age:rrand(3, 4)),
                 synth: (name:\sr__e__analog, params:[\cutoff, -1, \att, 0.2, \rel, rrand(4, 6)])
             );
             (10 + 2.0.rand2).wait;
@@ -643,17 +706,14 @@ task = (
             // Start fade-in synth before the wave.
             age = rrand(5, 8);
             sendParticle.(
-                (
-                    message: \particle,
-                    particle: (age: age, mass: 5, type: "a RedBoid"),
-                    synth: (name: introSynths.wchoose(introSynthProb),
-                        params: [\att, 4, \rel, 3.0.rand, \bufnum, guideBuff.bufnum]
-                    )
-                )
+                particle: (mass:0.5, age:age),
+                synth: (
+                    name:introSynths.wchoose(introSynthProb),
+                    params:[\att, 4, \rel, 3.0.rand, \bufnum, guideBuff.bufnum])
             );
             // Wait attack time (will overlap with wave a little).
             4.wait;
-            // Alternate between samples from samples.
+            // Alternate between samples.
             buff = samples[(j % samples.size).asInt];
             {
                 200.do{ arg i;
@@ -719,9 +779,10 @@ groupNew = { |data, time=0.1|
 //
 // Assigns internal bus for rounting: each group of synth and its spatializer
 // should have a separate rounting bus for spatialization to take pkace individually.
-groupInit = { |synth, spatial, bufnum, busnum, params|
+~groupInit = { |synth, spatial, bufnum, busnum, params|
     var node, l=30, h=53;
-    if (spatial.contains("sr__s__").not) {
+    spatial = spatial.asString;
+    if (spatial.beginsWith("sr__s__").not) {
         spatial = "sr__s__" ++ spatial.toLower
     };
     node = s.nextNodeID;
@@ -734,7 +795,8 @@ groupInit = { |synth, spatial, bufnum, busnum, params|
         ["/g_new", node],
         ["/s_new", spatial, s.nextNodeID, 1, node, // add spatializer to new group's tail
             \inbus, busnum, // getting signal from synth
-            \outbus, mainOutput], // to main output
+            \outbus, mainOutput, // to main output
+            \depth, depth],
         ["/s_new", synth, s.nextNodeID, 0, node, // add synth to new group's head
             \inbus, mainInput, // getting signal from external input
             \outbus, busnum, // feeding into spatilizer
@@ -766,17 +828,18 @@ groupFree = { |data|
 };
 
 
-// Sends particle creation message to the World.
+// Sends message to the World.
 sendWorld = { |msg|
     receiver.sendBundle(0.01, msg);
 };
 
 
-// Send object creation message to the World.
+// Sends particle creation message to the World.
+// Returns Server node.
 sendParticle = { |particle, synth|
     var node, spring, pos, x, y, z, age;
 
-    node = groupInit.(synth[\name], surround, params:synth[\params]);
+    node = ~groupInit.(synth[\name], surround, params:synth[\params]);
     pos = [particle.x, particle.y, particle.z];
     #x, y, z = Array.fill(pos.size, { |i| pos[i] ? worldSize.rand});
 
@@ -787,7 +850,7 @@ sendParticle = { |particle, synth|
 };
 
 
-// Send parameter to the World.
+// Sends parameter to the World.
 sendPhysics = { |data|
     receiver.sendBundle(0.001, ['/physics'] ++ data[\params])
 };
@@ -896,11 +959,11 @@ processEvents = { |k=nil|
 
 // GUI.
 //
-win = Window("sequencing and scheduling", Rect(580, 900, 600, 160))
+win = Window("sequencing and scheduling", Rect(580, 900, 600, 170))
 .acceptsMouseOver_(true);
 win.view.decorator = FlowLayout(win.view.bounds);
 
-info = CompositeView(win, 500@150);
+info = CompositeView(win, 500@165);
 info.decorator = FlowLayout(info.bounds);
 stCurrNum = StaticText(info, 70@60).font_(Font("Monaco", 32)).background_(Color.gray(0.8)).stringColor_(Color.gray(0.2));
 stCurrInfo = StaticText(info, 410@60).font_(Font("Monaco", 12)).background_(Color.gray(0.8)).stringColor_(Color.gray(0.2));
@@ -909,7 +972,7 @@ stNextInfo = StaticText(info, 410@90).font_(Font("Monaco", 14)).background_(Colo
 
 buttons = CompositeView(win, 80@150);
 buttons.decorator = FlowLayout(buttons.bounds);
-Button(buttons, 70@45).states_([[">>", Color.black, Color.white]])
+btNext = Button(buttons, 70@45).states_([[">>", Color.black, Color.white]])
 .action_({ |bt|
     if (animate.not) {animate = true}; // bring it on!
     stCurrNum.string = current = getKey.(current);
@@ -920,7 +983,7 @@ Button(buttons, 70@45).states_([[">>", Color.black, Color.white]])
     processEvents.(current);
 });
 
-Button(buttons, 70@45).states_([["<<", Color.black, Color.white]])
+btPrev = Button(buttons, 70@45).states_([["<<", Color.black, Color.white]])
 .action_({ |bt|
     stCurrNum.string = current = getKey.(current, -1);
     stCurrInfo.string = displayEventInfo.(current);
@@ -959,11 +1022,35 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
 
 win.front;
 
+// LOAD WORLD
+"Loading world...".postln;
+if (this.executeFile("/Users/deniskolokol/Documents/dev_music/sympli_romatiko/repo/sympli_romatiko/world.scd").isNil.not) {
+    postf("OK\n\n")
+};
+
+MIDIIn.connectAll;
+midiServerVolume = MIDIFunc.cc({ |val, ccNum, chan, srcID|
+    s.volume.volume = \db.asSpec.map(\midinote.asSpec.unmap(val));
+}, 12, 0);
+midiNext = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
+    { btNext.valueAction_(1) }.defer;
+}, 43, 0);
+midiPrev = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
+    { btPrev.valueAction_(1) }.defer;
+}, 46, 0);
+midiClean = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
+    sendAct.(\remove, \all)
+}, 58, 0);
+midiClean = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
+    sendAct.(\remove, \springs)
+}, 70, 0);
+
 CmdPeriod.doOnce({
     // Free buffers.
     guideBuff.free;
     samples.do { |buff| buff.free};
-
+    scales.do  { |buff| buff.free};
+    voices.do  { |buff| buff.free};
     win.close;
 });
 )

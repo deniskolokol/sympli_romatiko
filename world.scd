@@ -250,8 +250,6 @@ view.drawFunc = {
         }
     };
 
-    // bookmark
-    // ERROR: Message 'velocity' not understood
     // Particle system.
     if (world.particles.booleanValue) {
         if (frame % (fps * world.partFreq + (world.partFreq * 0.5).rand2).round == 0) {
@@ -436,7 +434,9 @@ getGuide = {
     var guides = IdentityDictionary[star -> mag3D.(star.velocity)];
     skeleton.keysValuesDo { |skel, joints|
         joints.keysValuesDo { |joint, p|
-            guides[joint] = mag3D.(p.velocity);
+            if (p.class == "TraerParticle") {
+                guides[joint] = mag3D.(p.velocity);
+            };
         }
     };
     // the faster the object, the bigger a chance to become a guide

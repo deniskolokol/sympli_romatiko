@@ -392,9 +392,6 @@ oscActScheduler = OSCFunc({ arg msg, time, addr, recvPort;
                     springs = Dictionary.new; // initialize container
                 },
             );
-            // if (msg[2] == \all) {
-            //     objects.do({|o| removeObject.value(o)})
-            // }
         },
         \add, {
             // What other acts can be sent to the World?
@@ -1079,6 +1076,7 @@ recBufStart = { arg bufnum, inbus, numchannels, path, headformat= 'aiff', bitdep
     bufnum // returns bufnum
 };
 
+
 // Release recording synth.
 recBufStop = { |bnum|
     try { recSynth.free };
@@ -1086,11 +1084,13 @@ recBufStop = { |bnum|
     isRecording = false;
 };
 
+
 // Removes springs from the world.
 removeSpring = { |spring|
     world.remove(spring);
     springs.removeAt(o.identityHash);
 };
+
 
 // Remove object from the world, release the corresponding synth.
 removeObject = { |o|

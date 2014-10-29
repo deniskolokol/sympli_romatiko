@@ -41,39 +41,39 @@ dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 
 // fill buff with sample connected to guide object
 guideBuff = Buffer.readChannel(s,
-    PathName("~/Music/Sympli_Romatiko/solo/Audio/DRLATPOL.WAV").fullPath,
+    PathName("~/Music/Sympli_Romatiko/samples/drumguide.wav").fullPath,
     channels: [0]);
 
 samples = List.new; // fill samples
 [
-    "~/Music/Sympli_Romatiko/solo/Audio/bboxbeay2.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/17boxloop.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/BBOX75.WAV",
-    "~/Music/Sympli_Romatiko/solo/Audio/BBOX90.WAV",
-    "~/Music/Sympli_Romatiko/solo/Audio/loop_clean.wav"
+    "~/Music/Sympli_Romatiko/samples/drumloop00.wav",
+    "~/Music/Sympli_Romatiko/samples/drumloop01.wav",
+    "~/Music/Sympli_Romatiko/samples/drumloop02.wav",
+    "~/Music/Sympli_Romatiko/samples/drumloop03.wav",
+    "~/Music/Sympli_Romatiko/samples/drumloop04.wav"
 ].do { |f|
     samples.add(Buffer.readChannel(s, PathName(f).fullPath, channels: [0]));
 };
 
 voices = List.new; // fill samples
 [
-    "~/Music/Sympli_Romatiko/solo/Audio/narration0.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration1.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration2.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration3.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration4.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration5.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration6.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration7.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration8.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration9.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration10.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration11.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration12.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration13.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration14.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration15.wav",
-    "~/Music/Sympli_Romatiko/solo/Audio/narration16.wav",
+    "~/Music/Sympli_Romatiko/samples/marcin00.wav",
+    "~/Music/Sympli_Romatiko/samples/narration1.wav",
+    "~/Music/Sympli_Romatiko/samples/marcin00.wav",
+    "~/Music/Sympli_Romatiko/samples/narration3.wav",
+    "~/Music/Sympli_Romatiko/samples/marcin00.wav",
+    "~/Music/Sympli_Romatiko/samples/narration5.wav",
+    "~/Music/Sympli_Romatiko/samples/marcin00.wav",
+    "~/Music/Sympli_Romatiko/samples/narration7.wav",
+    "~/Music/Sympli_Romatiko/samples/marcin00.wav",
+    "~/Music/Sympli_Romatiko/samples/narration9.wav",
+    "~/Music/Sympli_Romatiko/samples/marcin00.wav",
+    "~/Music/Sympli_Romatiko/samples/narration11.wav",
+    "~/Music/Sympli_Romatiko/samples/marcin00.wav",
+    "~/Music/Sympli_Romatiko/samples/narration13.wav",
+    "~/Music/Sympli_Romatiko/samples/marcin00.wav",
+    "~/Music/Sympli_Romatiko/samples/narration15.wav",
+    "~/Music/Sympli_Romatiko/samples/marcin00.wav",
 ].do { |f|
     voices.add(Buffer.readChannel(s, PathName(f).fullPath, channels: [0]));
 };

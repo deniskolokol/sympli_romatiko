@@ -233,6 +233,20 @@ SynthDef(\sr__g__chunk, { // ~ chunks of sound
 }).send(s);
 
 
+SynthDef(\sr__g__grain, { //individual grain through ambisonic
+    arg bufnum=0, inbus=30, outbus=20,
+        amp=1, master=1, att=1, rel=1, ca=3, cr= -3,
+        pos=0.0, rate=1, dur=0.1, lag=0;
+    var in, out;
+    // Synthesis.
+    in = PlayBuf.ar(1, bufnum, Lag.ar(K2A.ar(BufRateScale.kr(bufnum) * rate), lag), 1, BufFrames.ir(bufnum) * pos, 0);
+    //in = PlayBuf.ar(1, bufnum, BufRateScale.kr(bufnum) * rate, 1, BufFrames.ir(bufnum) * pos, 0);
+    //Envelope.
+    out = in * amp * master * (EnvGen.kr(Env.perc(0.01, dur), doneAction:2) - 0.001);
+    Out.ar(outbus, out);
+}).send(s);
+
+
 // ELECTRONIC SYNTHS
 //
 SynthDef(\sr__e__silent, {
@@ -725,8 +739,8 @@ SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim = [-0.25pi, -0.75pi], speakerElev = 0,
-        speakerDist = [2.5, 2.5], maxDist = 2.5, scaleFlag = 1,
+        speakerAzim = [-0.25pi, 0.25pi], speakerElev = 0,
+        speakerDist = [2, 2], maxDist = 2, scaleFlag = 1,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);

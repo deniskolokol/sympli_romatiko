@@ -332,7 +332,7 @@ oscSkeletonNew = OSCFunc({ arg msg, time, addr, recvPort;
 
 oscSkeletonJoint = OSCFunc({ arg msg, time, addr, recvPort;
     var skel=nil, joint, x, y, z;
-    //postf("from % received %\n", addr, msg);
+    // postf("from % received %\n", addr, msg);
     joint = msg[1];
     #x, y, z = [
         // WARNING! Ranges shifted!

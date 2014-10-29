@@ -2,23 +2,27 @@
 var thePiece; // main dictionary with the sequence of scheduled tasks
 var samplesDir;
 var surround, mainInput, mainOutput; // audio setup for the current piece
-var depth=5, inbus=12, outbus=0; // to main output
+var depth=5, inbus=12, outbus=0, audioThruBus=[21, 22]; // to main output
 var worldSize; // assume the World is a cube
 var parmDir = Dictionary.new; // Global params of the piece dictionary.
 var sGroupId; // root group
 var receiver; // communication
 var task; // tasks dictionary
 var guideBuff, samples, scales, voices; // buffers (sound files and scales)
+var trigSynth, synthNames, keyNames; // available SynthDefs
 var synths=Dictionary.new; // temp dictionary of the synths symbolic IDs vs. server Nodes
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 var key, current, next, syn, obj, age, mass; // object's properties
-var win, info, buttons, stCurrNum, stCurrInfo, stNextNum, stNextInfo, timeLabel; // interface
-var btPrev, btNext;
+var win, info, buttons, keyboard, keyboardFunc, // interface
+    stCurrNum, stCurrInfo, stNextNum, stNextInfo,
+    btPrev, btNext, timeLabel;
 var shade, count=0, animate=false; // schedule animation
 var getKey, displayEventInfo, convertTime, clipInc; // helper functions
 var midiServerVolume, midiNext, midiPrev, midiClean;
 var processEvents, groupNew, groupFree, taskPlay, sendWorld,
     sendParticle, sendSNew, sendPhysics, sendAudio, sendAct; // acting functions
+
+var testLabel; // DELETE IT
 
 
 // INITIAL
@@ -48,7 +52,7 @@ guideBuff = Buffer.readChannel(s,
 
 samples = List.new; // fill samples
 [
-    "drumloop00.wav", "drumloop01.wav", "drumloop02.WAV", "drumloop03.WAV", "drumloop04.wav"
+    "drumloop00.wav", "drumloop01.wav", "drumloop02.wav", "drumloop03.wav", "drumloop04.wav"
 ].do { |f, i|
     samples.add(Buffer.readChannel(s, PathName(samplesDir ++ f).fullPath, channels: [0]));
 };
@@ -76,6 +80,34 @@ scales = List.new; // fill scales
     scales.add(Buffer.loadCollection(s, c));
 };
 
+trigSynth = [ // keycodes for triggering obj creation with a synth
+    12, \sr__e__wasp,   // q
+    13, \sr__e__radio,  // w
+    14, \sr__e__humm,   // e
+    15, \sr__e__gauss,  // r
+    17, \sr__e__entro,  // t
+    16, \sr__e__noisy,  // y
+    32, \sr__e__probe,  // u
+    34, \sr__e__cmb,    // i
+    31, \sr__e__lowe,   // o
+    35, \sr__e__melo,   // p
+    33, \sr__e__ringz,  // [
+    30, \sr__e__pulse,  // ]
+    42, \sr__e__analog, // \ (the answer to the ultimate question ))
+    1,  \sr__g__reg,    // s
+    2,  \sr__g__drone,  // d
+    3,  \sr__g__gust,   // f
+    5,  \sr__g__slic,   // g
+    4,  \sr__g__loop,   // h
+    38, \sr__g__scratch,// j
+    40, \sr__e__saw,    // k
+];
+synthNames = Dictionary.newFrom(trigSynth);
+// TO-DO: names should be obtained automatically
+keyNames = (12: "q", 13: "w", 14: "e", 15: "r", 17: "t", 16: "y",
+    32: "u", 34: "i", 31: "o", 35: "p", 33: "[", 30: "]", 42: "\\",
+    1:  "s", 2:  "d", 3:  "f", 5:  "g", 4:  "h", 38: "j", 40: "k");
+
 surround = "ambisonic2";
 mainOutput = 0;
 mainInput = 20;
@@ -99,7 +131,7 @@ thePiece = (
         (message: \physics, params: [\springDamp, 2]),
         (message: \physics, params: [\mutualAttraction, true]),
     ],
-    1: [
+    5: [
         // TO-DO:
         // Re-write it to use ~groupInit, get read of groupNew,
         (
@@ -127,7 +159,7 @@ thePiece = (
     ],
     //
     // TO-DO: slowly increase repuslion 10..100, star mass 1..10
-    5: [
+    7: [
         (
             info: "INTRO: Particles",
             message: \physics, params: [particles: 1]
@@ -406,7 +438,7 @@ thePiece = (
             message: \task, name: \switchScale, act: 1
         ),
     ],
-    75: [
+    73: [
         ( // IMPORTANT! switchScale sends sclaes as buffers to all nodes
             // It should be stopped before starting granWave to prevent
             // sending scales instead of samples.
@@ -414,13 +446,23 @@ thePiece = (
             message: \task, name: \switchScale, act: 0
         ),
         (
+            info: "2 heavy __audiothru - TAP twice for 2!",
+            message: \particle,
+            synth: (name: \sr__r__authro, params: [\inbus, audioThruBus[0]]),
+            particle: (age: inf, mass: 0.9, spring: 1)
+        ),
+    ],
+    74: [
+        (
+            info: "Heavy __audiothru 2",
+            message: \particle,
+            synth: (name: \sr__r__authro, params: [\inbus, audioThruBus[1]]),
+            particle: (age: inf, mass: 0.9, spring: 1)
+        ),
+        (
             info: "Schedule granular waves",
             message: \task, name: \granWave, act: 1
-        ),
-        ( // ensure audioIn (grains)
-            message: \physics,
-            params: [audioIn: true]
-        ),
+        )
     ],
     77: [
         ( // Remove all - switch to ringz
@@ -430,13 +472,13 @@ thePiece = (
             info: "Heavy __ringz - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (age: inf, mass: 0.9, spring: 1)
         ),
         (
             info: "Ave __lowe",
             message: \particle,
             synth: (name: \sr__e__lowe, params: [\att, 10.0.rand, \rel, 10]),
-            particle: (mass: 0.6)
+            particle: (mass: 0.6, spring: 1)
         ),
     ],
     78: [
@@ -444,7 +486,7 @@ thePiece = (
             info: "Heavy __ringz 2",
             message: \particle,
             synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (age: inf, mass: 0.9, spring: 1)
         ),
     ],
     79: [
@@ -476,7 +518,7 @@ thePiece = (
             info: "Add one heavy __noisy",
             message: \particle,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 9]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (age: inf, mass: 0.9, spring: 1)
         ),
     ],
     85: [
@@ -487,13 +529,13 @@ thePiece = (
         (
             message: \particle,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9)
         ),
         (
             info: "heavy __entro - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__entro),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9)
         ),
     ],
     86: [
@@ -501,7 +543,7 @@ thePiece = (
             info: "BREAK GROOVE: heavy __entro 2",
             message: \particle,
             synth: (name: \sr__e__entro),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9)
         ),
     ],
     90: [
@@ -513,7 +555,7 @@ thePiece = (
             info: "heavy __gauss - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9)
         ),
     ],
     91: [
@@ -521,7 +563,7 @@ thePiece = (
             info: "GROOVE_2: heavy __gauss 2",
             message: \particle,
             synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9)
         )
     ],
     95: [
@@ -546,7 +588,7 @@ thePiece = (
         (
             message: \particle,
             synth: (name: \sr__g__loop, params: [\att, 5.0.rand, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 0.6)
+            particle: (spring: 1, age: inf, mass: 0.6)
         ),
         ( // ensure audioIn (drums)
             message: \physics,
@@ -556,7 +598,7 @@ thePiece = (
             info: "heavy __noisy - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9)
         ),
     ],
     96: [
@@ -564,7 +606,7 @@ thePiece = (
             info: "heavy __noisy 2",
             message: \particle,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
-            particle: (type: "a RedObject", age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9)
         ),
     ],
     99: [
@@ -656,7 +698,7 @@ task = (
         loop {
             #x, y, z = (100 ! 3).rand2 + 350;
             sendParticle.(
-                particle: (mass:0.7, x:x, y:z, z:z, age:rrand(3, 4)),
+                particle: (mass:0.4, x:x, y:z, z:z, age:rrand(3, 4)),
                 synth: (name:\sr__e__analog, params:[\cutoff, -1, \att, 0.2, \rel, rrand(4, 6)])
             );
             (10 + 2.0.rand2).wait;
@@ -665,7 +707,7 @@ task = (
     sporadicPulse: Task({
         loop {
             sendParticle.(
-                particle: (age: rrand(1.7, 5.0), mass: 0.8),
+                particle: (age: rrand(1.7, 5.0), mass: 0.8, spring:[1, 0].wchoose([0.7, 0.3])),
                 synth: (name: \sr__e__pulse, params: [\att, 0.2, \rel, 3]));
             (20 + rand2(20 * 0.5)).wait;
         }
@@ -673,7 +715,7 @@ task = (
     sporadicCMB: Task({
         loop {
             sendParticle.(
-                particle: (age: rrand(2, 5), mass: 0.6),
+                particle: (age: rrand(2, 5), mass: 0.6, spring:[1, 0].wchoose([0.7, 0.3])),
                 synth: (name: \sr__e__cmb, params: [\att, 1.5, \rel, 3]));
             (30 + rand2(30 * 0.25)).wait;
         }
@@ -682,7 +724,7 @@ task = (
         loop {
             (20 + rand2(20 * 0.25)).wait;
             sendParticle.(
-                particle: (age: rrand(5, 10), mass: 0.4, type: "a RedObject"),
+                particle: (age: rrand(5, 10), mass: 0.4, spring:[1, 0].wchoose([0.7, 0.3])),
                 synth: (name: \sr__e__melo, params: [\att, 1.5, \rel, 3, \bufnum, scales[1].bufnum]));
             ((20 + rand2(20 * 0.25))/2).wait;
         }
@@ -697,36 +739,35 @@ task = (
         }
     }),
     granWave: Task({
-        var buff, age, next=20;
+        var buff, age, timeprop, next=20;
         var introSynths = [\sr__g__loop, \sr__g__slic, \sr__g__drone, \sr__g__reg, \sr__g__gust];
         // Probablity of choosing a particular synth decreases towards the end of the list.
         var introSynthProb = Array.fill(introSynths.size, {exprand(0.01, 1.00)}).normalizeSum.sort.reverse;
-
         inf.do{ |j|
             // Start fade-in synth before the wave.
             age = rrand(5, 8);
             sendParticle.(
-                particle: (mass:0.5, age:age),
+                particle: (mass:0.5, spring:1, age:age),
                 synth: (
                     name:introSynths.wchoose(introSynthProb),
                     params:[\att, 4, \rel, 3.0.rand, \bufnum, guideBuff.bufnum])
             );
-            // Wait attack time (will overlap with wave a little).
+            // Wait attack time with little overlap with a wave.
             4.wait;
             // Alternate between samples.
             buff = samples[(j % samples.size).asInt];
             {
-                200.do{ arg i;
-                    var timeprop = (i / 199.0) ** 3;
+                200.do { |i|
+                    timeprop = (i / 199.0) ** 3;
                     sendSNew.(
                         (synth: (
                             name: \sr__u__grain,
-                            params: [\bufnum, buff.bufnum, \busnum, parmDir[\inbus],
+                            params: [\bufnum, buff.bufnum, \busnum, audioThruBus[i % audioThruBus.size],
                                 \rate, 1 + timeprop.rand2.pow(2), \pos, rrand(0.0, timeprop), \amp, exprand(0.05, 1.00)]
                             )
                         ),
                     );
-                    rrand((timeprop * 0.1).max(0.01),timeprop*0.4).wait
+                    rrand((timeprop * 0.1).max(0.01), timeprop * 0.4).wait
                 };
             }.fork;
             rrand(20, 45).wait;
@@ -842,7 +883,6 @@ sendParticle = { |particle, synth|
     node = ~groupInit.(synth[\name], surround, params:synth[\params]);
     pos = [particle.x, particle.y, particle.z];
     #x, y, z = Array.fill(pos.size, { |i| pos[i] ? worldSize.rand});
-
     // create:1, node, spring:0|1, mass:9, x:470, y:300, z:250, age:inf
     sendWorld.(['/particle', 1, node, particle.atFail(\spring, {0}),
         particle.mass, x, y, z, particle.atFail(\age, {inf})]);
@@ -959,7 +999,7 @@ processEvents = { |k=nil|
 
 // GUI.
 //
-win = Window("sequencing and scheduling", Rect(580, 900, 600, 170))
+win = Window("sequencing and scheduling", Rect(1070, 1000, 610, 700))
 .acceptsMouseOver_(true);
 win.view.decorator = FlowLayout(win.view.bounds);
 
@@ -995,8 +1035,34 @@ btPrev = Button(buttons, 70@45).states_([["<<", Color.black, Color.white]])
 
 timeLabel = StaticText(buttons, 70@60).font_(Font("Monaco", 14));
 
+keyboard = CompositeView(win, 600@170);
+keyboardFunc = { |synthName, spring=0, mass=0.7|
+    sendParticle.(synth: (name: synthName), particle: (spring:spring, mass:mass));
+};
+keyboard.decorator = FlowLayout(keyboard.bounds);
+keyboard.background = Color.new255(0, 0, 0, alpha:100);
+trigSynth.do { |key, i|
+    var view;
+    if (i % 2 == 0) {
+        view = CompositeView(keyboard, 41@70);
+        view.decorator = FlowLayout(view.bounds);
+        Button(view, 41@45).states_(
+            [[keyNames[key].toUpper, Color.black, Color.white]]
+        ).canFocus_(false)
+        // TO-DO: Make use of Shift+Key (with or without spring)
+        .action_({ |bt| keyboardFunc.(synthNames[key], spring:1) });
+        StaticText(view, 41@25).string_(
+            synthNames[key].asString.replace("sr__e__", "").replace("sr__g__", ""))
+        .align_(\topLeft)
+        .font_(Font("Monaco", 12))
+        .stringColor_(Color.white);
+    };
+};
+
+testLabel = StaticText(win, 600@50).align_(\topLeft).font_(Font("Monaco", 20));
+
 win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
-    //[char, modifiers, unicode, keycode].postln;
+    [char, modifiers, unicode, keycode].postln;
     case
     {keycode == 6} { // Z - info
         if( [0, 256].includes(modifiers), {
@@ -1004,6 +1070,7 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
                 win.bounds.left, win.bounds.top, win.bounds.width, win.bounds.height);
         });
     }
+    { synthNames.keys.includes(keycode) } { keyboardFunc.(synthNames[keycode]) }
 };
 
 { // blinking "next event" info.

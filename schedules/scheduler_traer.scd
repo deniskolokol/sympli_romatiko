@@ -1070,7 +1070,7 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
                 win.bounds.left, win.bounds.top, win.bounds.width, win.bounds.height);
         });
     }
-    { synthNames.keys.includes(keycode) } { keyboardFunc.(synthNames[keycode]) }
+    { synthNames.keys.includes(keycode) } { keyboardFunc.(synthNames[keycode], spring:1) }
 };
 
 { // blinking "next event" info.

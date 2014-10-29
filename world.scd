@@ -69,7 +69,7 @@ var physics, particles, springs, pos, repulsion;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
-    registerSpring, applySpring, removeSpring;
+    registerSpring, registerSprings, applySpring, removeSpring;
 var paramsChanged;
 
 // AUDIO
@@ -266,6 +266,8 @@ view.drawFunc = {
             applySpring.(particle:particles[0], source:particles[1])
         }
     };
+    // After re-applying.
+    registerSprings.(physics.springs);
 
     // Manage particles.
     physics.particles.do { |particle|
@@ -303,8 +305,8 @@ view.drawFunc = {
     // Manage and visualize springs.
     physics.springs.do { |spring, i|
         Pen.color = Color.white;
-        Pen.moveTo(Point(spring.getOneEnd.position.x, spring.getOneEnd.position.y));
-        Pen.lineTo(Point(spring.getTheOtherEnd.position.x, spring.getTheOtherEnd.position.y));
+        Pen.moveTo(Point(spring.a.position.x, spring.a.position.y));
+        Pen.lineTo(Point(spring.b.position.x, spring.b.position.y));
         Pen.stroke;
     };
 
@@ -352,23 +354,24 @@ handleBoundaryCollisions = { |p|
 };
 
 
-// Register spring in the global dictionary.
+// Register individual spring in the global dictionary.
 registerSpring = { |spring|
     springs[spring.identityHash] = [spring.a, spring.b]
 };
 
+
+// Register springs from List in the global dictionary.
+registerSprings = { |springsList|
+    springsList.do { |spring|
+        registerSpring.(spring)
+    }
+};
+
 // Apply spring: choose a source and connect particle to it.
-applySpring = { |particle, ks, d, r, source|
-    var spring;
-    if (source.isNil) {
-        source = getSource.();
-    };
-    if (source.isNil.not) {
-        spring = physics.makeSpring(source, particle,
-            ks ? world.springStrength, d ? world.springDamp, r ? world.springRestLen);
-        registerSpring.(spring);
-    };
-    spring
+applySpring = { |particle, source, ks, d, r|
+    if (source.isNil) { source = getSource.() };
+    physics.makeSpring(source, particle,
+        ks ? world.springStrength, d ? world.springDamp, r ? world.springRestLen);
 };
 
 
@@ -490,10 +493,6 @@ particleSystem = { |guide|
 
 // Remove spring.
 removeSpring = { |spring|
-    // bookmark
-    // Doesn't hit it when springs disappear!
-    {textSprings.string = "BOOM!!!"}.defer;
-
     springs.removeAt(spring.identityHash);
     physics.removeSpring(spring);
 };
@@ -539,6 +538,7 @@ removeAll = { |cleanSynths=true|
 registerParticle = { |particle, nodeId|
     particles.put(particle, nodeId)
 };
+
 
 // Removes particle record from the dictionary.
 unregisterParticle = { |nodeId|

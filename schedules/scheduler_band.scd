@@ -111,101 +111,101 @@ thePiece = (
             message: \worldact, action: \remove, objects: \all
         )
     ],
-    1: [
-        (
-            info: "INTRO, no objects, only .kr buses",
-            message: \g_new,
-            id: \intro_bundle,
-            params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
-                ["/s_new", "sr__s__" ++ surround.toLower, \next_node_id, 1, \group_id, // add spatializer to new group's tail
-                    \inbus, 12, // getting signal from synth
-                    \outbus, 0], // to main output
-                ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
-                    \outbus, 12, // feeding into spatilizer
-                    \velocity, 0.5, \att, 30],
-                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.5, \mul, 1pi, \outbus, 0],
-                ["/n_map", \group_id, \azimuth, 0],
-                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.08,
-                    \mul, (1 - 0.2) * 0.5, \add, 1 - ((1 - 0.2) * 0.5), // range 0.2..1
-                    \outbus, 1],
-                ["/n_map", \group_id, \distance, 1],
-                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.2, \add, 0.6, \outbus, 2],
-                ["/n_map", \group_id, \velocity, 2],
-                ["/s_new", \sr__k__sin, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 3],
-                ["/n_map", \group_id, \az, 3]
-            ]
-        )
-    ],
-    5: [
-        (
-            info: "INTRO: Particles",
-            message: \worldpar, params: [particles: 1, partGuide: "object"]
-        ),
-        (
-            message: \task, name: \randomParticles, act: 1
-        ),
-    ],
-    10: [
-        (
-            info: "INTRO: objects",
-            message: \task, name: \intro, act: 1
-        )
-    ],
-    11: [
-        (
-            info: "INTRO: voices",
-            message: \task, name: \voices, act: 1
-        ),
-        (
-            message: \worldpar, params: [audioIn: true]
-        )
-    ],
-    20: [
-        (
-            info: "INTRO: __analog cutoff= -1",
-            message: \task, name: \sporadicAnalogCutoff, act: 1
-        ),
-        (
-            info: "Remove mutual attraction",
-            message: \worldpar, params: [objAttract: false]
-        ),
-        (
-            info: "Restore star mass",
-            message: \worldpar,
-            params: [starMass: 120]
-        ),
-
-    ],
-    22: [
-        (
-            info: "INTRO: stop voices",
-            message: \task, name: \voices, act: 0
-        ),
-        (
-            message: \worldpar, params: [audioIn: true]
-        )
-    ],
+    // 1: [
+    //     (
+    //         info: "INTRO, no objects, only .kr buses",
+    //         message: \g_new,
+    //         id: \intro_bundle,
+    //         params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
+    //             ["/s_new", "sr__s__" ++ surround.toLower, \next_node_id, 1, \group_id, // add spatializer to new group's tail
+    //                 \inbus, 12, // getting signal from synth
+    //             \outbus, 0], // to main output
+    //             ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
+    //                 \outbus, 12, // feeding into spatilizer
+    //             \velocity, 0.5, \att, 30],
+    //             ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.5, \mul, 1pi, \outbus, 0],
+    //             ["/n_map", \group_id, \azimuth, 0],
+    //             ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.08,
+    //                 \mul, (1 - 0.2) * 0.5, \add, 1 - ((1 - 0.2) * 0.5), // range 0.2..1
+    //             \outbus, 1],
+    //             ["/n_map", \group_id, \distance, 1],
+    //             ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.2, \add, 0.6, \outbus, 2],
+    //             ["/n_map", \group_id, \velocity, 2],
+    //             ["/s_new", \sr__k__sin, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.4, \add, 0.6, \outbus, 3],
+    //             ["/n_map", \group_id, \az, 3]
+    //         ]
+    //     )
+    // ],
+    // 5: [
+    //     (
+    //         info: "INTRO: Particles",
+    //         message: \worldpar, params: [particles: 1, partGuide: "object"]
+    //     ),
+    //     (
+    //         message: \task, name: \randomParticles, act: 1
+    //     ),
+    // ],
+    // 10: [
+    //     (
+    //         info: "INTRO: objects",
+    //         message: \task, name: \intro, act: 1
+    //     )
+    // ],
+    // 11: [
+    //     (
+    //         info: "INTRO: voices",
+    //         message: \task, name: \voices, act: 1
+    //     ),
+    //     (
+    //         message: \worldpar, params: [audioIn: true]
+    //     )
+    // ],
+    // 20: [
+    //     (
+    //         info: "INTRO: __analog cutoff= -1",
+    //         message: \task, name: \sporadicAnalogCutoff, act: 1
+    //     ),
+    //     (
+    //         info: "Remove mutual attraction",
+    //         message: \worldpar, params: [objAttract: false]
+    //     ),
+    //     (
+    //         info: "Restore star mass",
+    //         message: \worldpar,
+    //         params: [starMass: 120]
+    //     ),
+    //
+    // ],
+    // 22: [
+    //     (
+    //         info: "INTRO: stop voices",
+    //         message: \task, name: \voices, act: 0
+    //     ),
+    //     (
+    //         message: \worldpar, params: [audioIn: true]
+    //     )
+    // ],
     30: [
         ( // Remove all objects.
             info: "SCI-FI",
             message: \worldact, action: \remove, objects: \all
         ),
-        ( // Stop schedule with sporadic \sr__e__analog, cutoff= -1
-            info: "Remove all, stop sched, particles OFF",
-            message: \task, name: \sporadicAnalogCutoff, act: 0
-        ),
-        ( // Clear \intro schedule
-            message: \task, name: \intro, act: 0
-        ),
-        ( // Stop occasional particles
-            message: \task, name: \randomParticles, act: 0
-        ),
-        ( // switch particles OFF
-            message: \worldpar, params: [particles: 0]
-        ),
-        ( // remove intro group from server
-            message: \g_free, id: \intro_bundle, params: [\release, 80]
-        ),
+        // ( // Stop schedule with sporadic \sr__e__analog, cutoff= -1
+        //     info: "Remove all, stop sched, particles OFF",
+        //     message: \task, name: \sporadicAnalogCutoff, act: 0
+        // ),
+        // ( // Clear \intro schedule
+        //     message: \task, name: \intro, act: 0
+        // ),
+        // ( // Stop occasional particles
+        //     message: \task, name: \randomParticles, act: 0
+        // ),
+        // ( // switch particles OFF
+        //     message: \worldpar, params: [particles: 0]
+        // ),
+        // ( // remove intro group from server
+        //     message: \g_free, id: \intro_bundle, params: [\release, 80]
+        // ),
         (
             info: "Ave __pulse, 2 heavy __analog",
             message: \worldobj,
@@ -282,7 +282,7 @@ thePiece = (
     ],
     45: [
         (
-            info: "one more heavy __analog -1 cutoff",
+            info: "heavy __analog 2 with cutoff",
             message: \worldobj,
             synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 20, \cutoff, -1]),
             object: (type: "a RedObject", age: inf, mass: 10)
@@ -300,7 +300,7 @@ thePiece = (
         (
             info: "heavy __probe - TAP twice for 2!",
             message: \worldobj,
-            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 8]),
+            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 20]),
             object: (type: "a RedObject", age: inf, mass: 9)
         )
     ],
@@ -308,7 +308,7 @@ thePiece = (
         (
             info: "AIRY: heavy __probe 2",
             message: \worldobj,
-            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 8]),
+            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 20]),
             object: (type: "a RedObject", age: inf, mass: 9)
         )
     ],
@@ -321,25 +321,6 @@ thePiece = (
             message: \task, name: \sporadicMelo, act: 1
         )
     ],
-    57: [
-        ( // Remove all objects.
-            message: \worldact, action: \remove, objects: \all
-        ),
-        (
-            info: "Leave __probe - TAP twice for __cmb!",
-            message: \worldobj,
-            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 8]),
-            object: (type: "a RedObject", age: inf, mass: 9)
-        ),
-    ],
-    58: [
-        (
-            info: "Heavy __cmb",
-            message: \worldobj,
-            synth: (name: \sr__e__cmb, params: [\att, 1.0.rand, \rel, 10]),
-            object: (type: "a RedObject", age: inf, mass: 9),
-        )
-    ],
     60: [
         ( // Remove all objects.
             message: \worldact, action: \remove, objects: \all
@@ -347,7 +328,7 @@ thePiece = (
         (
             info: "Heavy __cmb - TAP twice for 2!",
             message: \worldobj,
-            synth: (name: \sr__e__cmb, params: [\att, 1.0.rand, \rel, 10]),
+            synth: (name: \sr__e__cmb, params: [\att, 1.0.rand, \rel, 30]),
             object: (type: "a RedObject", age: inf, mass: 9),
         ),
     ],
@@ -355,7 +336,7 @@ thePiece = (
         (
             info: "Heavy __cmb",
             message: \worldobj,
-            synth: (name: \sr__e__cmb, params: [\att, 3 + 2.0.rand2, \rel, 10]),
+            synth: (name: \sr__e__cmb, params: [\att, 3 + 2.0.rand2, \rel, 30]),
             object: (type: "a RedObject", age: inf, mass: 9)
         )
     ],
@@ -392,40 +373,40 @@ thePiece = (
             info: "Stop switching scales",
             message: \task, name: \switchScale, act: 0
         ),
-        (
-            info: "Schedule granular waves",
-            message: \task, name: \granWave, act: 1
-        ),
-        ( // ensure audioIn (grains)
-            message: \worldpar,
-            params: [audioIn: true]
-        ),
+        // (
+        //     info: "Schedule granular waves",
+        //     message: \task, name: \granWave, act: 1
+        // ),
+        // ( // ensure audioIn (grains)
+        //     message: \worldpar,
+        //     params: [audioIn: true]
+        // ),
     ],
-    77: [
-        ( // Remove all - switch to ringz
-            message: \worldact, action: \remove, objects: \all
-        ),
-        (
-            info: "Heavy __ringz - TAP twice for 2!",
-            message: \worldobj,
-            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
-            object: (type: "a RedObject", age: inf, mass: 8)
-        ),
-        (
-            info: "Ave __lowe Boid",
-            message: \worldobj,
-            synth: (name: \sr__e__lowe, params: [\att, 10.0.rand, \rel, 10]),
-            object: (type: "a RedBoid", age: inf, mass: 6)
-        ),
-    ],
-    78: [
-        (
-            info: "Heavy __ringz 2",
-            message: \worldobj,
-            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
-            object: (type: "a RedObject", age: inf, mass: 8)
-        ),
-    ],
+    // 77: [
+    //     ( // Remove all - switch to ringz
+    //         message: \worldact, action: \remove, objects: \all
+    //     ),
+    //     (
+    //         info: "Heavy __ringz - TAP twice for 2!",
+    //         message: \worldobj,
+    //         synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
+    //         object: (type: "a RedObject", age: inf, mass: 8)
+    //     ),
+    //     (
+    //         info: "Ave __lowe Boid",
+    //         message: \worldobj,
+    //         synth: (name: \sr__e__lowe, params: [\att, 10.0.rand, \rel, 10]),
+    //         object: (type: "a RedBoid", age: inf, mass: 6)
+    //     ),
+    // ],
+    // 78: [
+    //     (
+    //         info: "Heavy __ringz 2",
+    //         message: \worldobj,
+    //         synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
+    //         object: (type: "a RedObject", age: inf, mass: 8)
+    //     ),
+    // ],
     79: [
         (
             info: "Add ave __noisy, long attack",
@@ -433,10 +414,10 @@ thePiece = (
             synth: (name: \sr__e__noisy, params: [\att, 180, \rel, 10]),
             object: (type: "a RedBoid", age: inf, mass: 7)
         ),
-        (
-            info: "Stop percussive granWave",
-            message: \task, name: \granWave, act: 0
-        ),
+        // (
+        //     info: "Stop percussive granWave",
+        //     message: \task, name: \granWave, act: 0
+        // ),
         ( // switch audioIn off
             message: \worldpar,
             params: [audioIn: true]
@@ -444,11 +425,10 @@ thePiece = (
     ],
     80: [
         ( // Stop schedule with sporadic \sr__e__cmb
-            info: "GROOVE_1",
+            info: "Stop schedules",
             message: \task, name: \sporadicCMB, act: 0
         ),
         ( // Stop schedule with sporadic \sr__e__melo
-            info: "Stop sched",
             message: \task, name: \sporadicMelo, act: 0
         ),
         (
@@ -460,7 +440,7 @@ thePiece = (
     ],
     85: [
         (
-            info: "BREAK GROOVE",
+            info: "BREAKS",
             message: \worldact, action: \remove, objects: \all
         ),
         (
@@ -503,22 +483,22 @@ thePiece = (
             object: (type: "a RedObject", age: inf, mass: 9)
         )
     ],
-    92: [
-        (
-            info: "GROOVE_2: more heavy __gauss TAP twice for 2!",
-            message: \worldobj,
-            synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
-            object: (type: "a RedObject", age: inf, mass: 8)
-        ),
-    ],
-    93: [
-        (
-            info: "GROOVE_2: heavy __gauss 2",
-            message: \worldobj,
-            synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
-            object: (type: "a RedObject", age: inf, mass: 8)
-        )
-    ],
+    // 92: [
+    //     (
+    //         info: "GROOVE_2: more heavy __gauss TAP twice for 2!",
+    //         message: \worldobj,
+    //         synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
+    //         object: (type: "a RedObject", age: inf, mass: 8)
+    //     ),
+    // ],
+    // 93: [
+    //     (
+    //         info: "GROOVE_2: heavy __gauss 2",
+    //         message: \worldobj,
+    //         synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
+    //         object: (type: "a RedObject", age: inf, mass: 8)
+    //     )
+    // ],
     95: [
         ( // Remove all objects.
             info: "FADE AWAY",

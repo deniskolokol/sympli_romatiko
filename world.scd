@@ -9,6 +9,7 @@
 //   -- guiding particles (and occasionally synths)
 // - add to synths last example from TermanWang, but build on its example sthn original
 // - clean attractions after particles die!
+// - limit number of skeletons simultaneously processed
 
 (
 //PARAMETERS
@@ -18,7 +19,6 @@ var world = (
     height: 700,
     depth: 700,
     starMass: 1,
-    starSize: 10,
     particleDefaultMass: 0.5,
     particleDefaultAge: inf,
     particleOnSpring: 0.6,
@@ -69,7 +69,8 @@ var physics, particles, springs, pos, repulsion;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
-    registerSpring, registerSprings, applySpring, removeSpring;
+    registerSpring, registerSprings, applySpring, removeSpring,
+    translateSpringEnd;
 var paramsChanged;
 
 // AUDIO
@@ -86,8 +87,8 @@ var win = Window("Sympli Romatikó :: WORLD", Rect(0, 500, world.width, world.he
 var view = UserView(win, Rect(0, 0, world.width, world.height)).background = Color.black;
 var frame = 0, fps = 30;
 
-var winMonitor = Window("Sympli Romatikó :: MONITOR", Rect(705, 1000, 360, world.height));
-var textParticles, textAttractions, textForces, textSprings, textSkeleton;
+var winMonitor = Window("Sympli Romatikó :: MONITOR", Rect(705, 1000, 360, world.height + 100));
+var textParticles, textAttractions, textForces, textSprings, textSkeleton, textTest;
 var monitor, message, spacer = "\n--------------------\n";
 
 // HELPER FUNCTIONS
@@ -140,6 +141,7 @@ textSprings = drawMonitorArea.(drawMonitorView.(winMonitor, height:200));
 textAttractions = drawMonitorArea.(drawMonitorView.(winMonitor));
 textForces = drawMonitorArea.(drawMonitorView.(winMonitor, height:65));
 textSkeleton = drawMonitorArea.(drawMonitorView.(winMonitor, height:80));
+textTest = drawMonitorArea.(drawMonitorView.(winMonitor, height:95));
 
 view.mouseDownAction = { |v, x, y|
     star.position.set(x, y, 0);
@@ -179,6 +181,8 @@ monitor = {
     // TO-DO:
     // it should be possible to delete any particle (small [x] button near each nodeID)
     // and tear up any string (the same in strings)
+    var springEnds = Array.fill(2, { nil });
+
     message = "Particles" ++ spacer;
     message = message ++ format(" %\t(star)\n", star.identityHash);
     particles.keysValuesDo { |k, v|
@@ -188,7 +192,10 @@ monitor = {
 
     message = "Springs" ++ spacer;
     springs.keysValuesDo { |k, v|
-        message = message ++ format("% \t(%, %)\n", k, v[0].identityHash, v[1].identityHash)
+        springEnds = [v[0].identityHash, v[1].identityHash];
+        if (v[0].class != TraerParticle) { springEnds[0] = v[0] };
+        if (v[1].class != TraerParticle) { springEnds[1] = v[1] };
+        message = message ++ format("% \t(%, %)\n", k, springEnds[0], springEnds[1])
     };
     message = message ++ (spacer ++ "Physics springs" ++ spacer);
     physics.springs.do { |g|
@@ -257,8 +264,8 @@ view.drawFunc = {
         }
     };
 
-    // Springs can be torn up by extreme gravity,
-    // global dictionary is for checking their presence.
+    // Springs can get lost, when skeleton momentarily disappear,
+    // global dictionary is used for checking their presence.
     springs.keysValuesDo { |springId, particles|
         if ((all {: g.identityHash, g <- physics.springs} ? []).includes(springId).not) {
             applySpring.(particle:particles[0], source:particles[1])
@@ -273,7 +280,7 @@ view.drawFunc = {
         if (paramsChanged) {
             // and if a particle isn't on spring
             if ((all {: [g.a, g.b], g <- physics.springs} ? []).includes(particle).not) {
-                applyAttractions.(particle, world.mutualAttraction)
+                applyAttractions.(particle, world.mutualAttraction);
             }
         };
         handleBoundaryCollisions.value(particle);
@@ -354,7 +361,17 @@ handleBoundaryCollisions = { |p|
 
 // Register individual spring in the global dictionary.
 registerSpring = { |spring|
-    springs[spring.identityHash] = [spring.a, spring.b]
+    var endA, endB;
+    if (spring.isNil.not) {
+        #endA, endB = [spring.a, spring.b];
+        skeleton.keysValuesDo { |skel, joints|
+            world.springSrcSkel.do { |jt|
+                if (joints[jt] == endA) { endA = jt };
+                if (joints[jt] == endB) { endB = jt };
+            };
+        };
+        springs[spring.identityHash] = [endA, endB];
+    }
 };
 
 
@@ -365,27 +382,49 @@ registerSprings = { |springsList|
     }
 };
 
+
+// Translates spring end from joint name to particle.
+translateSpringEnd = { |end|
+    if (world.springSrcSkel.includes(end)) {
+        try {
+            end = skeleton[skeleton.keys.asArray[0]][end]
+        } {
+            end = nil
+        }
+    };
+    end
+};
+
+
 // Apply spring: choose a source and connect particle to it.
 applySpring = { |particle, source, ks, d, r|
     if (source.isNil) { source = getSource.() };
-    physics.makeSpring(source, particle,
-        ks ? world.springStrength, d ? world.springDamp, r ? world.springRestLen);
+    particle = translateSpringEnd.(particle);
+    source = translateSpringEnd.(source);
+    if (particle.isNil.not && source.isNil.not) {
+        physics.makeSpring(source, particle,
+            ks ? world.springStrength, d ? world.springDamp, r ? world.springRestLen);
+    }
 };
 
 
 // Apply forces.
 applyAttractions = { |particle, mutual=false|
+
+    // bookmark!
+    // Fix attractions that survive particle's death
+
     // Attraction of the Star.
     if (particle != star) {
-        physics.removeAttraction(star);
+        physics.removeAttraction(particle);
         physics.makeAttraction(star, particle, star.mass * 1000, 50)
     };
 
     // Mututal attraction / repulsion.
     if (mutual.booleanValue) {
         physics.particles.do { |part|
-            if ((particle != part) && (particle != star) && (part != star)) {
-                physics.removeAttraction(particle);
+            if ((particle != part) && (particle != star)) {
+                physics.removeAttraction(part);
                 physics.makeAttraction(particle, part, (particle.mass * world.repulsion).neg, 10);
             }
         }
@@ -396,7 +435,7 @@ applyAttractions = { |particle, mutual=false|
 // Choose a source (skeleton with the "lightest" hand).
 chooseSource = {
     var mass, sources = IdentityDictionary.new;
-    skeleton.keysValuesDo { |skeleton, joints|
+    skeleton.keysValuesDo { |skel, joints|
         joints.keysValuesDo { |joint, particle|
             if (world.springSrcSkel.includes(joint)) {
 
@@ -508,7 +547,7 @@ removeAttraction = { |attraction|
 removeParticle = { |particle|
     // remove springs
     physics.springs.do { |spring|
-        if ([spring.getOneEnd, spring.getTheOtherEnd].includes(particle)) {
+        if ([spring.a, spring.b].includes(particle)) {
             removeSpring.(spring)
         }
     };
@@ -626,12 +665,19 @@ skeletonParticles = { |id, joint, x, y, z|
 // Removes skeleton particles.
 skeletonRemove = { |id|
     skeleton[id].do { |p|
-        removeParticle.(p)
+        // removeParticle.(p)
 
         // TO-DO:
         // don't just remove particles, but better remove all springs,
         // update particles' age and let them die slowly
         // something like p.age = -3;
+
+        physics.springs.do { |spring|
+            if ([spring.a, spring.b].includes(p)) {
+                physics.removeSpring(spring);
+            }
+        };
+        physics.removeParticle(p);
     };
     skeleton.removeAt(id)
 };
@@ -641,7 +687,7 @@ skeletonRemove = { |id|
 //
 // Catch messages related to particles.
 oscParticle = OSCFunc({ |msg, time, addr, recvPort|
-    var particle, node, age, mass, x, y, z;
+    var particle, node, age, mass, x, y, z, spring, registered;
     postf("from % received %\n", addr, msg);
     node = msg[2];
     msg[1].switch(
@@ -650,13 +696,17 @@ oscParticle = OSCFunc({ |msg, time, addr, recvPort|
             try {
                 #x, y, z, age = msg[5..]
             } {
-                #x, y, z, age = nil ! 5
+                #x, y, z, age = nil ! 4
             };
             particle = initParticle.(mass, x, y, z, age);
             registerParticle.(particle, node);
             if (msg[3].booleanValue) {
-                applySpring.(particle)
-            } {
+                spring = applySpring.(particle);
+                registered = registerSpring.(spring);
+            };
+            if (msg[3].booleanValue.not || registered.isNil) {
+                // "spring" can be specified, but failed
+                // in this case apply attractions
                 applyAttractions.(particle)
             };
         },
@@ -680,6 +730,15 @@ oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
                 #x, y, z = world.gravity.atAll([\x, \y, \z])
             };
             world.gravity = (x: x, y: y, z: z)
+        },
+        \gravX, {
+            world.gravity = (x: msg[2].asFloat, y: world.gravity.y, z: world.gravity.z)
+        },
+        \gravY, {
+            world.gravity = (x: world.gravity.x, y: msg[2].asFloat, z: world.gravity.z)
+        },
+        \gravZ, {
+            world.gravity = (x: world.gravity.x, y: world.gravity.y, z: msg[2].asFloat)
         },
         \drag, { world.drag = msg[2].asFloat },
         \repulsion, { world.repulsion = msg[2].asFloat },

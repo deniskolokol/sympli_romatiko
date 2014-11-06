@@ -33,7 +33,7 @@ SynthDef(\sr__g__reg, {
     var in, out, signal;
     var trate, dur, pos, clk, ds, rate=1;
     // Conversion.
-    rate = az.linlin(0, 1, 0.2, 2);
+    rate = az.linlin(0, 1, 0.8, 1.2);
     trate = az.linlin(0, 1, 100, 0.2);
     dur = 4 / trate;
     clk = Dust.kr(trate);
@@ -165,7 +165,8 @@ SynthDef(\sr__g__loop, {
     var in, out, signal;
     var rate=1, startPos=0, ds;
     // Conversion.
-    rate = az.linlin(0, 1, 0.1, 1.9);
+    // rate = az.linlin(0, 1, 0.1, 1.9);
+    rate = LFNoise1.kr(LFNoise1.ar(1.4, 1, 1.6), 0.1);
     ds = distance/3.44;
     // Synthesis.
     in = PlayBuf.ar(1, bufnum, rate * BufRateScale.kr(bufnum),
@@ -183,9 +184,6 @@ SynthDef(\sr__g__loop, {
 SynthDef(\sr__g__unst, {
     arg bufnum=0, busnum=0, pos=0, amp=1, master=1, gate=1, rate=1, att=1, rel=1, crva=3, crvr= -3,
     azimuth=0, elevation=0, distance=1, velocity=10, depth=5;
-    var w, x, y, z, r, s, t, u, v,
-    speakerAzim= [-0.25pi, -0.6pi, 0.6pi, 0.25pi], speakerElev= 0, speakerDist= [6.34, 4.88, 4.88, 6.34],
-    maxDist=3, scaleFlag=1, dist;
     var in, signal, out, ds;
     ds = distance/3.44;
     in = PlayBuf.ar(1, bufnum,
@@ -647,8 +645,6 @@ SynthDef(\sr__e__wasp, {
         + Impulse.ar(
             (0..4) + SinOsc.ar(
                 (4..8) * 0.02).exprange(0.3, 300)), (1..5)
-        // * SinOsc.ar((5..9) * 0.05).exprange(200, 2000)
-        // * SinOsc.ar(SinOsc.ar((2..6) * 0.1, 0, 0.1), 0, 0.1, 1),
         * SinOsc.ar((5..9) * az*0.05).exprange(200, 2000)
         * SinOsc.ar(SinOsc.ar((2..6) * az*0.1, 0, 0.1), 0, 0.1, 1),
         velocity.linlin(0, 1, 0.100, 0.0010),
@@ -664,6 +660,41 @@ SynthDef(\sr__e__wasp, {
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     Out.ar(outbus, out);
 }).add;
+
+
+SynthDef(\sr__e__pipe, {
+    arg bufnum=0, inbus=30, outbus=20,
+    amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+    ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
+    offset=36, cutoff=0;
+    var note, in, out, signal;
+    var cutOff, rq, azThresh=0.7;
+    var scale = FloatArray[0,1,4,5,7,8,10];
+    // Conversion.
+    cutOff = distance.linexp(0.0, 1.0, 500, 10000); // different from arg!
+    rq = distance.linlin(0, 2.sqrt, 0.5, 1);
+    note = (DegreeToKey.kr(LocalBuf.newFrom(scale), az.linlin(0,1, 0,24), 12, 1, offset)
+        + LFNoise1.kr([3, 3], 0.04)).midicps;
+    // Synthesis.
+    in = GVerb.ar(
+        (Saw.ar(freq: (1..5) * note,
+            mul:velocity,
+            add:LFPar.ar(velocity.linexp(0,1, 0.01,100), 0.5,
+                LFNoise2.ar(LFNoise2.ar(mul:9, add:20), 0.2, 0.5))
+            )
+            + Pulse.ar(freq: LFNoise2.ar((1..5), 2).exprange(0.1, 1) * note,
+                mul:velocity.scurve)
+        ) / 16,
+        roomsize: distance.linlin(0,1, 2,80),
+        revtime: distance.linlin(0,1, 0.2,2)
+    );
+    signal = Mix.ar(in);
+    //Envelope.
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(outbus, out);
+}).add;
+
 
 
 // DRUMS AND PERCUSSION
@@ -740,7 +771,7 @@ SynthDef(\sr__s__ambisonic2, {
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
         speakerAzim = [-0.25pi, 0.25pi], speakerElev = 0,
-        speakerDist = [2, 2], maxDist = 2, scaleFlag = 1,
+        speakerDist = [1.7, 1.7], maxDist = 1.7, scaleFlag = 1,
         in, signal, out;
     distance = distance.linlin(0, 2.sqrt, 0.5, depth);
     in = In.ar(inbus, 1);

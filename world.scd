@@ -9,7 +9,6 @@
 //   -- guiding particles (and occasionally synths)
 // - add to synths last example from TermanWang, but build on its example sthn original
 // - clean attractions after particles die!
-// - limit number of skeletons simultaneously processed
 
 (
 //PARAMETERS
@@ -54,7 +53,8 @@ var audio = (
 );
 
 var skel = (
-    waitBeforeRemove: 5
+    waitBeforeRemove: 5,
+    limit: 1
 );
 
 // COMMUNICATION
@@ -70,7 +70,7 @@ var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
     registerSpring, registerSprings, applySpring, removeSpring,
-    translateSpringEnd;
+    resolveSpringEnd;
 var paramsChanged;
 
 // AUDIO
@@ -227,6 +227,8 @@ monitor = {
 };
 
 view.drawFunc = {
+    var springsPhysical, springMissed;
+
     paramsChanged = false;
     frame = frame + 1;
 
@@ -264,15 +266,19 @@ view.drawFunc = {
         }
     };
 
-    // Springs can get lost, when skeleton momentarily disappear,
-    // global dictionary is used for checking their presence.
-    springs.keysValuesDo { |springId, particles|
-        if ((all {: g.identityHash, g <- physics.springs} ? []).includes(springId).not) {
-            applySpring.(particle:particles[0], source:particles[1])
+    // Springs should stick to hands even after skeleton is lost and then appears again.
+    // Track connections of springs in a global dictionary.
+    springsPhysical = all {: g.identityHash, g <- physics.springs} ? [];
+    IdentityDictionary.newFrom(springs).keysValuesDo { |springId, end|
+        if (springsPhysical.includes(springId).not) {
+            springMissed = applySpring.(end[0], end[1]);
         }
     };
-    // After re-applying.
-    registerSprings.(physics.springs);
+    // Update global dictionary of springs only if new springs were created.
+    if (springMissed.isNil.not) {
+        springs = IdentityDictionary.new;
+        registerSprings.(physics.springs);
+    };
 
     // Manage particles.
     physics.particles.do { |particle|
@@ -384,7 +390,7 @@ registerSprings = { |springsList|
 
 
 // Translates spring end from joint name to particle.
-translateSpringEnd = { |end|
+resolveSpringEnd = { |end|
     if (world.springSrcSkel.includes(end)) {
         try {
             end = skeleton[skeleton.keys.asArray[0]][end]
@@ -398,13 +404,15 @@ translateSpringEnd = { |end|
 
 // Apply spring: choose a source and connect particle to it.
 applySpring = { |particle, source, ks, d, r|
+    var spring;
     if (source.isNil) { source = getSource.() };
-    particle = translateSpringEnd.(particle);
-    source = translateSpringEnd.(source);
+    particle = resolveSpringEnd.(particle);
+    source = resolveSpringEnd.(source);
     if (particle.isNil.not && source.isNil.not) {
-        physics.makeSpring(source, particle,
+        spring = physics.makeSpring(source, particle,
             ks ? world.springStrength, d ? world.springDamp, r ? world.springRestLen);
-    }
+    };
+    spring
 };
 
 
@@ -648,17 +656,21 @@ initGroup = { |synth, spatial, bufnum, busnum, params|
 skeletonParticles = { |id, joint, x, y, z|
     var part;
     if (skeleton.keys.includes(id).not) {
-        skeleton[id] = (complete: false);
+        if (skeleton.keys.asArray.size < skel.limit) {
+            skeleton[id] = (complete: false)
+        }
     };
     if (joint.isNil.not) {
-        if (skeleton[id].keys.includes(joint).not) {
-            part = initParticle.(world.starMass, x, y, z);
-            part.makeFixed;
-            skeleton[id][joint] = part;
+        if (skeleton.keys.includes(id)) {
+            if (skeleton[id].keys.includes(joint).not) {
+                part = initParticle.(world.starMass, x, y, z);
+                part.makeFixed;
+                skeleton[id][joint] = part;
+            };
+            skeleton[id][joint].position.set(x, y, z);
+            skeleton[id][\update] = Date.getDate.secStamp;
         };
-        skeleton[id][joint].position.set(x, y, z);
     };
-    skeleton[id][\update] = Date.getDate.secStamp;
 };
 
 

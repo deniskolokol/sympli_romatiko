@@ -138,6 +138,7 @@ var c_KEY_OBJ_SYNTH = ( // keycodes for creating objects and synths of different
     5:  ["a RedBoid",   \sr__g__slic],	 // g
     4:  ["a RedBoid",   \sr__g__loop],	 // h
     38: ["a RedObject", \sr__g__scratch],// j
+    40: ["a RedObject", \sr__e__pipe],   // k
 );
 var w_VEC_2D_0 = #[0, 0], w_VEC_3D_0 = #[0, 0, 0],
     w_REDVEC_3D_0 = RedVector3D[0, 0, 0];

@@ -12,17 +12,16 @@ var guideBuff, samples, scales, voices; // buffers (sound files and scales)
 var trigSynth, synthNames, keyNames; // available SynthDefs
 var synths=Dictionary.new; // temp dictionary of the synths symbolic IDs vs. server Nodes
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
-var key, current, next, syn, obj, age, mass; // object's properties
+var key, current, next, syn, obj, age, mass, physics, physicsDict=(); // object's properties
 var win, info, buttons, keyboard, keyboardFunc, // interface
     stCurrNum, stCurrInfo, stNextNum, stNextInfo,
-    btPrev, btNext, timeLabel;
+    btPrev, btNext, timeLabel, physicsView, slider, checkbox;
 var shade, count=0, animate=false; // schedule animation
 var getKey, displayEventInfo, convertTime, clipInc; // helper functions
 var midiServerVolume, midiNext, midiPrev, midiClean;
 var processEvents, groupNew, groupFree, taskPlay, sendWorld,
     sendParticle, sendSNew, sendPhysics, sendAudio, sendAct; // acting functions
-
-var testLabel; // DELETE IT
+var testLabel; // write here any test info
 
 
 // INITIAL
@@ -100,7 +99,7 @@ trigSynth = [ // keycodes for triggering obj creation with a synth
     5,  \sr__g__slic,   // g
     4,  \sr__g__loop,   // h
     38, \sr__g__scratch,// j
-    40, \sr__e__saw,    // k
+    40, \sr__e__pipe,    // k
 ];
 synthNames = Dictionary.newFrom(trigSynth);
 // TO-DO: names should be obtained automatically
@@ -113,23 +112,39 @@ mainOutput = 0;
 mainInput = 20;
 worldSize = 800;
 
+physics = [
+    (param: \gravX, minval: -2.0, maxval: 2.0, default: 0),
+    (param: \gravY, minval: -2.0, maxval: 2.0, default: 0),
+    (param: \gravZ, minval: -2.0, maxval: 2.0, default: 0),
+    (param: \drag, minval: 0.001, maxval: 1.000, step: 0.001, default: 0.001),
+    (param: \repulsion, minval: 1, maxval: 100, step: 5, default: 100),
+    (param: \starMass, minval: 0.1, maxval: 5, step: 0.1, default: 1),
+    (param: \springRestLen, minval: 2, maxval: 15, step: 1, default: 5),
+    (param: \springStrength, minval: 0.1, maxval: 2, default: 2),
+    (param: \springDamp, minval: 0.1, maxval: 2, default: 2),
+    (param: \particles, default: false),
+    (param: \mutualAttraction, default: true)
+];
+physics.do { |elem| physicsDict[elem.param] = elem };
+
 thePiece = (
     0: [
         (message: \action,  params: [\action, \remove, \all],
             info: "Remove all before start"),
-        (message: \audio,   params: [\surround, surround]),
-        (message: \audio,   params: [\depth: depth]),
-        (message: \physics, params: [\gravity, 0, 0, 0],
+        (message: \audio,   params: [\surround, surround],
             info: "Initial settings"),
-        (message: \physics, params: [\drag, 0.001]),
-        (message: \physics, params: [\repulsion, 100]),
-        (message: \physics, params: [\starMass, 1]),
-        (message: \physics, params: [\starSize, 10]),
-        (message: \physics, params: [\particles, 0]),
-        (message: \physics, params: [\springRestLen, 5]),
-        (message: \physics, params: [\springStrength, 2]),
-        (message: \physics, params: [\springDamp, 2]),
-        (message: \physics, params: [\mutualAttraction, true]),
+        (message: \audio,   params: [\depth, depth]),
+        (message: \physics, params: [\gravX, physicsDict.gravX.default]),
+        (message: \physics, params: [\gravY, physicsDict.gravY.default]),
+        (message: \physics, params: [\gravZ, physicsDict.gravZ.default]),
+        (message: \physics, params: [\drag, physicsDict.drag.default]),
+        (message: \physics, params: [\repulsion, physicsDict.repulsion.default]),
+        (message: \physics, params: [\starMass, physicsDict.starMass.default]),
+        (message: \physics, params: [\particles, physicsDict.particles.default]),
+        (message: \physics, params: [\springRestLen, physicsDict.springRestLen.default]),
+        (message: \physics, params: [\springStrength, physicsDict.springStrength.default]),
+        (message: \physics, params: [\springDamp, physicsDict.springDamp.default]),
+        (message: \physics, params: [\mutualAttraction, physicsDict.mutualAttraction.default]),
     ],
     5: [
         // TO-DO:
@@ -242,18 +257,6 @@ thePiece = (
             info: "INTRO: __analog cutoff= -1",
             message: \task, name: \sporadicAnalogCutoff, act: 1
         ),
-        //
-        // IS IT STILL NECESSARY?
-        //
-        // (
-        //     info: "Remove mutual attraction",
-        //     message: \physics, params: [objAttract: false]
-        // ),
-        // (
-        //     info: "Restore star mass",
-        //     message: \physics,
-        //     params: [starMass: 1]
-        // ),
     ],
     31: [
         ( // Remove all objects.
@@ -355,42 +358,21 @@ thePiece = (
             message: \particle,
             synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10, \bufnum, scales[0].bufnum]),
             particle: (age: inf, mass: 0.9, spring: 1)
-        )
+        ),
     ],
-    51: [
+    55: [
         (
             info: "AIRY: heavy __probe 2",
             message: \particle,
             synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10, \bufnum, scales[0].bufnum]),
             particle: (age: inf, mass: 0.9, spring: 1),
-        )
-    ],
-    55: [
+        ),
         (
             info: "Schedule sporadic __cmb & __melo",
             message: \task, name: \sporadicCMB, act: 1
         ),
         (
             message: \task, name: \sporadicMelo, act: 1
-        )
-    ],
-    57: [
-        ( // Remove all objects.
-            message: \action,  params: [\action, \remove, \all]
-        ),
-        (
-            info: "Leave __probe - TAP twice for __cmb!",
-            message: \particle,
-            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            particle: (age: inf, mass: 0.9, spring: 1)
-        ),
-    ],
-    58: [
-        (
-            info: "Heavy __cmb",
-            message: \particle,
-            synth: (name: \sr__e__cmb, params: [\att, 1.0.rand, \rel, 10]),
-            particle: (age: inf, mass: 0.9, spring: 1),
         )
     ],
     60: [
@@ -439,7 +421,7 @@ thePiece = (
         ),
     ],
     73: [
-        ( // IMPORTANT! switchScale sends sclaes as buffers to all nodes
+        ( // IMPORTANT! switchScale sends scales as buffers to all nodes
             // It should be stopped before starting granWave to prevent
             // sending scales instead of samples.
             info: "Stop switching scales",
@@ -1000,7 +982,7 @@ processEvents = { |k=nil|
 // GUI.
 //
 win = Window("sequencing and scheduling", Rect(1070, 1000, 610, 700))
-.acceptsMouseOver_(true);
+    .acceptsMouseOver_(true);
 win.view.decorator = FlowLayout(win.view.bounds);
 
 info = CompositeView(win, 500@165);
@@ -1059,7 +1041,33 @@ trigSynth.do { |key, i|
     };
 };
 
-testLabel = StaticText(win, 600@50).align_(\topLeft).font_(Font("Monaco", 20));
+physicsView = CompositeView(win, 600@220).background_(Color.new255(0, 0, 0, alpha:100));
+physicsView.decorator = FlowLayout(physicsView.bounds);
+slider = { |val|
+    EZSlider(physicsView, 290@20, val.atFail(\label, { val.param }),
+        [val.atFail(\minval, {0}), val.atFail(\maxval, {1}), \lin,
+            val.atFail(\step, {0}), val.atFail(\default, {0})].asSpec,
+        { |ez| sendPhysics.((message: \physics, params: [val.param, ez.value])) }
+    ).font_(Font("Monaco", 12))
+};
+checkbox = { |val|
+    QCheckBox(physicsView, 290@20)
+    .string_(val.atFail(\label, { val.param }))
+    .action_({ |cb| sendPhysics.((message: \physics, params: [val.param, cb.value.asInteger]))})
+};
+physics.do { |elem|
+    elem.default.class.switch(
+        Float, { slider.(elem) },
+        Integer, { slider.(elem) },
+        True, { checkbox.(elem) },
+        False, { checkbox.(elem) },
+    )
+};
+
+testLabel = StaticText(win, 600@50)
+    .background_(Color.red(alpha:0.1))
+    .font_(Font("Monaco", 20))
+    .align_(\topLeft);
 
 win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     [char, modifiers, unicode, keycode].postln;

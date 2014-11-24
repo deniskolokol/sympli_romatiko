@@ -1,14 +1,5 @@
 // Sympli Romatikó
 // module: World
-//
-// TEST it: world_traer_parts_n_synths.scd
-
-// TO-DO:
-// - when the sceleton is present, a star becomes an object,
-//   -- attracted to skeleton's hands
-//   -- guiding particles (and occasionally synths)
-// - add to synths last example from TermanWang, but build on its example sthn original
-// - clean attractions after particles die!
 
 (
 //PARAMETERS
@@ -24,7 +15,7 @@ var world = (
     mutualAttraction: true,
     repulsion: 100,
     gravity: (x: 0, y: 0, z: 0),
-    drag: 0.5,
+    drag: 0.001,
     maxVel: 70,
 
     // springs behavior
@@ -69,8 +60,8 @@ var physics, particles, springs, pos, repulsion;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
-    registerSpring, registerSprings, applySpring, removeSpring,
-    resolveSpringEnd;
+    registerSpring, registerSprings, applySpring, removeSpring;
+var resolveSpringEnd, decodeParticle;
 var paramsChanged;
 
 // AUDIO
@@ -87,7 +78,7 @@ var win = Window("Sympli Romatikó :: WORLD", Rect(0, 500, world.width, world.he
 var view = UserView(win, Rect(0, 0, world.width, world.height)).background = Color.black;
 var frame = 0, fps = 30;
 
-var winMonitor = Window("Sympli Romatikó :: MONITOR", Rect(705, 1000, 360, world.height + 100));
+var winMonitor = Window("Sympli Romatikó :: MONITOR", Rect(705, 1000, 360, world.height + 170));
 var textParticles, textAttractions, textForces, textSprings, textSkeleton, textTest;
 var monitor, message, spacer = "\n--------------------\n";
 
@@ -138,7 +129,7 @@ var drawMonitorArea = { |parent, width, height|
 winMonitor.addFlowLayout;
 textParticles = drawMonitorArea.(drawMonitorView.(winMonitor, height:200));
 textSprings = drawMonitorArea.(drawMonitorView.(winMonitor, height:200));
-textAttractions = drawMonitorArea.(drawMonitorView.(winMonitor));
+textAttractions = drawMonitorArea.(drawMonitorView.(winMonitor, height:200));
 textForces = drawMonitorArea.(drawMonitorView.(winMonitor, height:65));
 textSkeleton = drawMonitorArea.(drawMonitorView.(winMonitor, height:80));
 textTest = drawMonitorArea.(drawMonitorView.(winMonitor, height:95));
@@ -184,9 +175,9 @@ monitor = {
     var springEnds = Array.fill(2, { nil });
 
     message = "Particles" ++ spacer;
-    message = message ++ format(" %\t(star)\n", star.identityHash);
+    message = message ++ format(" %\tStar\n", star.identityHash);
     particles.keysValuesDo { |k, v|
-        message = message ++ format(" %\t%\n", k.identityHash, v.asString)
+        message = message ++ format(" %\t%\n", decodeParticle.(k), v.asString)
     };
     textParticles.string = message;
 
@@ -216,7 +207,7 @@ monitor = {
 
     message = "Attractions" ++ spacer;
     physics.attractions.do { |k|
-        message = message ++ format("%\t%\n", k.a.identityHash, k.b.identityHash)
+        message = message ++ format("%\t%\n", decodeParticle.(k.a), decodeParticle.(k.b))
     };
     textAttractions.string = message;
 
@@ -227,7 +218,7 @@ monitor = {
 };
 
 view.drawFunc = {
-    var springsPhysical, springMissed;
+    var springsPhysical, springMissed, particlesOnSprings;
 
     paramsChanged = false;
     frame = frame + 1;
@@ -269,25 +260,26 @@ view.drawFunc = {
     // Springs should stick to hands even after skeleton is lost and then appears again.
     // Track connections of springs in a global dictionary.
     springsPhysical = all {: g.identityHash, g <- physics.springs} ? [];
-    IdentityDictionary.newFrom(springs).keysValuesDo { |springId, end|
+    springs.keysValuesDo { |springId, end|
         if (springsPhysical.includes(springId).not) {
             springMissed = applySpring.(end[0], end[1]);
         }
     };
-    // Update global dictionary of springs only if new springs were created.
-    if (springMissed.isNil.not) {
+    // Update global dictionary of springs.
+    if (springMissed.isNil.not) { // only if new springs created
         springs = IdentityDictionary.new;
         registerSprings.(physics.springs);
     };
 
     // Manage particles.
+    particlesOnSprings = all {: [g.a, g.b], g <- physics.springs} ? [];
     physics.particles.do { |particle|
         // Re-apply world forces, if there was any change in its parameters
         if (paramsChanged) {
             // and if a particle isn't on spring
-            if ((all {: [g.a, g.b], g <- physics.springs} ? []).includes(particle).not) {
+            if (particlesOnSprings.includes(particle).not) {
                 applyAttractions.(particle, world.mutualAttraction);
-            }
+            };
         };
         handleBoundaryCollisions.value(particle);
         // Visualize particles.
@@ -298,7 +290,7 @@ view.drawFunc = {
                 10 * particle.position.z.linlin(0, world.depth, 1, 0.1)));
         } { // the heavier the object, the redder it appears
             Pen.color = Color(particle.mass.linlin(0, 1, 0.2, 1),
-                particle.mass.linlin(0, 1, 0.7, 1), 1 - particle.mass);
+                particle.mass.linlin(0, 1, 0.7, 1), particle.mass.linlin(0, 1, 1, 0.1));
             Pen.fillOval(Rect.aboutPoint(
                 Point(particle.position.x, particle.position.y),
                 5 * particle.position.z.linlin(0, world.depth, 1, 0.1),
@@ -331,11 +323,11 @@ view.drawFunc = {
             \azimuth, pos.theta,
             \distance, pos.rho, // distance from the center
             \elevation, particle.position.z.linlin(0, world.depth, 0.5pi, -0.5pi), // how high the object is (inverse)
-            \amp, mag3D.(particle.velocity).distort * particle.mass,
+            \amp, particle.mass.clip(0.01, 0.8) + (mag3D.(particle.velocity) * 0.01), // subtle change due to velocity
+            \velocity, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
             \ax, particle.position.x / world.width,
             \ay, particle.position.y / world.height,
             \az, particle.position.z.linlin(0, world.depth, 1, 0),
-            \velocity, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid (distort), smooth by .pow
             \master, 1,
             \depth, audio.depth
         )
@@ -362,6 +354,25 @@ handleBoundaryCollisions = { |p|
         p.position.x.clip(0, world.width),
         p.position.y.clip(0, world.height),
         p.position.z.clip(0, world.depth));
+};
+
+
+// Returns display of a particle "role" (a Star, a skeleton's joint or an ordinary particle).
+decodeParticle = { |particle|
+    var result;
+    if (particle == star) {
+        result = "Star"
+    } {
+        skeleton.keysValuesDo { |skel, joints|
+            world.springSrcSkel.do { |jt|
+                if (joints[jt] == particle) {
+                    result = format("% - %", [skel, jt])
+                };
+            };
+        };
+    };
+    if (result.isNil) { result = particle.identityHash };
+    result
 };
 
 
@@ -406,8 +417,8 @@ resolveSpringEnd = { |end|
 applySpring = { |particle, source, ks, d, r|
     var spring;
     if (source.isNil) { source = getSource.() };
-    particle = resolveSpringEnd.(particle);
     source = resolveSpringEnd.(source);
+    particle = resolveSpringEnd.(particle);
     if (particle.isNil.not && source.isNil.not) {
         spring = physics.makeSpring(source, particle,
             ks ? world.springStrength, d ? world.springDamp, r ? world.springRestLen);
@@ -418,25 +429,23 @@ applySpring = { |particle, source, ks, d, r|
 
 // Apply forces.
 applyAttractions = { |particle, mutual=false|
-
-    // bookmark!
-    // Fix attractions that survive particle's death
-
+    List.newFrom(physics.attractions).do { |attr|
+        if ((attr.a == particle) || (attr.b == particle)) {
+            physics.removeAttraction(attr);
+        }
+    };
     // Attraction of the Star.
     if (particle != star) {
-        physics.removeAttraction(particle);
-        physics.makeAttraction(star, particle, star.mass * 1000, 50)
+        physics.makeAttraction(star, particle, star.mass * 1000, 50);
     };
-
     // Mututal attraction / repulsion.
     if (mutual.booleanValue) {
         physics.particles.do { |part|
-            if ((particle != part) && (particle != star)) {
-                physics.removeAttraction(part);
+            if ((particle != part) && (particle != star) && (part != star)) {
                 physics.makeAttraction(particle, part, (particle.mass * world.repulsion).neg, 10);
             }
         }
-    }
+    };
 };
 
 
@@ -480,11 +489,14 @@ getSource = { |starAllowed=false|
 getGuide = {
     var guides = IdentityDictionary[star -> mag3D.(star.velocity)];
     skeleton.keysValuesDo { |skel, joints|
-        joints.keysValuesDo { |joint, p|
-            if (p.class == "TraerParticle") {
-                guides[joint] = mag3D.(p.velocity);
-            };
-        }
+        world.springSrcSkel.do { |jt|
+            // WARNING! Skeleton joints do not possess velocity,
+            // the following doesn't work:
+            //guides[joints[jt]] = mag3D.(joints[jt].velocity);
+
+            // but always prefer skeleton joints to the Star
+            guides[joints[jt]] = guides[star] * ([2, 5].choose);
+        };
     };
     // the faster the object, the bigger a chance to become a guide
     guides.findKeysForValue(guides.values.wchoose(guides.values.exp.normalizeSum))[0]
@@ -517,15 +529,14 @@ initParticle = { |mass, x, y, z, age, vel|
 // Particle system.
 particleSystem = { |guide|
     var pos, vel, prob;
-
     // probability of the birth of particle depends on the guide's velocity
+    pos = guide.position;
+    vel = guide.velocity;
+    if (vel == 0) { vel = world.maxVel };
     prob = sigmoid.(
         ratio:world.partSigmoidRatio,
-        value:mag3D.(guide.velocity).linlin(0, world.maxVel, world.maxVel.neg, world.maxVel));
-
+        value:mag3D.(vel).linlin(0, world.maxVel, world.maxVel.neg, world.maxVel));
     if (prob.coin.booleanValue) {
-        pos = guide.position;
-        vel = guide.velocity;
         registerParticle.(
             initParticle.(0.2, pos.x, pos.y, pos.z,
                 world.partAgeThresh.logistic,
@@ -676,6 +687,7 @@ skeletonParticles = { |id, joint, x, y, z|
 
 // Removes skeleton particles.
 skeletonRemove = { |id|
+    var springsPhysical;
     skeleton[id].do { |p|
         // removeParticle.(p)
 
@@ -684,9 +696,14 @@ skeletonRemove = { |id|
         // update particles' age and let them die slowly
         // something like p.age = -3;
 
-        physics.springs.do { |spring|
+        List.newFrom(physics.springs).do { |spring|
             if ([spring.a, spring.b].includes(p)) {
                 physics.removeSpring(spring);
+            }
+        };
+        List.newFrom(physics.attractions).do { |attr|
+            if ([attr.getOneEnd, attr.getTheOtherEnd].includes(p)) {
+                removeAttraction.(attr)
             }
         };
         physics.removeParticle(p);

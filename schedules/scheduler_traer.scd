@@ -72,9 +72,9 @@ scales = List.new; // fill scales
 [
     FloatArray[0, 3, 7, 10], // scales[0] is the main scale
     FloatArray[0, 1, 3, 7, 8], // the rest are specific to thePiece's parts
-    FloatArray[0, 2, 4, 6, 9],
-    FloatArray[0, 3, 6, 9, 11],
-    FloatArray[0, 1, 3, 7, 10],
+    FloatArray[0, 2],
+    FloatArray[0, 3],
+    FloatArray[1, 3],
 ].do { |c, i|
     scales.add(Buffer.loadCollection(s, c));
 };
@@ -99,7 +99,7 @@ trigSynth = [ // keycodes for triggering obj creation with a synth
     5,  \sr__g__slic,   // g
     4,  \sr__g__loop,   // h
     38, \sr__g__scratch,// j
-    40, \sr__e__pipe,    // k
+    40, \sr__e__pipe,   // k
 ];
 synthNames = Dictionary.newFrom(trigSynth);
 // TO-DO: names should be obtained automatically
@@ -172,8 +172,6 @@ thePiece = (
             ]
         )
     ],
-    //
-    // TO-DO: slowly increase repuslion 10..100, star mass 1..10
     7: [
         (
             info: "INTRO: Particles",
@@ -223,7 +221,7 @@ thePiece = (
             ]
         )
     ],
-    12: [
+    15: [
         (
             info: "INTRO: voices",
             message: \task, name: \voices, act: 1
@@ -232,10 +230,30 @@ thePiece = (
             message: \physics, params: [audioIn: true]
         )
     ],
+    16: [
+        (
+            info: "INTRO: voices background",
+            message: \particle,
+            synth: (name: \sr__g__reg, params: [\ca, 5, \att, rand(40, 60), \rel, 10, \bufnum, voices.choose.bufnum]),
+            particle: (mass: 0.5),
+        ),
+        (
+            message: \particle,
+            synth: (name: \sr__g__gust, params: [\ca, 5, \att, rand(60, 100), \rel, 10, \bufnum, voices.choose.bufnum]),
+            particle: (mass: 0.4),
+        ),
+        (
+            message: \particle,
+            synth: (name: \sr__g__drone, params: [\ca, 5, \att, rand(80, 120), \rel, 10, \bufnum, voices.choose.bufnum]),
+            particle: (mass: 0.5),
+        ),
+    ],
     // TO-DO:
     // This is necessary for objects on springs proper behavior
     // Hovewer this makes freely floating particles sluggish.
     // Invent something!
+    // Find a proper set of physical params for objects on springs
+    // to behave smooth!!!
     20: [
         (info: "Physics environment change",
         message: \physics, params: [\gravity, 0, 0, -2]),
@@ -383,7 +401,7 @@ thePiece = (
             info: "Heavy __cmb - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__cmb, params: [\att, 1.0.rand, \rel, 10]),
-            particle: (age: inf, mass: 0.9, spring: 1),
+            particle: (age: inf, mass: 1, spring: 1),
         ),
     ],
     61: [
@@ -391,7 +409,7 @@ thePiece = (
             info: "Heavy __cmb",
             message: \particle,
             synth: (name: \sr__e__cmb, params: [\att, 3 + 2.0.rand2, \rel, 10]),
-            particle: (age: inf, mass: 0.9, spring: 1)
+            particle: (age: inf, mass: 1, spring: 1)
         )
     ],
     70: [
@@ -403,7 +421,7 @@ thePiece = (
             info: "2 heavy __melo - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
-            particle: (age: inf, mass: 0.9, spring: 1)
+            particle: (age: inf, mass: 1, spring: 1)
         ),
     ],
     71: [
@@ -411,7 +429,7 @@ thePiece = (
             info: "heavy __melo 2",
             message: \particle,
             synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, scales[1].bufnum]),
-            particle: (age: inf, mass: 0.9, spring: 1)
+            particle: (age: inf, mass: 1, spring: 1)
         ),
     ],
     72: [
@@ -420,98 +438,61 @@ thePiece = (
             message: \task, name: \switchScale, act: 1
         ),
     ],
-    73: [
+    // bookmark
+    // WARNING! This does not work properly, producing a lot of noise.
+    // Omitting it temporarily.
+    // 73: [
+    //     (
+    //         info: "2 heavy __audiothru - TAP twice for 2!",
+    //         message: \particle,
+    //         synth: (name: \sr__r__authro, params: [\inbus, audioThruBus[0]]),
+    //         particle: (age: inf, mass: 0.9, spring: 1)
+    //     ),
+    // ],
+    // 74: [
+    //     (
+    //         info: "Heavy __audiothru 2",
+    //         message: \particle,
+    //         synth: (name: \sr__r__authro, params: [\inbus, audioThruBus[1]]),
+    //         particle: (age: inf, mass: 0.9, spring: 1)
+    //     ),
+    //     (
+    //         info: "Schedule granular waves",
+    //         message: \task, name: \granWave, act: 1
+    //     )
+    // ],
+    // 79: [
+    //     (
+    //         info: "Add ave __noisy, long attack",
+    //         message: \particle,
+    //         synth: (name: \sr__e__noisy, params: [\att, 180, \rel, 10]),
+    //         particle: (mass: 0.7)
+    //     ),
+    //     (
+    //         info: "Stop percussive granWave",
+    //         message: \task, name: \granWave, act: 0
+    //     ),
+    //     ( // switch audioIn off
+    //         message: \physics,
+    //         params: [audioIn: false]
+    //     ),
+    // ],
+    80: [
+        (
+            info: "BREAKS",
+            message: \action,  params: [\action, \remove, \all]
+        ),
         ( // IMPORTANT! switchScale sends scales as buffers to all nodes
             // It should be stopped before starting granWave to prevent
             // sending scales instead of samples.
-            info: "Stop switching scales",
+            info: "Stop all schedules",
             message: \task, name: \switchScale, act: 0
         ),
-        (
-            info: "2 heavy __audiothru - TAP twice for 2!",
-            message: \particle,
-            synth: (name: \sr__r__authro, params: [\inbus, audioThruBus[0]]),
-            particle: (age: inf, mass: 0.9, spring: 1)
-        ),
-    ],
-    74: [
-        (
-            info: "Heavy __audiothru 2",
-            message: \particle,
-            synth: (name: \sr__r__authro, params: [\inbus, audioThruBus[1]]),
-            particle: (age: inf, mass: 0.9, spring: 1)
-        ),
-        (
-            info: "Schedule granular waves",
-            message: \task, name: \granWave, act: 1
-        )
-    ],
-    77: [
-        ( // Remove all - switch to ringz
-            message: \action,  params: [\action, \remove, \all]
-        ),
-        (
-            info: "Heavy __ringz - TAP twice for 2!",
-            message: \particle,
-            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
-            particle: (age: inf, mass: 0.9, spring: 1)
-        ),
-        (
-            info: "Ave __lowe",
-            message: \particle,
-            synth: (name: \sr__e__lowe, params: [\att, 10.0.rand, \rel, 10]),
-            particle: (mass: 0.6, spring: 1)
-        ),
-    ],
-    78: [
-        (
-            info: "Heavy __ringz 2",
-            message: \particle,
-            synth: (name: \sr__e__ringz, params: [\att, 10.0.rand]),
-            particle: (age: inf, mass: 0.9, spring: 1)
-        ),
-    ],
-    79: [
-        (
-            info: "Add ave __noisy, long attack",
-            message: \particle,
-            synth: (name: \sr__e__noisy, params: [\att, 180, \rel, 10]),
-            particle: (mass: 0.7)
-        ),
-        (
-            info: "Stop percussive granWave",
-            message: \task, name: \granWave, act: 0
-        ),
-        ( // switch audioIn off
-            message: \physics,
-            params: [audioIn: true]
-        ),
-    ],
-    80: [
         ( // Stop schedule with sporadic \sr__e__cmb
-            info: "GROOVE_1",
             message: \task, name: \sporadicCMB, act: 0
         ),
         ( // Stop schedule with sporadic \sr__e__melo
-            info: "Stop sched",
             message: \task, name: \sporadicMelo, act: 0
-        ),
-        (
-            info: "Add one heavy __noisy",
-            message: \particle,
-            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 9]),
-            particle: (age: inf, mass: 0.9, spring: 1)
-        ),
-    ],
-    85: [
-        (
-            info: "BREAK GROOVE",
-            message: \action,  params: [\action, \remove, \all]
-        ),
-        (
-            message: \particle,
-            synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
-            particle: (spring: 1, age: inf, mass: 0.9)
         ),
         (
             info: "heavy __entro - TAP twice for 2!",
@@ -522,7 +503,7 @@ thePiece = (
     ],
     86: [
         (
-            info: "BREAK GROOVE: heavy __entro 2",
+            info: "heavy __entro 2",
             message: \particle,
             synth: (name: \sr__e__entro),
             particle: (spring: 1, age: inf, mass: 0.9)
@@ -530,7 +511,7 @@ thePiece = (
     ],
     90: [
         (
-            info: "GROOVE_2",
+            info: "GROOVE",
             message: \action,  params: [\action, \remove, \all]
         ),
         (
@@ -542,40 +523,32 @@ thePiece = (
     ],
     91: [
         (
-            info: "GROOVE_2: heavy __gauss 2",
+            info: "heavy __gauss 2",
             message: \particle,
             synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
             particle: (spring: 1, age: inf, mass: 0.9)
         )
     ],
-    95: [
+
+    92: [
         ( // Remove all objects.
-            info: "FADE AWAY",
+            info: "OUTRO",
             message: \action,  params: [\action, \remove, \all]
         ),
-        (
-            info: "Particles ON",
-            message: \physics,
-            params: [
-                particles: 1, partSigmoidRatio: 0.7, partFreq: 0.02, partAgeThresh: 80,
-                partInitAccel: 3, partGuide: "object", partSynth: \sr__e__analog,
-            ]
-        ),
-        (
-            info: "2 light granular boids",
-            message: \particle,
-            synth: (name: \sr__g__reg, params: [\att, 5.0.rand, \rel, 10]),
-            particle: (mass: 0.6)
-        ),
-        (
-            message: \particle,
-            synth: (name: \sr__g__loop, params: [\att, 5.0.rand, \rel, 10]),
-            particle: (spring: 1, age: inf, mass: 0.6)
-        ),
-        ( // ensure audioIn (drums)
-            message: \physics,
-            params: [audioIn: true]
-        ),
+        // bookmark
+        // - Particles don't work, because skeleton hands' velocity is 0 -
+        //   substitute by a synth similar to sr__e__pulse, only hard thresholded
+        //   by velocity. And attach particles with this synth to both hands.
+        // - This will be solved indirectly when the issue 52 is completed:
+        //   https://github.com/deniskolokol/sympli_romatiko/issues/52
+        // (
+        //     info: "Particles ON",
+        //     message: \physics,
+        //     params: [
+        //         \particles, 1, \partSynth, \sr__e__analog,
+        //         \partSigmoidRatio, 0.7, \partAgeThresh, 1.1, \partInitAccel, 3
+        //     ]
+        // ),
         (
             info: "heavy __noisy - TAP twice for 2!",
             message: \particle,
@@ -583,15 +556,23 @@ thePiece = (
             particle: (spring: 1, age: inf, mass: 0.9)
         ),
     ],
-    96: [
+    93: [
         (
             info: "heavy __noisy 2",
             message: \particle,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
             particle: (spring: 1, age: inf, mass: 0.9)
         ),
+        ( // bookmark
+            // WARNING! When there are several objects on one hand of skeleton,
+            // when skeletons switch, some the object left to be attached to the old skel!!!
+            info: "heavy __pulse",
+            message: \particle,
+            synth: (name: \sr__e__pulse, params: [\att, 300, \rel, 10, \ca, 5]),
+            particle: (spring: 1, age: inf, mass: 0.9)
+        )
     ],
-    99: [
+    94: [
         (
             info: "FIN",
             message: \action,  params: [\action, \remove, \all]
@@ -600,7 +581,45 @@ thePiece = (
             info: "Remove all, particles OFF",
             message: \physics, params: [particles: 0]
         ),
-    ]
+    ],
+    95: [
+        (
+            info: "ADD, heavy __wasp - TAP twice for 2!",
+            message: \particle,
+            synth: (name: \sr__e__wasp, params: [\att, 5.0.rand, \rel, 10]),
+            particle: (spring: 1, age: inf, mass: 1)
+        ),
+    ],
+    96: [
+        (
+            info: "heavy __wasp 2",
+            message: \particle,
+            synth: (name: \sr__e__wasp, params: [\att, 5.0.rand, \rel, 10]),
+            particle: (spring: 1, age: inf, mass: 1)
+        ),
+    ],
+    97: [
+        (
+            info: "ADD, heavy __ringz - TAP twice for 2!",
+            message: \particle,
+            synth: (name: \sr__e__ringz, params: [\att, 60, \rel, 10]),
+            particle: (spring: 1, age: inf, mass: 0.8)
+        ),
+    ],
+    98: [
+        (
+            info: "heavy __ringz 2",
+            message: \particle,
+            synth: (name: \sr__e__ringz, params: [\att, 60, \rel, 10]),
+            particle: (spring: 1, age: inf, mass: 0.8)
+        ),
+    ],
+    99: [
+        (
+            info: "FIN-2",
+            message: \action,  params: [\action, \remove, \all]
+        ),
+    ],
 );
 
 // Store global params of the piece in a dictionary.
@@ -651,7 +670,7 @@ task = (
                 #x, y, z = (worldSize ! 3).rand;
                 synth = (name: [\sr__e__humm, \sr__e__radio][i % 2]); // alternate
                 sendParticle.(synth: synth, particle: (mass:mass, x:x, y:y, z:z, age:age));
-                if (0.5.coin) {
+                if (0.7.coin) {
                     synth = (name: [\sr__e__radio, \sr__e__humm].choose);
                     sendParticle.(synth: synth, particle: (mass:mass, x:x, y:y, z:z,
                         age:age + ((age * 0.25).rand2)));
@@ -666,13 +685,28 @@ task = (
         inf.do { |j|
             buff = voices[(j % voices.size).asInt];
             age = buff.numFrames / buff.numChannels / buff.sampleRate;
-            syn = [\sr__g__unst, \sr__g__loop, \sr__g__reg].wchoose([0.5, 0.3, 0.2]);
-            #x, y, z = (50 ! 3).rand + [100, 500].choose;
+            #x, y, z = (worldSize / 2 + rand2(worldSize * 0.15)) ! 3;
+            if (j <= 10) { // when voices are introduced, they should be clearly recognizable
+                syn = [\sr__g__loop, \sr__g__unst].wchoose([0.6, 0.4]);
+            } { // later on "smooth them out" into a voice meshup
+                syn = [\sr__g__loop, \sr__g__unst, \sr__g__reg].wchoose([0.5, 0.3, 0.2]);
+                // occasionally send a light __scratch with the same sample and age
+                // to support the main "voice particle"
+                if (0.3.coin) {
+                    sendParticle.(
+                        particle: (mass:0.1, x:x, y:z, z:z, age:age),
+                        synth: (name:\sr__g__scratch, params:[\att, 3, \bufnum, buff.bufnum])
+                    );
+                };
+            };
+            // main "voice particle"
             sendParticle.(
                 particle: (mass:0.5, x:x, y:z, z:z, age:age),
                 synth: (name:syn, params:[\att, 2, \bufnum, buff.bufnum])
             );
-            if (0.3.coin) { (age * 0.25).wait } { (age + rrand(4, 10)).wait }
+            // vary waiting time - everynow and then send the next particle
+            // without waiting until the end of the sample
+            if (0.6.coin) { (age * 0.25).wait } { (age + rrand(4, 10)).wait }
         }
     }),
     sporadicAnalogCutoff: Task({
@@ -689,7 +723,8 @@ task = (
     sporadicPulse: Task({
         loop {
             sendParticle.(
-                particle: (age: rrand(1.7, 5.0), mass: 0.8, spring:[1, 0].wchoose([0.7, 0.3])),
+                //particle: (age: rrand(1.7, 5.0), mass: 0.8, spring:[1, 0].wchoose([0.7, 0.3])),
+                particle: (age: rrand(1.7, 5.0), mass: 0.8, spring: 0),
                 synth: (name: \sr__e__pulse, params: [\att, 0.2, \rel, 3]));
             (20 + rand2(20 * 0.5)).wait;
         }
@@ -697,7 +732,8 @@ task = (
     sporadicCMB: Task({
         loop {
             sendParticle.(
-                particle: (age: rrand(2, 5), mass: 0.6, spring:[1, 0].wchoose([0.7, 0.3])),
+                //particle: (age: rrand(2, 5), mass: 0.6, spring:[1, 0].wchoose([0.7, 0.3])),
+                particle: (age: rrand(2, 5), mass: 0.6, spring: 0),
                 synth: (name: \sr__e__cmb, params: [\att, 1.5, \rel, 3]));
             (30 + rand2(30 * 0.25)).wait;
         }
@@ -706,18 +742,19 @@ task = (
         loop {
             (20 + rand2(20 * 0.25)).wait;
             sendParticle.(
-                particle: (age: rrand(5, 10), mass: 0.4, spring:[1, 0].wchoose([0.7, 0.3])),
-                synth: (name: \sr__e__melo, params: [\att, 1.5, \rel, 3, \bufnum, scales[1].bufnum]));
+                // particle: (age: rrand(5, 10), mass: 0.4, spring:[1, 0].wchoose([0.7, 0.3])),
+                particle: (age: rrand(5, 10), mass: 0.4, spring: 0),
+                synth: (name: \sr__e__melo, params: [\att, 1.5, \rel, 3, \bufnum, scales[0].bufnum]));
             ((20 + rand2(20 * 0.25))/2).wait;
         }
     }),
     switchScale: Task({
+        var sca = scales[1..]; // first scale is a default one, don't take it into consideration
         inf.do{ |i|
-            // WARNING! This works weird! Compare with example of
-            // DegreeToKey from the doc! Investigate!!!
-            //
-            s.sendMsg("/n_set", nil, \bufnum, scales[i % scales.size].bufnum);
-            (4..8).choose.wait;
+            s.sendMsg("/n_set", nil, \bufnum, sca[i % sca.size].bufnum);
+            (1..3).choose.wait;
+            s.sendMsg("/n_set", nil, \bufnum, nil);
+            (60..120).choose.wait;
         }
     }),
     granWave: Task({
@@ -725,7 +762,9 @@ task = (
         var introSynths = [\sr__g__loop, \sr__g__slic, \sr__g__drone, \sr__g__reg, \sr__g__gust];
         // Probablity of choosing a particular synth decreases towards the end of the list.
         var introSynthProb = Array.fill(introSynths.size, {exprand(0.01, 1.00)}).normalizeSum.sort.reverse;
-        inf.do{ |j|
+        // WARNING!
+        // For this particlular piece we play it only twice, instead of inf.do
+        2.do{ |j|
             // Start fade-in synth before the wave.
             age = rrand(5, 8);
             sendParticle.(
@@ -1018,7 +1057,7 @@ btPrev = Button(buttons, 70@45).states_([["<<", Color.black, Color.white]])
 timeLabel = StaticText(buttons, 70@60).font_(Font("Monaco", 14));
 
 keyboard = CompositeView(win, 600@170);
-keyboardFunc = { |synthName, spring=0, mass=0.7|
+keyboardFunc = { |synthName, spring=0, mass=1|
     sendParticle.(synth: (name: synthName), particle: (spring:spring, mass:mass));
 };
 keyboard.decorator = FlowLayout(keyboard.bounds);
@@ -1119,6 +1158,7 @@ midiClean = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
 midiClean = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
     sendAct.(\remove, \springs)
 }, 70, 0);
+
 
 CmdPeriod.doOnce({
     // Free buffers.

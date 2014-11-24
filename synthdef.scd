@@ -165,8 +165,7 @@ SynthDef(\sr__g__loop, {
     var in, out, signal;
     var rate=1, startPos=0, ds;
     // Conversion.
-    // rate = az.linlin(0, 1, 0.1, 1.9);
-    rate = LFNoise1.kr(LFNoise1.ar(1.4, 1, 1.6), 0.1);
+    rate = LFNoise1.kr(LFNoise1.ar(1.4, 1, 1.6), 0.05);
     ds = distance/3.44;
     // Synthesis.
     in = PlayBuf.ar(1, bufnum, rate * BufRateScale.kr(bufnum),
@@ -190,10 +189,10 @@ SynthDef(\sr__g__unst, {
         TWChoose.kr(
             Dust.kr(0.01),
             [
-                BufRateScale.kr(bufnum) * TRand.kr(0.8, 1.3, Dust.kr(0.2)),
-                BufRateScale.kr(bufnum) * TRand.kr(-0.8, -1.3, Dust.kr(0.2)),
+                BufRateScale.kr(bufnum) * TRand.kr(0.8, 1.1, Dust.kr(2)),
+                BufRateScale.kr(bufnum) * TRand.kr(-0.8, -1.1, Dust.kr(2)),
             ],
-        [0.8, 0.2]),
+        [0.6, 0.4]),
         Dust.kr(0.2),
         TRand.kr(0, BufFrames.ir(bufnum), Dust.kr(0.2))
     );
@@ -557,7 +556,7 @@ SynthDef(\sr__e__entro, {
         Saw.ar((1..15) * LFNoise0.kr(5, 10, 50) + SinOsc.ar((6..2) * 0.5))
         ]
     );
-    in = Mix.ar(in) * velocity * amp * 0.15; // too loud comparing to the rest, attenuate vol
+    in = Mix.ar(in) * velocity * amp * 0.1; // too loud comparing to the rest, attenuate vol
     signal = RLPF.ar(RLPF.ar(in, shift, rq), shift, rq);
     //Envelope.
     out = signal * master * EnvGen.kr(

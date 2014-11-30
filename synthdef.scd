@@ -158,26 +158,20 @@ SynthDef(\sr__g__scratch, { // ~ chunks of sound
 
 
 SynthDef(\sr__g__loop, {
-    arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
-        offset=0, cutoff=0;
-    var in, out, signal;
-    var rate=1, startPos=0, ds;
-    // Conversion.
-    rate = LFNoise1.kr(LFNoise1.ar(1.4, 1, 1.6), 0.05);
+    arg bufnum=0, busnum=0, pos=0, amp=1, master=1, gate=1, rate=1, att=1, rel=1, crva=3, crvr= -3,
+    azimuth=0, elevation=0, distance=1, velocity=10, depth=5;
+    var in, signal, out, ds;
     ds = distance/3.44;
-    // Synthesis.
-    in = PlayBuf.ar(1, bufnum, rate * BufRateScale.kr(bufnum),
-        Impulse.ar(BufDur.kr(bufnum).reciprocal), BufFrames.ir(bufnum) * startPos);
-    signal = RLPF.ar(
-        DelayL.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
+    in = PlayBuf.ar(1, bufnum,
+        // slight disturbances of rate
+        BufRateScale.kr(bufnum) * (rate + LFNoise1.kr(LFNoise1.ar(1.4, 1, 1.6), 0.15)),
+        Impulse.ar(BufDur.kr(bufnum).reciprocal), BufFrames.ir(bufnum) * pos);
+    signal = RLPF.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds),
         distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp;
     //Envelope.
-    out = signal * master * EnvGen.kr(
-        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
-}).add;
+    out = signal * master * EnvGen.kr(Env.asr(att, 1, rel, [crva, crvr]), gate: gate, doneAction:2);
+    Out.ar(busnum, out)
+}).send(s);
 
 
 SynthDef(\sr__g__unst, {
@@ -430,6 +424,8 @@ SynthDef(\sr__e__pulse, {
 }).add;
 
 
+// bookmark
+// make this synth louder when az < 0.5
 SynthDef(\sr__e__analog, {
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
@@ -470,10 +466,10 @@ SynthDef(\sr__e__analog, {
         ]
     );
     // Synthesis.
-    in = Mix.fill(8, {LFSaw.ar((note + 0.1.rand2).midicps)});
-    in = Compander.ar(in, in, 0.002, slopeBelow: 0.33, slopeAbove: 0.5,
+    in = Mix.fill(8, { LFSaw.ar((note + 0.1.rand2).midicps) * 0.05 });
+    in = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq);
+    signal = Compander.ar(in, in, 0.1, slopeBelow: 1, slopeAbove: 0.5,
         clampTime: 0.01, relaxTime: 0.01, mul: amp);
-    signal = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq);
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);

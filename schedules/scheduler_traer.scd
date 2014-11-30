@@ -239,25 +239,13 @@ thePiece = (
         ),
         (
             message: \particle,
-            synth: (name: \sr__g__gust, params: [\ca, 5, \att, rand(60, 100), \rel, 10, \bufnum, voices.choose.bufnum]),
-            particle: (mass: 0.4),
-        ),
-        (
-            message: \particle,
             synth: (name: \sr__g__drone, params: [\ca, 5, \att, rand(80, 120), \rel, 10, \bufnum, voices.choose.bufnum]),
             particle: (mass: 0.5),
         ),
     ],
-    // TO-DO:
-    // This is necessary for objects on springs proper behavior
-    // Hovewer this makes freely floating particles sluggish.
-    // Invent something!
-    // Find a proper set of physical params for objects on springs
-    // to behave smooth!!!
     20: [
         (info: "Physics environment change",
-        message: \physics, params: [\gravity, 0, 0, -2]),
-        (message: \physics, params: [\drag, 0.5]),
+            message: \physics, params: [\drag, 0.5]),
         (message: \physics, params: [\repulsion, 10]),
         (message: \physics, params: [\maxVel, 150]),
     ],
@@ -328,12 +316,6 @@ thePiece = (
             message: \task, name: \sporadicPulse, act: 1
         ),
         (
-            info: "Light __lowe ~heaviness",
-            message: \particle,
-            synth: (name: \sr__e__lowe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            particle: (mass: 0.6, x: 470, y: 300, z: 250)
-        ),
-        (
             info: "heavy __analog - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 10, \bufnum, scales[0].bufnum]),
@@ -360,6 +342,12 @@ thePiece = (
             message: \particle,
             synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10, \cutoff, -1, \bufnum, scales[0].bufnum]),
             particle: (age: inf, mass: 1, spring: 1)
+        ),
+        (
+            info: "Light __lowe ~heaviness",
+            message: \particle,
+            synth: (name: \sr__e__lowe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
+            particle: (mass: 0.8, spring: 1, x: 470, y: 300, z: 250)
         ),
         (
             info: "Stop sporadic __pulse",
@@ -563,16 +551,14 @@ thePiece = (
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
             particle: (spring: 1, age: inf, mass: 0.9)
         ),
-        ( // bookmark
-            // WARNING! When there are several objects on one hand of skeleton,
-            // when skeletons switch, some the object left to be attached to the old skel!!!
-            info: "heavy __pulse",
+        (
+            info: "heavy __pulse with long attack",
             message: \particle,
-            synth: (name: \sr__e__pulse, params: [\att, 300, \rel, 10, \ca, 5]),
+            synth: (name: \sr__e__pulse, params: [\att, 200, \rel, 10, \ca, 5]),
             particle: (spring: 1, age: inf, mass: 0.9)
         )
     ],
-    94: [
+    99: [
         (
             info: "FIN",
             message: \action,  params: [\action, \remove, \all]
@@ -580,46 +566,8 @@ thePiece = (
         (
             info: "Remove all, particles OFF",
             message: \physics, params: [particles: 0]
-        ),
-    ],
-    95: [
-        (
-            info: "ADD, heavy __wasp - TAP twice for 2!",
-            message: \particle,
-            synth: (name: \sr__e__wasp, params: [\att, 5.0.rand, \rel, 10]),
-            particle: (spring: 1, age: inf, mass: 1)
-        ),
-    ],
-    96: [
-        (
-            info: "heavy __wasp 2",
-            message: \particle,
-            synth: (name: \sr__e__wasp, params: [\att, 5.0.rand, \rel, 10]),
-            particle: (spring: 1, age: inf, mass: 1)
-        ),
-    ],
-    97: [
-        (
-            info: "ADD, heavy __ringz - TAP twice for 2!",
-            message: \particle,
-            synth: (name: \sr__e__ringz, params: [\att, 60, \rel, 10]),
-            particle: (spring: 1, age: inf, mass: 0.8)
-        ),
-    ],
-    98: [
-        (
-            info: "heavy __ringz 2",
-            message: \particle,
-            synth: (name: \sr__e__ringz, params: [\att, 60, \rel, 10]),
-            particle: (spring: 1, age: inf, mass: 0.8)
-        ),
-    ],
-    99: [
-        (
-            info: "FIN-2",
-            message: \action,  params: [\action, \remove, \all]
-        ),
-    ],
+        )
+    ]
 );
 
 // Store global params of the piece in a dictionary.
@@ -681,17 +629,21 @@ task = (
         }
     }),
     voices: Task({
-        var buff, syn, age, x, y, z;
+        var buff, syn, age, x, y, z, prob=0.2;
         inf.do { |j|
             buff = voices[(j % voices.size).asInt];
             age = buff.numFrames / buff.numChannels / buff.sampleRate;
-            #x, y, z = (worldSize / 2 + rand2(worldSize * 0.15)) ! 3;
-            if (j <= 10) { // when voices are introduced, they should be clearly recognizable
-                syn = [\sr__g__loop, \sr__g__unst].wchoose([0.6, 0.4]);
-            } { // later on "smooth them out" into a voice meshup
+            #x, y, z = { rrand(worldSize, worldSize * ([0.1, 0.9].choose)) } ! 3;
+            case
+            // when voices are introduced, they should be clearly recognizable
+            {j <= 5} { syn = \sr__g__loop }
+            {(j > 5) && (j <= 10)} {syn = [\sr__g__loop, \sr__g__unst].choose}
+            {j > 10} { // later on "smooth them out" into a voice meshup
+                // they should appear closer to the center of the world
+                #x, y, z = { (worldSize / 2 + rand2(worldSize * 0.15))} ! 3;
+                prob = 0.6; // bigger chance that the next sample will cross with the current one
                 syn = [\sr__g__loop, \sr__g__unst, \sr__g__reg].wchoose([0.5, 0.3, 0.2]);
-                // occasionally send a light __scratch with the same sample and age
-                // to support the main "voice particle"
+                // and occasionally send a light __scratch with the same sample and age
                 if (0.3.coin) {
                     sendParticle.(
                         particle: (mass:0.1, x:x, y:z, z:z, age:age),
@@ -706,7 +658,7 @@ task = (
             );
             // vary waiting time - everynow and then send the next particle
             // without waiting until the end of the sample
-            if (0.6.coin) { (age * 0.25).wait } { (age + rrand(4, 10)).wait }
+            if (prob.coin) { (age * 0.25).wait } { (age + rrand(4, 10)).wait }
         }
     }),
     sporadicAnalogCutoff: Task({
@@ -714,7 +666,7 @@ task = (
         loop {
             #x, y, z = (100 ! 3).rand2 + 350;
             sendParticle.(
-                particle: (mass:0.4, x:x, y:z, z:z, age:rrand(3, 4)),
+                particle: (mass:0.7, x:x, y:z, z:z, age:rrand(3, 4)),
                 synth: (name:\sr__e__analog, params:[\cutoff, -1, \att, 0.2, \rel, rrand(4, 6)])
             );
             (10 + 2.0.rand2).wait;
@@ -723,8 +675,7 @@ task = (
     sporadicPulse: Task({
         loop {
             sendParticle.(
-                //particle: (age: rrand(1.7, 5.0), mass: 0.8, spring:[1, 0].wchoose([0.7, 0.3])),
-                particle: (age: rrand(1.7, 5.0), mass: 0.8, spring: 0),
+                particle: (age: rrand(1.7, 5.0), mass: 0.9, spring:[1, 0].wchoose([0.7, 0.3])),
                 synth: (name: \sr__e__pulse, params: [\att, 0.2, \rel, 3]));
             (20 + rand2(20 * 0.5)).wait;
         }
@@ -732,8 +683,7 @@ task = (
     sporadicCMB: Task({
         loop {
             sendParticle.(
-                //particle: (age: rrand(2, 5), mass: 0.6, spring:[1, 0].wchoose([0.7, 0.3])),
-                particle: (age: rrand(2, 5), mass: 0.6, spring: 0),
+                particle: (age: rrand(2, 5), mass: 0.9, spring: [1, 0].wchoose([0.7, 0.3])),
                 synth: (name: \sr__e__cmb, params: [\att, 1.5, \rel, 3]));
             (30 + rand2(30 * 0.25)).wait;
         }
@@ -742,8 +692,7 @@ task = (
         loop {
             (20 + rand2(20 * 0.25)).wait;
             sendParticle.(
-                // particle: (age: rrand(5, 10), mass: 0.4, spring:[1, 0].wchoose([0.7, 0.3])),
-                particle: (age: rrand(5, 10), mass: 0.4, spring: 0),
+                particle: (age: rrand(5, 10), mass: 0.9, spring: [1, 0].wchoose([0.7, 0.3])),
                 synth: (name: \sr__e__melo, params: [\att, 1.5, \rel, 3, \bufnum, scales[0].bufnum]));
             ((20 + rand2(20 * 0.25))/2).wait;
         }
@@ -1111,25 +1060,39 @@ testLabel = StaticText(win, 600@50)
 win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     [char, modifiers, unicode, keycode].postln;
     case
-    {keycode == 6} { // Z - info
+    { keycode == 6 && [0, 256].includes(modifiers) } { // Z - info
         if( [0, 256].includes(modifiers), {
             postf("window: left %, top %, width %, height %\n",
                 win.bounds.left, win.bounds.top, win.bounds.width, win.bounds.height);
         });
     }
-    { synthNames.keys.includes(keycode) } { keyboardFunc.(synthNames[keycode], spring:1) }
+    { keycode == 7 && [0, 256].includes(modifiers) } { sendWorld.([\action, \remove, \all]) }
+    { synthNames.keys.includes(keycode) } {
+        modifiers.switch(
+            0, { keyboardFunc.(synthNames[keycode], spring:1) },
+            256, { keyboardFunc.(synthNames[keycode], spring:1) },
+            131072, { keyboardFunc.(synthNames[keycode], spring:0) } // Shift + <key> - no spring
+        )
+    }
 };
 
-{ // blinking "next event" info.
+{ // GLOBAL APP CLOCK. Resolution: 100 milliseconds (one tenth of a second)
     while {win.isClosed.not} {
         if (animate) {
             count = count + 1;
+
+            // blinking "next event" info.
             shade = (count % 8) * 0.1;
             stNextNum.background = Color.grey(shade);
             stNextInfo.background = Color.grey(shade);
             timeLabel.string = convertTime.(count / 10);
+            win.refresh;
+
+            if (count % 10 == 0) {
+                // TO-DO
+                // process timemarks here
+            };
         };
-        win.refresh;
         0.1.wait;
     }
 }.fork(AppClock);

@@ -56,7 +56,7 @@ var oscParticle, oscPhysics, oscAudio, oscAction,
 
 // PHYSICS
 var star;
-var physics, particles, springs, pos, repulsion;
+var physics, particles, springs, pos, repulsion, mutual;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
@@ -218,11 +218,28 @@ monitor = {
 };
 
 view.drawFunc = {
-    var springsPhysical, springMissed, particlesOnSprings;
+    var springsPhysical, springMissed;
+    var particlesPhysical, particlesOnSprings;
+    var attractionsPhysical;
 
     paramsChanged = false;
     frame = frame + 1;
 
+    // world: repulsion
+    if (repulsion != world.repulsion) {
+        repulsion = world.repulsion;
+        paramsChanged = true;
+    };
+    // world: mutual attraction
+    if (mutual != world.mutualAttraction) {
+        mutual = world.mutualAttraction;
+        paramsChanged = true;
+    };
+    // world: star mass
+    if (star.mass != world.starMass) {
+        star.mass = world.starMass;
+        paramsChanged = true;
+    };
     // world: gravity
     if (physics.gravity != TraerVector3D.newFromDict(world.gravity)) {
         physics.setGravity(world.gravity.x, world.gravity.y, world.gravity.z);
@@ -230,16 +247,6 @@ view.drawFunc = {
     // world: drag
     if (world.drag != physics.drag) {
         physics.setDrag(world.drag);
-    };
-    // world: repulsion
-    if (world.repulsion != repulsion) {
-        repulsion = world.repulsion;
-        paramsChanged = true;
-    };
-    // world: star mass
-    if (star.mass != world.starMass) {
-        star.mass = world.starMass;
-        paramsChanged = true;
     };
 
     // Control skeletons.
@@ -271,9 +278,19 @@ view.drawFunc = {
         registerSprings.(physics.springs);
     };
 
+    // Remove attractions that stuck after a particle's death.
+    attractionsPhysical = Array.newFrom(physics.attractions);
+    attractionsPhysical.do { |attr|
+        if (
+            physics.particles.includes(attr.getOneEnd).not ||
+            physics.particles.includes(attr.getTheOtherEnd).not
+        ) { removeAttraction.(attr) }
+    };
+
     // Manage particles.
-    particlesOnSprings = all {: [g.a, g.b], g <- physics.springs} ? [];
-    physics.particles.do { |particle|
+    particlesOnSprings = (all {: [g.a, g.b], g <- physics.springs} ? []).flatten;
+    particlesPhysical = Array.newFrom(physics.particles);
+    particlesPhysical.do { |particle|
         // Re-apply world forces, if there was any change in its parameters
         if (paramsChanged) {
             // and if a particle isn't on spring
@@ -366,12 +383,12 @@ decodeParticle = { |particle|
         skeleton.keysValuesDo { |skel, joints|
             world.springSrcSkel.do { |jt|
                 if (joints[jt] == particle) {
-                    result = format("% - %", [skel, jt])
+                    result = format("% - %", skel, jt)
                 };
             };
         };
     };
-    if (result.isNil) { result = particle.identityHash };
+    if (result.isNil) { try { result = particle.identityHash } };
     result
 };
 
@@ -579,11 +596,12 @@ removeParticle = { |particle|
     physics.removeParticle(particle);
 };
 
+
 // Remove all particles from the world and stop all synths.
-removeAll = { |cleanSynths=true|
-    particles.keysValuesDo { |particle, node|
-        unregisterParticle.(node);
-        removeParticle.(particle);
+removeAll = {
+    particles.keys.do { |p, i|
+        unregisterParticle.(particles[p]);
+        removeParticle.(p);
     }
 };
 
@@ -685,17 +703,10 @@ skeletonParticles = { |id, joint, x, y, z|
 };
 
 
-// Removes skeleton particles.
+// Removes skeleton particles (cannot be removed as ordinary particles).
 skeletonRemove = { |id|
     var springsPhysical;
     skeleton[id].do { |p|
-        // removeParticle.(p)
-
-        // TO-DO:
-        // don't just remove particles, but better remove all springs,
-        // update particles' age and let them die slowly
-        // something like p.age = -3;
-
         List.newFrom(physics.springs).do { |spring|
             if ([spring.a, spring.b].includes(p)) {
                 physics.removeSpring(spring);
@@ -736,7 +747,7 @@ oscParticle = OSCFunc({ |msg, time, addr, recvPort|
             if (msg[3].booleanValue.not || registered.isNil) {
                 // "spring" can be specified, but failed
                 // in this case apply attractions
-                applyAttractions.(particle)
+                applyAttractions.(particle, world.mutualAttraction)
             };
         },
         0, { // remove particle

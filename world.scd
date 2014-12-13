@@ -16,11 +16,11 @@ var world = (
     repulsion: 100,
     gravity: (x: 0, y: 0, z: 0),
     drag: 0.001,
-    maxVel: 70,
+    maxVel: 5,
 
     // springs behavior
-    springRestLen: 5,
-    springStrength: 2,
+    springRestLen: 2,
+    springStrength: 1,
     springDamp: 2,
 
     // to what joints a particle can be attached by spring
@@ -32,13 +32,13 @@ var world = (
     partFreq:          0.8, // generate a new particle \partFreq times per second
     partAgeThresh:     0.84, // maximum particle age in cycles (sec)
     partInitAccel:     5, // particle initial acceleration
-    partSynth:         \sr__e__analog
+    partSynth:         \sr__e__pulse
 );
+var worldParams = Dictionary.newFrom(world); // tracing changes of the world
 
 var audio = (
     surround: "ambisonic2",
     fountainSynth: \sr__e__analog,
-    depth: 5,
     in: 20,
     out: 0
 );
@@ -56,16 +56,13 @@ var oscParticle, oscPhysics, oscAudio, oscAction,
 
 // PHYSICS
 var star;
-var physics, particles, springs, pos, repulsion, mutual;
+var physics, particles, springs, position;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
-    registerSpring, registerSprings, applySpring, removeSpring;
+    registerSpring, registerSprings, applySpring, removeSpring, setSpringProp;
 var resolveSpringEnd, decodeParticle;
 var paramsChanged;
-
-// AUDIO
-var removeGroup, initGroup;
 
 // SKELETON
 var skeleton = Dictionary.new,
@@ -76,9 +73,8 @@ var skeleton = Dictionary.new,
 //
 var win = Window("Sympli Romatikó :: WORLD", Rect(0, 500, world.width, world.height), false);
 var view = UserView(win, Rect(0, 0, world.width, world.height)).background = Color.black;
-var frame = 0, fps = 30;
 
-var winMonitor = Window("Sympli Romatikó :: MONITOR", Rect(705, 1000, 360, world.height + 170));
+var winMonitor = Window("Sympli Romatikó :: MONITOR", Rect(705, 1000, 360, Window.screenBounds.height));
 var textParticles, textAttractions, textForces, textSprings, textSkeleton, textTest;
 var monitor, message, spacer = "\n--------------------\n";
 
@@ -127,9 +123,9 @@ var drawMonitorArea = { |parent, width, height|
 };
 
 winMonitor.addFlowLayout;
-textParticles = drawMonitorArea.(drawMonitorView.(winMonitor, height:200));
-textSprings = drawMonitorArea.(drawMonitorView.(winMonitor, height:200));
-textAttractions = drawMonitorArea.(drawMonitorView.(winMonitor, height:200));
+textParticles = drawMonitorArea.(drawMonitorView.(winMonitor, height:220));
+textSprings = drawMonitorArea.(drawMonitorView.(winMonitor, height:220));
+textAttractions = drawMonitorArea.(drawMonitorView.(winMonitor, height:250));
 textForces = drawMonitorArea.(drawMonitorView.(winMonitor, height:65));
 textSkeleton = drawMonitorArea.(drawMonitorView.(winMonitor, height:80));
 textTest = drawMonitorArea.(drawMonitorView.(winMonitor, height:95));
@@ -159,7 +155,7 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
                 \outbus, 0], // to main output
             ["/s_new", \sr__e__analog, s.nextNodeID, 0, g, // add synth to new group's head
                 \outbus, 4, // feeding into spatilizer
-                \depth, audio.depth,
+                \depth, ~depth,
                 \bufnum, k.bufnum
             ]
         );
@@ -213,53 +209,54 @@ monitor = {
 
     message = "Forces" ++ spacer;
     textForces.string = message ++ format("Gravity: %, %, %\nDrag: %\n",
-        physics.gravity.x, physics.gravity.y, physics.gravity.z,
-        physics.drag.round(0.00001));
+        physics.gravity.x.round(0.001), physics.gravity.y.round(0.001), physics.gravity.z.round(0.001),
+        physics.drag.round(0.001));
 };
 
-view.drawFunc = {
+view.drawFunc = { |worldView|
     var springsPhysical, springMissed;
-    var particlesPhysical, particlesOnSprings;
+    var particlesOnSprings;
     var attractionsPhysical;
 
-    paramsChanged = false;
-    frame = frame + 1;
+    // calibration marks
+    Pen.color = Color.grey(0.7);
+    Pen.stringAtPoint("-0.25", [5, 5].asPoint);
+    Pen.stringAtPoint("0", [5, (world.height - 15) * 0.5].asPoint);
+    Pen.stringAtPoint("0.25", [5, world.height - 20].asPoint);
+    Pen.stringAtPoint("0.5", [(world.width - 25) * 0.5, world.height - 20].asPoint);
+    Pen.stringAtPoint("0.75", [world.width - 35, world.height - 20].asPoint);
+    Pen.stringAtPoint("1", [world.width - 15, (world.height - 15) * 0.5].asPoint);
+    Pen.stringAtPoint("-0.75", [world.width - 45, 5].asPoint);
+    Pen.stringAtPoint("-0.5", [(world.width - 35) * 0.5, 5].asPoint);
+    Pen.line([world.width * 0.5, 25].asPoint, [world.width * 0.5, world.height - 25].asPoint);
+    Pen.line([25, world.height * 0.5].asPoint, [world.width - 25, world.height * 0.5].asPoint);
+    Pen.stroke;
+    // XXX
+    // TO-DO: draw depth!
 
-    // world: repulsion
-    if (repulsion != world.repulsion) {
-        repulsion = world.repulsion;
+    paramsChanged = false;
+    if (worldParams != world) {
         paramsChanged = true;
-    };
-    // world: mutual attraction
-    if (mutual != world.mutualAttraction) {
-        mutual = world.mutualAttraction;
-        paramsChanged = true;
-    };
-    // world: star mass
-    if (star.mass != world.starMass) {
+        worldParams = Dictionary.newFrom(world);
+        // some should be updated directly
         star.mass = world.starMass;
-        paramsChanged = true;
-    };
-    // world: gravity
-    if (physics.gravity != TraerVector3D.newFromDict(world.gravity)) {
         physics.setGravity(world.gravity.x, world.gravity.y, world.gravity.z);
-    };
-    // world: drag
-    if (world.drag != physics.drag) {
         physics.setDrag(world.drag);
     };
 
     // Control skeletons.
     skeleton.keys.do { |id|
-        if ((Date.getDate.secStamp.asInteger - skeleton[id][\update].asInteger) >= skel.waitBeforeRemove) {
-            skeletonRemove.(id);
-            paramsChanged = true;
+        try {
+            if ((Date.getDate.secStamp.asInteger - skeleton[id][\update].asInteger) >= skel.waitBeforeRemove) {
+                skeletonRemove.(id);
+                paramsChanged = true;
+            }
         }
     };
 
     // Particle system.
     if (world.particles.booleanValue) {
-        if (frame % (fps * world.partFreq + (world.partFreq * 0.5).rand2).round == 0) {
+        if (worldView.frame % (worldView.frameRate * world.partFreq).round == 0) {
             particleSystem.(getGuide.())
         }
     };
@@ -289,12 +286,14 @@ view.drawFunc = {
 
     // Manage particles.
     particlesOnSprings = (all {: [g.a, g.b], g <- physics.springs} ? []).flatten;
-    particlesPhysical = Array.newFrom(physics.particles);
-    particlesPhysical.do { |particle|
+    Array.newFrom(physics.particles).do { |particle|
         // Re-apply world forces, if there was any change in its parameters
         if (paramsChanged) {
-            // and if a particle isn't on spring
-            if (particlesOnSprings.includes(particle).not) {
+            if (particlesOnSprings.includes(particle)) {
+                // if particle is on spring, change spring's properties
+                setSpringProp.(particle:particle);
+            } {
+                // if particle isn't on spring, re-apply attractions
                 applyAttractions.(particle, world.mutualAttraction);
             };
         };
@@ -332,21 +331,21 @@ view.drawFunc = {
 
     // send parameters to the group on Server
     particles.keysValuesDo { |particle, node|
-        pos = Complex(
+        position = Complex(
             particle.position.x.linlin(0, world.width, 1, -1), // y
             particle.position.y.linlin(0, world.height, -1, 1) // x
         );
         s.sendMsg("/n_set", node,
-            \azimuth, pos.theta,
-            \distance, pos.rho, // distance from the center
-            \elevation, particle.position.z.linlin(0, world.depth, 0.5pi, -0.5pi), // how high the object is (inverse)
-            \amp, particle.mass.clip(0.01, 0.8) + (mag3D.(particle.velocity) * 0.01), // subtle change due to velocity
-            \velocity, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
             \ax, particle.position.x / world.width,
             \ay, particle.position.y / world.height,
             \az, particle.position.z.linlin(0, world.depth, 1, 0),
+            \azimuth, position.theta,
+            \distance, position.rho, // distance from the center
+            \elevation, particle.position.z.linlin(0, world.depth, 0.5pi, -0.5pi), // how high the object is (inverse)
+            \velocity, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
+            \amp, particle.mass.clip(0.01, 0.8) + (mag3D.(particle.velocity) * 0.01), // subtle change due to velocity
             \master, 1,
-            \depth, audio.depth
+            \depth, ~depth
         )
     };
 
@@ -431,6 +430,19 @@ resolveSpringEnd = { |end|
 
 
 // Apply spring: choose a source and connect particle to it.
+setSpringProp = { |spring, particle|
+    if (spring.isNil) {
+        physics.springs.do { |sp|
+            if ([sp.a, sp.b].includes(particle)) { spring = sp }
+        }
+    };
+    spring.setDamping(world.springDamp);
+    spring.setRestLength(world.springRestLen);
+    spring.setStrength(world.springStrength);
+};
+
+
+// Apply spring: choose a source and connect particle to it.
 applySpring = { |particle, source, ks, d, r|
     var spring;
     if (source.isNil) { source = getSource.() };
@@ -444,8 +456,12 @@ applySpring = { |particle, source, ks, d, r|
 };
 
 
-// Apply forces.
+// Apply forces:
+// - skeleton's hands ALWAYS attracts all particles, including Star, regardless of the `mutual` state
+// - Star ALWAYS attract all objects, excluding skeleton's hands
+// - ordinary objects attract each other only if `mutual` is true
 applyAttractions = { |particle, mutual=false|
+    var skeletonParticles=List.new, excludeParticles=List.new;
     List.newFrom(physics.attractions).do { |attr|
         if ((attr.a == particle) || (attr.b == particle)) {
             physics.removeAttraction(attr);
@@ -455,10 +471,38 @@ applyAttractions = { |particle, mutual=false|
     if (particle != star) {
         physics.makeAttraction(star, particle, star.mass * 1000, 50);
     };
+    // Gather lists of skeleton joints, that should /should not attract particles.
+    skeleton.values.do { |skel|
+        // exclude skeleton's particles that are not in world.springSrcSkel
+        excludeParticles = all {: skel[joint], joint <- skel.keys,
+            world.springSrcSkel.includes(joint).not
+        } ? [];
+        world.springSrcSkel.do { |joint|
+            skeletonParticles.add(skel[joint])
+        }
+    };
+    // Attraction to hands (different from mutual).
+    if (skeletonParticles.isNil.not) {
+        skeletonParticles.do { |skeletonParticle|
+            if (excludeParticles.includes(particle).not) { // particle can be a skeleton's joint
+                physics.makeAttraction(skeletonParticle, particle,
+                    (particle.mass * (world.repulsion * 0.1)).neg, world.depth * 0.01
+                );
+            }
+        };
+    };
+    // Exclude the Star, too.
+    excludeParticles.add(star);
     // Mututal attraction / repulsion.
     if (mutual.booleanValue) {
         physics.particles.do { |part|
-            if ((particle != part) && (particle != star) && (part != star)) {
+            if (
+                (particle != part)
+                && excludeParticles.includes(particle).not
+                && excludeParticles.includes(part).not
+                && skeletonParticles.includes(particle).not
+                && skeletonParticles.includes(part).not
+            ) {
                 physics.makeAttraction(particle, part, (particle.mass * world.repulsion).neg, 10);
             }
         }
@@ -493,7 +537,7 @@ chooseSource = {
 
 
 // Select source of force depending on the presence of skeleton.
-getSource = { |starAllowed=false|
+getSource = { |starAllowed=true|
     if (skeleton.keys.size > 0) {
         chooseSource.()
     } {
@@ -535,7 +579,7 @@ initParticle = { |mass, x, y, z, age, vel|
     };
     // Particles age "backwards": age == 0 is death, age >= 0 is afterlife.
     try {
-        particle.age = (age * fps).abs.neg;
+        particle.age = (age * 60).abs.neg;
     } {
         particle.age = inf.neg;
     };
@@ -545,9 +589,8 @@ initParticle = { |mass, x, y, z, age, vel|
 
 // Particle system.
 particleSystem = { |guide|
-    var pos, vel, prob;
+    var vel, prob;
     // probability of the birth of particle depends on the guide's velocity
-    pos = guide.position;
     vel = guide.velocity;
     if (vel == 0) { vel = world.maxVel };
     prob = sigmoid.(
@@ -555,10 +598,10 @@ particleSystem = { |guide|
         value:mag3D.(vel).linlin(0, world.maxVel, world.maxVel.neg, world.maxVel));
     if (prob.coin.booleanValue) {
         registerParticle.(
-            initParticle.(0.2, pos.x, pos.y, pos.z,
+            initParticle.(0.2, guide.position.x, guide.position.y, guide.position.z,
                 world.partAgeThresh.logistic,
                 [vel.x, vel.y, vel.z].neg * world.partInitAccel.max(0.01)),
-            initGroup.(
+            ~groupInit.(
                 world.partSynth, audio.surround, params:[\att, 2.0.rand]
             )
         );
@@ -585,6 +628,12 @@ removeParticle = { |particle|
     physics.springs.do { |spring|
         if ([spring.a, spring.b].includes(particle)) {
             removeSpring.(spring)
+        }
+    };
+    // remove registered springs, if any
+    springs.keysValuesDo { |key, val|
+        if (val.includes(particle)) {
+            springs.removeAt(key);
         }
     };
     // remove attractions
@@ -621,61 +670,8 @@ unregisterParticle = { |nodeId|
     var particle;
     particle = particles.findKeyForValue(nodeId);
     particles.removeAt(particle);
-    removeGroup.(nodeId);
+    ~groupFree.(nodeId);
     particle
-};
-
-
-// SYNTHS
-//
-// Release all synths from group, wait until released,
-// then remove group node from server.
-removeGroup = { |groupID, release=2|
-    // WARNING - TEST ONLY!
-    //
-    // Physics engine should send a msg with a node number to audio engine.
-    // It is audio engine's job to remove group from server.
-    //
-    Routine({
-        [
-            ["/n_set", groupID, \rel, release, \gate, 0],
-            ["/n_free", groupID]
-        ].do { |l|
-            s.listSendMsg(l);
-            release.wait;
-        }
-    }).play;
-};
-
-
-initGroup = { |synth, spatial, bufnum, busnum, params|
-    // WARNING - TEST ONLY!
-    //
-    // Physics engine should send a msg with a node number to audio engine.
-    // It is audio engine's job to create group on server.
-    //
-    var node, l=30, h=53;
-    spatial = spatial.asString;
-    if (spatial.beginsWith("sr__s__").not) {
-        spatial = "sr__s__" ++ spatial.toLower
-    };
-    node = s.nextNodeID;
-    if (busnum.isNil) {
-        busnum = clipInc.(~route ?? l, lo:l, hi:h);
-        ~route = busnum;
-    };
-    s.sendBundle(0.01,
-        ["/error", 1], // turn errors off (locally)
-        ["/g_new", node],
-        ["/s_new", spatial, s.nextNodeID, 1, node, // add spatializer to new group's tail
-            \inbus, busnum, // getting signal from synth
-        \outbus, audio.out], // to main output
-        ["/s_new", synth, s.nextNodeID, 0, node, // add synth to new group's head
-            \inbus, audio.in, // getting signal from external input
-            \outbus, busnum, // feeding into spatilizer
-        \bufnum, bufnum] ++ (params ? [])
-    );
-    node // return ID of the Group created
 };
 
 
@@ -780,8 +776,12 @@ oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
         \gravZ, {
             world.gravity = (x: world.gravity.x, y: world.gravity.y, z: msg[2].asFloat)
         },
-        \drag, { world.drag = msg[2].asFloat },
-        \repulsion, { world.repulsion = msg[2].asFloat },
+        \drag, {
+            world.drag = msg[2].asFloat
+        },
+        \repulsion, {
+            world.repulsion = msg[2].asFloat
+        },
         \star, {
             msg[2].switch(
                 \fixed, { star.makeFixed },
@@ -883,13 +883,6 @@ applyAttractions.(star, world.mutualAttraction);
 view.animate = true;
 win.front;
 winMonitor.front;
-
-// Load synthDefs.
-"Loading synth definitions...".postln;
-~currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
-if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
-    postf("OK\n\n")
-};
 
 CmdPeriod.doOnce({
     oscRemoveFunc.();

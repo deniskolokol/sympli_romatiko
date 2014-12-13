@@ -2,9 +2,9 @@
 var thePiece; // main dictionary with the sequence of scheduled tasks
 var samplesDir;
 var surround, mainInput, mainOutput; // audio setup for the current piece
-var depth=5, inbus=12, outbus=0, audioThruBus=[21, 22]; // to main output
+var inbus=12, outbus=0, audioThruBus=[21, 22]; // to main output
 var worldSize; // assume the World is a cube
-var parmDir = Dictionary.new; // Global params of the piece dictionary.
+var param, parmDir = Dictionary.new; // Global params of the piece dictionary.
 var sGroupId; // root group
 var receiver; // communication
 var task; // tasks dictionary
@@ -12,14 +12,16 @@ var guideBuff, samples, scales, voices; // buffers (sound files and scales)
 var trigSynth, synthNames, keyNames; // available SynthDefs
 var synths=Dictionary.new; // temp dictionary of the synths symbolic IDs vs. server Nodes
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
-var key, current, next, syn, obj, age, mass, physics, physicsDict=(); // object's properties
+var key, current, next, syn, obj, age, mass, dummyParam, physics=(); // object's properties
 var win, info, buttons, keyboard, keyboardFunc, // interface
     stCurrNum, stCurrInfo, stNextNum, stNextInfo,
-    btPrev, btNext, timeLabel, physicsView, slider, checkbox;
+    btPrev, btNext, timeLabel, slider, knob, checkbox, buttonCheckbox,
+    panePar, pane, paneWidth, paneHeight, midiView, miscMIDI=();
+var valAsApec;
 var shade, count=0, animate=false; // schedule animation
 var getKey, displayEventInfo, convertTime, clipInc; // helper functions
-var midiServerVolume, midiNext, midiPrev, midiClean;
-var processEvents, groupNew, groupFree, taskPlay, sendWorld,
+var midiNext, midiPrev, midiClean;
+var processEvents, groupNew, groupRemove, taskPlay, sendWorld,
     sendParticle, sendSNew, sendPhysics, sendAudio, sendAct; // acting functions
 var testLabel; // write here any test info
 
@@ -99,33 +101,47 @@ trigSynth = [ // keycodes for triggering obj creation with a synth
     5,  \sr__g__slic,   // g
     4,  \sr__g__loop,   // h
     38, \sr__g__scratch,// j
-    40, \sr__e__pipe,   // k
+    40, \sr__g__unst,   // k
+    37, \sr__g__chunk,  // l
 ];
 synthNames = Dictionary.newFrom(trigSynth);
 // TO-DO: names should be obtained automatically
 keyNames = (12: "q", 13: "w", 14: "e", 15: "r", 17: "t", 16: "y",
     32: "u", 34: "i", 31: "o", 35: "p", 33: "[", 30: "]", 42: "\\",
-    1:  "s", 2:  "d", 3:  "f", 5:  "g", 4:  "h", 38: "j", 40: "k");
+    1:  "s", 2:  "d", 3:  "f", 5:  "g", 4:  "h", 38: "j", 40: "k", 37: "l");
 
-surround = "ambisonic2";
+surround = "vbap4";
 mainOutput = 0;
 mainInput = 20;
 worldSize = 800;
 
-physics = [
-    (param: \gravX, minval: -2.0, maxval: 2.0, default: 0),
-    (param: \gravY, minval: -2.0, maxval: 2.0, default: 0),
-    (param: \gravZ, minval: -2.0, maxval: 2.0, default: 0),
-    (param: \drag, minval: 0.001, maxval: 1.000, step: 0.001, default: 0.001),
-    (param: \repulsion, minval: 1, maxval: 100, step: 5, default: 100),
-    (param: \starMass, minval: 0.1, maxval: 5, step: 0.1, default: 1),
-    (param: \springRestLen, minval: 2, maxval: 15, step: 1, default: 5),
-    (param: \springStrength, minval: 0.1, maxval: 2, default: 2),
-    (param: \springDamp, minval: 0.1, maxval: 2, default: 2),
-    (param: \particles, default: false),
-    (param: \mutualAttraction, default: true)
-];
-physics.do { |elem| physicsDict[elem.param] = elem };
+physics = (
+    drag: (label: "drag", minval: 0.000, maxval: 0.500, step: 0.001, default: 0.001, midicc: 24),
+    repulsion: (label: "repulsion", minval: 1, maxval: 100, step: 5, default: 100, midicc: 25),
+    starMass: (label: "star mass", minval: 0.1, maxval: 5, step: 0.1, default: 1, midicc: 26),
+    gravX: (label: "grav X", minval: -2.1, maxval: 2.0, default: 0, midicc: 27),
+    gravY: (label: "grav Y", minval: -2.1, maxval: 2.0, default: 0, midicc: 28),
+    gravZ: (label: "grav Z", minval: -2.1, maxval: 2.0, default: 0, midicc: 29),
+    springRestLen: (label: "rest len", minval: 1, maxval: 15, step: 1, default: 2, midicc: 31),
+    springStrength: (label: "strength", minval: 0.1, maxval: 2, default: 1, midicc: 32),
+    springDamp: (label: "damp", minval: 0.1, maxval: 2, default: 2, midicc: 33),
+    particles: (label: "particl", default: false, midinote: 44),
+    mutualAttraction: (label: "mutual", default: true, midinote: 45)
+);
+physics.keys.do { |key|
+    physics[key][\gui] = nil; // GUI element that controls the parameter
+};
+dummyParam = (param: "<NONE>", minval: 0, maxval: 1, step: 0.01, default: 0);
+valAsApec = { |param|
+    var spec;
+    param.atFail(\spec, {[
+            param.atFail(\minval, {0}), param.atFail(\maxval, {1}),
+            param.atFail(\warp, {\lin}),
+            param.atFail(\step, {0}),
+            param.atFail(\default, {0})
+        ]}
+    ).asSpec
+};
 
 thePiece = (
     0: [
@@ -133,29 +149,29 @@ thePiece = (
             info: "Remove all before start"),
         (message: \audio,   params: [\surround, surround],
             info: "Initial settings"),
-        (message: \audio,   params: [\depth, depth]),
-        (message: \physics, params: [\gravX, physicsDict.gravX.default]),
-        (message: \physics, params: [\gravY, physicsDict.gravY.default]),
-        (message: \physics, params: [\gravZ, physicsDict.gravZ.default]),
-        (message: \physics, params: [\drag, physicsDict.drag.default]),
-        (message: \physics, params: [\repulsion, physicsDict.repulsion.default]),
-        (message: \physics, params: [\starMass, physicsDict.starMass.default]),
-        (message: \physics, params: [\particles, physicsDict.particles.default]),
-        (message: \physics, params: [\springRestLen, physicsDict.springRestLen.default]),
-        (message: \physics, params: [\springStrength, physicsDict.springStrength.default]),
-        (message: \physics, params: [\springDamp, physicsDict.springDamp.default]),
-        (message: \physics, params: [\mutualAttraction, physicsDict.mutualAttraction.default]),
+        (message: \audio,   params: [\depth, ~depth]),
+        (message: \physics, params: [\gravX, physics.gravX.default]),
+        (message: \physics, params: [\gravY, physics.gravY.default]),
+        (message: \physics, params: [\gravZ, physics.gravZ.default]),
+        (message: \physics, params: [\drag, physics.drag.default]),
+        (message: \physics, params: [\repulsion, physics.repulsion.default]),
+        (message: \physics, params: [\starMass, physics.starMass.default]),
+        (message: \physics, params: [\particles, physics.particles.default]),
+        (message: \physics, params: [\springRestLen, physics.springRestLen.default]),
+        (message: \physics, params: [\springStrength, physics.springStrength.default]),
+        (message: \physics, params: [\springDamp, physics.springDamp.default]),
+        (message: \physics, params: [\mutualAttraction, physics.mutualAttraction.default]),
     ],
     5: [
         // TO-DO:
-        // Re-write it to use ~groupInit, get read of groupNew,
+        // Re-write it to use groupInit, get read of groupNew,
         (
             info: "INTRO, no objects, only .kr buses",
             message: \g_new,
             id: \intro_bundle,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
                 ["/s_new", "sr__s__"++surround, \next_node_id, 1, \group_id, // add spatializer to new group's tail
-                    \depth, depth,
+                    \depth, ~depth,
                     \inbus, 12, // getting signal from synth
                     \outbus, mainOutput], // to main output
                 ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
@@ -206,7 +222,7 @@ thePiece = (
             id: \intro_noisy,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
                 ["/s_new", "sr__s__"++surround, \next_node_id, 1, \group_id, // add spatializer to new group's tail
-                    \depth, depth,
+                    \depth, ~depth,
                     \inbus, 13, // getting signal from synth
                     \outbus, mainOutput], // to main output
                 ["/s_new", \sr__e__noisy, \next_node_id, 0, \group_id, // add synth to new group's head
@@ -426,7 +442,7 @@ thePiece = (
             message: \task, name: \switchScale, act: 1
         ),
     ],
-    // bookmark
+    // XXX
     // WARNING! This does not work properly, producing a lot of noise.
     // Omitting it temporarily.
     // 73: [
@@ -523,7 +539,7 @@ thePiece = (
             info: "OUTRO",
             message: \action,  params: [\action, \remove, \all]
         ),
-        // bookmark
+        // XXX
         // - Particles don't work, because skeleton hands' velocity is 0 -
         //   substitute by a synth similar to sr__e__pulse, only hard thresholded
         //   by velocity. And attach particles with this synth to both hands.
@@ -616,10 +632,11 @@ task = (
                 age = next * (1 + (1/(next.pow(0.33))));
                 mass = next.sqrt.clip(0.1, 0.3);
                 #x, y, z = (worldSize ! 3).rand;
-                synth = (name: [\sr__e__humm, \sr__e__radio][i % 2]); // alternate
+                synth = (name: [\sr__e__humm, \sr__e__radio][i % 2], // alternate
+                    params:[\att, rrand(1, 2), \bufnum, scales[4].bufnum]);
                 sendParticle.(synth: synth, particle: (mass:mass, x:x, y:y, z:z, age:age));
                 if (0.7.coin) {
-                    synth = (name: [\sr__e__radio, \sr__e__humm].choose);
+                    synth = (name: [\sr__e__lowe, \sr__e__radio, \sr__e__humm].wchoose([0.6, 0.2, 0.2]));
                     sendParticle.(synth: synth, particle: (mass:mass, x:x, y:y, z:z,
                         age:age + ((age * 0.25).rand2)));
                 };
@@ -637,7 +654,7 @@ task = (
             case
             // when voices are introduced, they should be clearly recognizable
             {j <= 5} { syn = \sr__g__loop }
-            {(j > 5) && (j <= 10)} {syn = [\sr__g__loop, \sr__g__unst].choose}
+            {(j > 5) && (j <= 10)} {syn = [\sr__g__loop, \sr__g__loopdel, \sr__g__unst].choose}
             {j > 10} { // later on "smooth them out" into a voice meshup
                 // they should appear closer to the center of the world
                 #x, y, z = { (worldSize / 2 + rand2(worldSize * 0.15))} ! 3;
@@ -782,59 +799,11 @@ groupNew = { |data, time=0.1|
 };
 
 
-//
-// TO-DO:
-// - Move this to the class in sympliRomatiko class hierarchy.
-//
-// Create new synths group on Server, insert synth and spatializer into it.
-//
-// Assigns internal bus for rounting: each group of synth and its spatializer
-// should have a separate rounting bus for spatialization to take pkace individually.
-~groupInit = { |synth, spatial, bufnum, busnum, params|
-    var node, l=30, h=53;
-    spatial = spatial.asString;
-    if (spatial.beginsWith("sr__s__").not) {
-        spatial = "sr__s__" ++ spatial.toLower
-    };
-    node = s.nextNodeID;
-    if (busnum.isNil) {
-        busnum = clipInc.(~route ?? l, lo:l, hi:h);
-        ~route = busnum;
-    };
-    s.sendBundle(0.01,
-        ["/error", 1], // turn errors off (locally)
-        ["/g_new", node],
-        ["/s_new", spatial, s.nextNodeID, 1, node, // add spatializer to new group's tail
-            \inbus, busnum, // getting signal from synth
-            \outbus, mainOutput, // to main output
-            \depth, depth],
-        ["/s_new", synth, s.nextNodeID, 0, node, // add synth to new group's head
-            \inbus, mainInput, // getting signal from external input
-            \outbus, busnum, // feeding into spatilizer
-            \bufnum, bufnum] ++ (params ? [])
-    );
-    node // return ID of the Group created
-};
-
-
 // Release all synths from group, wait until released, then remove group node from server.
-groupFree = { |data|
-    var nodeID=synths.at(data[\id]);
-    var release, params=();
-
-    try {params.putPairs(data.atFail(\params, {[]}))};
-    release = params.atFail(\release, {2});
-
-    Routine({
-        [
-            ["/n_set", nodeID, \rel, release, \gate, 0],
-            ["/n_free", nodeID]
-        ].do { |l|
-            s.listSendMsg(l);
-            release.wait;
-        }
-    }).play;
-
+groupRemove = { |data|
+    var params=();
+    try { params.putPairs(data.atFail(\params, {[]})) };
+    ~groupFree.(synths[data[\id]], params.atFail(\release, {2}));
     synths.removeAt(data[\id]);
 };
 
@@ -845,15 +814,14 @@ sendWorld = { |msg|
 };
 
 
-// Sends particle creation message to the World.
+// Sends particle creation message to the World:
+// [create:1, node, spring:0|1, mass:9, x:470, y:300, z:250, age:inf]
 // Returns Server node.
 sendParticle = { |particle, synth|
     var node, spring, pos, x, y, z, age;
-
-    node = ~groupInit.(synth[\name], surround, params:synth[\params]);
     pos = [particle.x, particle.y, particle.z];
     #x, y, z = Array.fill(pos.size, { |i| pos[i] ? worldSize.rand});
-    // create:1, node, spring:0|1, mass:9, x:470, y:300, z:250, age:inf
+    node = ~groupInit.(synth[\name], surround, params:synth[\params]);
     sendWorld.(['/particle', 1, node, particle.atFail(\spring, {0}),
         particle.mass, x, y, z, particle.atFail(\age, {inf})]);
     node
@@ -958,7 +926,7 @@ processEvents = { |k=nil|
                 groupNew.(d)
             },
             \g_free, { // release group
-                groupFree.(d)
+                groupRemove.(d)
             },
             { // default function
                 sendWorld.(d[\params])
@@ -969,7 +937,7 @@ processEvents = { |k=nil|
 
 // GUI.
 //
-win = Window("sequencing and scheduling", Rect(1070, 1000, 610, 700))
+win = Window("sequencing and scheduling", Rect(1070, 800, 610, Window.screenBounds.height-250))
     .acceptsMouseOver_(true);
 win.view.decorator = FlowLayout(win.view.bounds);
 
@@ -1006,21 +974,25 @@ btPrev = Button(buttons, 70@45).states_([["<<", Color.black, Color.white]])
 timeLabel = StaticText(buttons, 70@60).font_(Font("Monaco", 14));
 
 keyboard = CompositeView(win, 600@170);
-keyboardFunc = { |synthName, spring=0, mass=1|
-    sendParticle.(synth: (name: synthName), particle: (spring:spring, mass:mass));
+keyboardFunc = { |synthName, params, spring=0, mass=1|
+    sendParticle.(
+        synth: (name: synthName, params: params),
+        particle: (spring:spring, mass:mass));
 };
 keyboard.decorator = FlowLayout(keyboard.bounds);
 keyboard.background = Color.new255(0, 0, 0, alpha:100);
 trigSynth.do { |key, i|
-    var view;
+    var view, buff;
     if (i % 2 == 0) {
+        if (synthNames[key].asString.beginsWith("sr__e__")) { buff = scales.choose };
+        if (synthNames[key].asString.beginsWith("sr__g__")) { buff = voices.choose };
         view = CompositeView(keyboard, 41@70);
         view.decorator = FlowLayout(view.bounds);
         Button(view, 41@45).states_(
             [[keyNames[key].toUpper, Color.black, Color.white]]
         ).canFocus_(false)
         // TO-DO: Make use of Shift+Key (with or without spring)
-        .action_({ |bt| keyboardFunc.(synthNames[key], spring:1) });
+        .action_({ |bt| keyboardFunc.(synthNames[key], params: [\bufnum, buff.bufnum], spring:1) });
         StaticText(view, 41@25).string_(
             synthNames[key].asString.replace("sr__e__", "").replace("sr__g__", ""))
         .align_(\topLeft)
@@ -1029,28 +1001,102 @@ trigSynth.do { |key, i|
     };
 };
 
-physicsView = CompositeView(win, 600@220).background_(Color.new255(0, 0, 0, alpha:100));
-physicsView.decorator = FlowLayout(physicsView.bounds);
-slider = { |val|
-    EZSlider(physicsView, 290@20, val.atFail(\label, { val.param }),
-        [val.atFail(\minval, {0}), val.atFail(\maxval, {1}), \lin,
-            val.atFail(\step, {0}), val.atFail(\default, {0})].asSpec,
-        { |ez| sendPhysics.((message: \physics, params: [val.param, ez.value])) }
-    ).font_(Font("Monaco", 12))
+paneWidth = { |par, scale=0.5| (par.bounds.width * scale - 6).floor };
+paneHeight = { |par| par.bounds.height - 10 };
+slider = { |par, val, layout='horz', scale=1|
+    var bounds = paneWidth.(par)@20;
+    if (layout != 'horz') { bounds = 40@(paneHeight.(par) * scale) };
+    EZSlider(par, bounds, val.atFail(\label, { val.param }), valAsApec.(val),
+        { |ez| sendPhysics.((message: \physics, params: [val.param, ez.value])) },
+        layout:layout)
+    .font_(Font("Monaco", 12))
 };
-checkbox = { |val|
-    QCheckBox(physicsView, 290@20)
-    .string_(val.atFail(\label, { val.param }))
-    .action_({ |cb| sendPhysics.((message: \physics, params: [val.param, cb.value.asInteger]))})
+knob = { |par, val, param|
+    EZKnob(par, paneWidth.(par,1)@100, val.atFail(\label, { param }), valAsApec.(val),
+        { |ez| sendPhysics.((message: \physics, params: [param, ez.value])) })
+    .font_(Font("Monaco", 12))
 };
-physics.do { |elem|
-    elem.default.class.switch(
-        Float, { slider.(elem) },
-        Integer, { slider.(elem) },
-        True, { checkbox.(elem) },
-        False, { checkbox.(elem) },
-    )
+buttonCheckbox = { |par, val, param, scale=1|
+    Button(par, paneWidth.(par, scale)@45).states_([
+        [val.atFail(\label, { param }), Color.black, Color.white],
+        [val.atFail(\label, { param }), Color.white, Color.black]
+    ])
+    .value_(val.atFail(\default, {0}).asInteger)
+    .action_({ |bt| sendPhysics.((message: \physics, params: [param, bt.value])) })
+    .font_(Font("Monaco", 10))
+    .canFocus_(false);
 };
+checkbox = { |par, val, param|
+    QCheckBox(par, 290@20)
+    .string_(val.atFail(\label, { param }))
+    .action_({ |cb| sendPhysics.((message: \physics, params: [param, cb.value.asInteger]))})
+};
+
+// MIDI interface (physics parameters)
+// XXX
+// - add "reset to factory settings"
+midiView = CompositeView(win, 600@390);
+midiView.decorator = FlowLayout(midiView.bounds);
+// LEFT PANE
+panePar = CompositeView(midiView, paneWidth.(midiView)@paneHeight.(midiView))
+    .background_(Color.grey(grey:0.7));
+panePar.decorator = FlowLayout(panePar.bounds);
+// LEFT PANE LEFT SIDE
+pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar));
+pane.decorator = FlowLayout(pane.bounds);
+[\drag, \repulsion, \starMass].do { |key|
+    physics[key][\gui] = knob.(pane, physics[key], key);
+};
+pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar));
+miscMIDI[\serverVolume] = (
+    midicc: 12, spec: \db,
+    gui: slider.(pane, (param: "s.vol", label: "s.vol", spec: \db), \vert)
+    .action_({ |sl| s.volume.volume = sl.value })
+);
+
+// LEFT PANE RIGHT SIDE
+pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar));
+pane.decorator = FlowLayout(pane.bounds);
+[\gravX, \gravY, \gravZ].do { |key|
+    physics[key][\gui] = knob.(pane, physics[key], key);
+};
+pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar));
+pane.decorator = FlowLayout(pane.bounds);
+physics[\particles][\gui] = buttonCheckbox.(pane, physics[\particles], \particles);
+slider.(pane, dummyParam, \vert, 0.85);
+
+// RIGHT PANE
+panePar = CompositeView(midiView, paneWidth.(midiView)@paneHeight.(midiView))
+    .background_(Color.grey(grey:0.7));
+panePar.decorator = FlowLayout(panePar.bounds);
+// RIGHT PANE LEFT SIDE
+pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar));
+pane.decorator = FlowLayout(pane.bounds);
+param = (param: "depth", minval: 1, maxval: 10, step: 0.1, default: 5);
+miscMIDI[\depth] = (
+    midicc: 34, minval: param[\minval], maxval: param[\maxval], step: param[\step],
+    gui: knob.(pane, param, "depth")
+    .action_({ |ez|
+        ~depth = ez.value;
+        sendAudio.((params: [\depth, ~depth]));
+    })
+);
+[\none, \none].do { |key| // Dummies
+    knob.(pane, dummyParam, "<NONE>");
+};
+
+pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar));
+slider.(pane, dummyParam, \vert);
+// RIGHT PANE RIGHT SIDE
+pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar));
+pane.decorator = FlowLayout(pane.bounds);
+[\springRestLen, \springStrength, \springDamp].do { |key|
+    physics[key][\gui] = knob.(pane, physics[key], key);
+};
+pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar));
+pane.decorator = FlowLayout(pane.bounds);
+physics[\mutualAttraction][\gui] = buttonCheckbox.(pane, physics[\mutualAttraction], \mutualAttraction);
+slider.(pane, dummyParam, \vert, 0.85);
 
 testLabel = StaticText(win, 600@50)
     .background_(Color.red(alpha:0.1))
@@ -1058,7 +1104,7 @@ testLabel = StaticText(win, 600@50)
     .align_(\topLeft);
 
 win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
-    [char, modifiers, unicode, keycode].postln;
+    // [char, modifiers, unicode, keycode].postln;
     case
     { keycode == 6 && [0, 256].includes(modifiers) } { // Z - info
         if( [0, 256].includes(modifiers), {
@@ -1099,16 +1145,41 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
 
 win.front;
 
-// LOAD WORLD
-"Loading world...".postln;
-if (this.executeFile("/Users/deniskolokol/Documents/dev_music/sympli_romatiko/repo/sympli_romatiko/world.scd").isNil.not) {
-    postf("OK\n\n")
+MIDIIn.connectAll;
+
+// physics parameters controlled by MIDI
+physics.values.do { |element|
+    if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
+        MIDIFunc.cc({ |val, ccNum, chan, srcID|
+            {
+                element[\gui].valueAction_(
+                    valAsApec.(element).map(\midinote.asSpec.unmap(val))
+                )
+            }.defer;
+        }, element[\midicc], 0);
+    };
+    if (element.keys.includes(\midinote) && element[\gui].isNil.not) {
+        MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
+            {
+                element[\gui].valueAction_(1 - element[\gui].value)
+            }.defer;
+        }, element[\midinote], 0);
+    }
 };
 
-MIDIIn.connectAll;
-midiServerVolume = MIDIFunc.cc({ |val, ccNum, chan, srcID|
-    s.volume.volume = \db.asSpec.map(\midinote.asSpec.unmap(val));
-}, 12, 0);
+miscMIDI.keysValuesDo { |fdescr, element|
+    if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
+        MIDIFunc.cc({ |val, ccNum, chan, srcID|
+            {
+                // element[\gui].valueAction_(\midinote.asSpec.unmap(val))
+                element[\gui].valueAction_(
+                    valAsApec.(element).map(\midinote.asSpec.unmap(val))
+                )
+            }.defer;
+        }, element[\midicc], 0);
+    };
+};
+
 midiNext = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
     { btNext.valueAction_(1) }.defer;
 }, 43, 0);
@@ -1122,13 +1193,13 @@ midiClean = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
     sendAct.(\remove, \springs)
 }, 70, 0);
 
-
 CmdPeriod.doOnce({
     // Free buffers.
     guideBuff.free;
     samples.do { |buff| buff.free};
     scales.do  { |buff| buff.free};
     voices.do  { |buff| buff.free};
+    MIDIIn.disconnect;
     win.close;
 });
 )

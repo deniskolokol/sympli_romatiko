@@ -75,10 +75,6 @@ var skeleton = Dictionary.new,
 var win = Window("Sympli Romatikó :: WORLD", Rect(0, 500, world.width, world.height), false);
 var view = UserView(win, Rect(0, 0, world.width, world.height)).background = Color.black;
 
-var winMonitor = Window("Sympli Romatikó :: MONITOR", Rect(705, 1000, 360, Window.screenBounds.height));
-var textParticles, textAttractions, textForces, textSprings, textSkeleton, textTest;
-var monitor, message, spacer = "\n--------------------\n";
-
 // HELPER FUNCTIONS
 //
 // 3-d vector(s) magnitude.
@@ -107,30 +103,6 @@ var clipInc = { |in=0, step=1, lo=0, hi=inf| ((in + step).clip(lo, hi) % hi).cli
 
 // INTERFACE
 //
-var drawMonitorView = { |parent, width=350, height=130|
-    var uv = UserView(winMonitor, width@height);
-    uv.background = Color.new255(0, 0, 0, alpha:180);
-    uv
-};
-var drawMonitorArea = { |parent, width, height|
-    var st;
-    width = width ?? parent.bounds.width;
-    height = height ?? parent.bounds.height;
-    st = StaticText(parent, width@height).focus(false);
-    st.align = \topLeft;
-    st.font = Font("Monaco", 12);
-    st.stringColor = Color.white;
-    st
-};
-
-winMonitor.addFlowLayout;
-textParticles = drawMonitorArea.(drawMonitorView.(winMonitor, height:220));
-textSprings = drawMonitorArea.(drawMonitorView.(winMonitor, height:220));
-textAttractions = drawMonitorArea.(drawMonitorView.(winMonitor, height:250));
-textForces = drawMonitorArea.(drawMonitorView.(winMonitor, height:65));
-textSkeleton = drawMonitorArea.(drawMonitorView.(winMonitor, height:80));
-textTest = drawMonitorArea.(drawMonitorView.(winMonitor, height:95));
-
 view.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
     var processed = false;
     if (clickCount == 2) {
@@ -141,7 +113,7 @@ view.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
             ) {
                 processed = true;
                 if (particle != star) {
-                    unregisterParticle.(particles[particle]);
+                    unregisterParticle.(particles[particle][\node]);
                     removeParticle.(particle);
                 };
             };
@@ -178,56 +150,6 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
         );
         b.sendMsg('/particle', 1, g, 1, rrand(0.8, 2.0), 600.rand, 600.rand, 600.rand, inf);
     }
-};
-
-// Monitoring.
-monitor = {
-    // TO-DO:
-    // it should be possible to delete any particle (small [x] button near each nodeID)
-    // and tear up any string (the same in strings)
-    var springEnds = Array.fill(2, { nil });
-
-    message = "Particles" ++ spacer;
-    message = message ++ format(" %\tStar\n", star.identityHash);
-    particles.keysValuesDo { |k, v|
-        message = message ++ format(" %\t%\n", decodeParticle.(k), v.asString)
-    };
-    textParticles.string = message;
-
-    message = "Springs" ++ spacer;
-    springs.keysValuesDo { |k, v|
-        springEnds = [v[0].identityHash, v[1].identityHash];
-        if (v[0].class != TraerParticle) { springEnds[0] = v[0] };
-        if (v[1].class != TraerParticle) { springEnds[1] = v[1] };
-        message = message ++ format("% \t(%, %)\n", k, springEnds[0], springEnds[1])
-    };
-    message = message ++ (spacer ++ "Physics springs" ++ spacer);
-    physics.springs.do { |g|
-        message = message ++ format("% \t(%, %)\n", g.identityHash, g.a.identityHash, g.b.identityHash)
-    };
-    textSprings.string = message;
-
-    message = "Skeletons" ++ spacer;
-    skeleton.keysValuesDo { |k, v|
-        message = message ++ format(" %:\t", k);
-        v.keysValuesDo { |j, p|
-            if (world.springSrcSkel.includes(j)) {
-                message = message ++ format("% \t %\t", j, p.identityHash)
-            }
-        }
-    };
-    textSkeleton.string = message;
-
-    message = "Attractions" ++ spacer;
-    physics.attractions.do { |k|
-        message = message ++ format("%\t%\n", decodeParticle.(k.a), decodeParticle.(k.b))
-    };
-    textAttractions.string = message;
-
-    message = "Forces" ++ spacer;
-    textForces.string = message ++ format("Gravity: %, %, %\nDrag: %\n",
-        physics.gravity.x.round(0.001), physics.gravity.y.round(0.001), physics.gravity.z.round(0.001),
-        physics.drag.round(0.001));
 };
 
 view.drawFunc = { |worldView|
@@ -333,7 +255,7 @@ view.drawFunc = { |worldView|
                 particle.position.x.linlin(0, world.width, 1, -1), // y
                 particle.position.y.linlin(0, world.height, -1, 1) // x
             );
-            s.sendMsg("/n_set", particles[particle],
+            s.sendMsg("/n_set", particles[particle][\node],
                 \ax, particle.position.x / world.width,
                 \ay, particle.position.y / world.height,
                 \az, particle.position.z.linlin(0, world.depth, 1, 0),
@@ -365,13 +287,13 @@ view.drawFunc = { |worldView|
                 partColor = Color(particle.mass.linlin(0, 1, 0.2, 1), // the heavier the object, the redder it appears
                     particle.mass.linlin(0, 1, 0.7, 1), particle.mass.linlin(0, 1, 1, 0.1));
                 partSize = 5;
-                Pen.color = Color.grey(0.7);
-                Pen.stringAtPoint(particles[particle].asString.stripWhiteSpace,
+                Pen.color = Color.grey(particle.position.z.linlin(0, world.depth, 1, 0.5));
+                Pen.stringAtPoint(particles[particle][\synth].asString.stripWhiteSpace,
                     [
                         (particle.position.x+10).clip(10, world.width-45),
                         (particle.position.y+10).clip(10, world.height-15),
                     ].asPoint,
-                    Font("Helvetica", 10));
+                    Font("Helvetica", 14));
             };
             Pen.color = partColor;
             z = partSize * particle.position.z.linlin(0, world.depth, 1, 0.1);
@@ -382,7 +304,7 @@ view.drawFunc = { |worldView|
         // i.e. age = 0 is a death and positive age is afterlife.
         if (particle.age >= 0) { particle.dead = true };
         if (particle.dead) {
-            unregisterParticle.(particles[particle]);
+            unregisterParticle.(particles[particle][\node]);
             removeParticle.(particle)
         };
     };
@@ -413,12 +335,6 @@ view.drawFunc = { |worldView|
             }
         }
     };
-
-    // XXX
-    // visualize number  of particles, nodes and synth names(?)
-    // instead of monitoring window
-
-    monitor.();
 
     physics.tick;
 };
@@ -718,7 +634,7 @@ removeParticle = { |particle|
 // Remove all particles from the world and stop all synths.
 removeAll = {
     particles.keys.do { |p, i|
-        unregisterParticle.(particles[p]);
+        unregisterParticle.(particles[p][\node]);
         removeParticle.(p);
     }
 };
@@ -730,14 +646,27 @@ removeAll = {
 //
 // Register particle in the dictionary along with Server nodeId.
 registerParticle = { |particle, nodeId|
-    particles.put(particle, nodeId)
+    var taskSendMsg, keys=[];
+    particles.put(particle, (node: nodeId));
+    taskSendMsg = Task({
+        inf.do { |j|
+            try { keys = particles[particle].keys } { keys = [] };
+            if ((keys.includes("synth")) || (j >= 20)) { // wait 2sec
+                taskSendMsg.stop;
+            };
+            s.sendMsg("/g_queryTree", nodeId); // to fill out synth name
+            0.1.wait;
+        };
+    }).start;
 };
 
 
 // Removes particle record from the dictionary.
 unregisterParticle = { |nodeId|
     var particle;
-    particle = particles.findKeyForValue(nodeId);
+    particles.keysValuesDo { |part, dict|
+        if (dict[\node] == nodeId) { particle = part }
+    };
     particles.removeAt(particle);
     ~groupFree.(nodeId);
     particle
@@ -930,7 +859,19 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
 
 
 oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
-    postf("from % received %\n", addr, msg);
+    var synth, i=0, node=msg[2].asInteger;
+    // postf("from % received %\n", addr, msg);
+    { synth.isNil }.while({
+        i = i + 1;
+        if ("sr__(e|g|p)__".matchRegexp(msg[i].asString)) {
+            synth = msg[i].asString.stripWhiteSpace;
+            synth = synth[7..]; // only synth type and name
+        };
+        if ((i >= msg.size) && (synth.isNil)) { synth = node.asString };
+    });
+    particles.keysValuesDo { |part, dict|
+        if (dict[\node] == node) { dict[\synth] = synth }
+    };
 }, '/g_queryTree.reply');
 
 
@@ -957,11 +898,9 @@ applyAttractions.(star, world.mutualAttraction);
 // Animate!
 view.animate = true;
 win.front;
-winMonitor.front;
 
 CmdPeriod.doOnce({
     oscRemoveFunc.();
     win.close;
-    winMonitor.close;
 });
 )

@@ -13,10 +13,10 @@ var trigSynth, synthNames, keyNames; // available SynthDefs
 var synths=Dictionary.new; // temp dictionary of the synths symbolic IDs vs. server Nodes
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 var key, current, next, syn, obj, age, mass, dummyParam, physics=(); // object's properties
-var win, info, buttons, keyboard, keyboardFunc, // interface
+var win, info, buttons, keyboard, keyboardFunc, updateGui, // interface
     stCurrNum, stCurrInfo, stNextNum, stNextInfo,
     btPrev, btNext, timeLabel, slider, knob, checkbox, buttonCheckbox,
-    panePar, pane, paneWidth, paneHeight, midiView, miscMIDI=();
+    panePar, pane, paneWidth, paneHeight, midiView, miscParams=();
 var valAsApec;
 var shade, count=0, animate=false; // schedule animation
 var getKey, displayEventInfo, convertTime, clipInc; // helper functions
@@ -103,14 +103,16 @@ trigSynth = [ // keycodes for triggering obj creation with a synth
     38, \sr__g__scratch,// j
     40, \sr__g__unst,   // k
     37, \sr__g__chunk,  // l
+    41, \sr__e__therem, // ;
 ];
 synthNames = Dictionary.newFrom(trigSynth);
 // TO-DO: names should be obtained automatically
 keyNames = (12: "q", 13: "w", 14: "e", 15: "r", 17: "t", 16: "y",
     32: "u", 34: "i", 31: "o", 35: "p", 33: "[", 30: "]", 42: "\\",
-    1:  "s", 2:  "d", 3:  "f", 5:  "g", 4:  "h", 38: "j", 40: "k", 37: "l");
+    1:  "s", 2:  "d", 3:  "f", 5:  "g", 4:  "h", 38: "j", 40: "k",
+    37: "l", 41: ";");
 
-surround = "vbap4";
+surround = "ambisonic2";
 mainOutput = 0;
 mainInput = 20;
 worldSize = 800;
@@ -348,15 +350,18 @@ thePiece = (
     ],
     40: [
         (
-            info: "HEAVY",
+            info: "HEAVY: Remove all",
+            message: \action,  params: [\action, \remove, \all]
+        ),
+        (
+            info: "Heavy __analog (no scale) - TAP twice for 2 more!",
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 10, \bufnum, scales[0].bufnum]),
+            synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 10]),
             particle: (age: inf, mass: 1, spring: 1),
         ),
         (
-            info: "2 more heavy __analog default and -1 cutoff",
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10, \cutoff, -1, \bufnum, scales[0].bufnum]),
+            synth: (name: \sr__e__analog, params: [\att, 2 + 1.0.rand2, \rel, 10, \cutoff, -1]),
             particle: (age: inf, mass: 1, spring: 1)
         ),
         (
@@ -368,6 +373,55 @@ thePiece = (
         (
             info: "Stop sporadic __pulse",
             message: \task, name: \sporadicPulse, act: 0
+        ),
+    ],
+    45: [
+        (
+            info: "2 more heavy __analog (no scale)",
+            message: \particle,
+            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10]),
+            particle: (age: inf, mass: 1, spring: 1),
+        ),
+        (
+            message: \particle,
+            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10]),
+            particle: (age: inf, mass: 1, spring: 1)
+        ),
+    ],
+    46: [
+        (
+            info: "Add heavy __therem - TAP twice for 2!",
+            message: \particle,
+            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
+            particle: (age: inf, mass: 0.8, spring: 1),
+        )
+    ],
+    47: [
+        (
+            info: "heavy __therem 2",
+            message: \particle,
+            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
+            particle: (age: inf, mass: 0.8, spring: 1)
+        ),
+    ],
+    48: [
+        (
+            info: "Remove all",
+            message: \action,  params: [\action, \remove, \all]
+        ),
+        (
+            info: "leave only 2 __therem - TAP twice for 2!",
+            message: \particle,
+            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
+            particle: (age: inf, mass: 0.8, spring: 1)
+        ),
+    ],
+    49: [
+        (
+            info: "Heavy __therem 2",
+            message: \particle,
+            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
+            particle: (age: inf, mass: 0.8, spring: 1)
         ),
     ],
     50: [
@@ -830,7 +884,8 @@ sendParticle = { |particle, synth|
 
 // Sends parameter to the World.
 sendPhysics = { |data|
-    receiver.sendBundle(0.001, ['/physics'] ++ data[\params])
+    receiver.sendBundle(0.001, ['/physics'] ++ data[\params]);
+    updateGui.(data[\params])
 };
 
 
@@ -1048,10 +1103,11 @@ pane.decorator = FlowLayout(pane.bounds);
     physics[key][\gui] = knob.(pane, physics[key], key);
 };
 pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar));
-miscMIDI[\serverVolume] = (
+miscParams[\serverVolume] = (
     midicc: 12, spec: \db,
     gui: slider.(pane, (param: "s.vol", label: "s.vol", spec: \db), \vert)
-    .action_({ |sl| s.volume.volume = sl.value })
+               .action_({ |sl| s.volume.volume = sl.value })
+               .value_(1)
 );
 
 // LEFT PANE RIGHT SIDE
@@ -1073,7 +1129,7 @@ panePar.decorator = FlowLayout(panePar.bounds);
 pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar));
 pane.decorator = FlowLayout(pane.bounds);
 param = (param: "depth", minval: 1, maxval: 10, step: 0.1, default: 5);
-miscMIDI[\depth] = (
+miscParams[\depth] = (
     midicc: 34, minval: param[\minval], maxval: param[\maxval], step: param[\step],
     gui: knob.(pane, param, "depth")
     .action_({ |ez|
@@ -1104,7 +1160,7 @@ testLabel = StaticText(win, 600@50)
     .align_(\topLeft);
 
 win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
-    // [char, modifiers, unicode, keycode].postln;
+    [char, modifiers, unicode, keycode].postln;
     case
     { keycode == 6 && [0, 256].includes(modifiers) } { // Z - info
         if( [0, 256].includes(modifiers), {
@@ -1121,6 +1177,15 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
         )
     }
 };
+
+// Updates value of a GUI element upon sending a message to the world.
+// Sets .value, not .valueAction, because the action is performed already.
+updateGui = { |params|
+    params.pairsDo { |parm, val|
+        try { physics[parm][\gui].value_(val) }
+    }
+};
+
 
 { // GLOBAL APP CLOCK. Resolution: 100 milliseconds (one tenth of a second)
     while {win.isClosed.not} {
@@ -1147,8 +1212,8 @@ win.front;
 
 MIDIIn.connectAll;
 
-// physics parameters controlled by MIDI
-physics.values.do { |element|
+// physics and miscellaneous parameters controlled by MIDI
+(physics ++ miscParams).values.do { |element|
     if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
         MIDIFunc.cc({ |val, ccNum, chan, srcID|
             {
@@ -1165,19 +1230,6 @@ physics.values.do { |element|
             }.defer;
         }, element[\midinote], 0);
     }
-};
-
-miscMIDI.keysValuesDo { |fdescr, element|
-    if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
-        MIDIFunc.cc({ |val, ccNum, chan, srcID|
-            {
-                // element[\gui].valueAction_(\midinote.asSpec.unmap(val))
-                element[\gui].valueAction_(
-                    valAsApec.(element).map(\midinote.asSpec.unmap(val))
-                )
-            }.defer;
-        }, element[\midicc], 0);
-    };
 };
 
 midiNext = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|

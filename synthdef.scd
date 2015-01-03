@@ -232,8 +232,9 @@ SynthDef(\sr__g__grain, { //individual grain through ambisonic
         pos=0.0, rate=1, dur=0.1, lag=0;
     var in, out;
     // Synthesis.
-    in = PlayBuf.ar(1, bufnum, Lag.ar(K2A.ar(BufRateScale.kr(bufnum) * rate), lag), 1, BufFrames.ir(bufnum) * pos, 0);
-    //in = PlayBuf.ar(1, bufnum, BufRateScale.kr(bufnum) * rate, 1, BufFrames.ir(bufnum) * pos, 0);
+    in = PlayBuf.ar(1, bufnum,
+        Lag.ar(K2A.ar(BufRateScale.kr(bufnum) * rate), lag),
+        1, BufFrames.ir(bufnum) * pos, 0);
     //Envelope.
     out = in * amp * master * (EnvGen.kr(Env.perc(0.01, dur), doneAction:2) - 0.001);
     Out.ar(outbus, out);
@@ -653,33 +654,24 @@ SynthDef(\sr__e__wasp, {
 }).add;
 
 
-SynthDef(\sr__e__pipe, {
+SynthDef(\sr__e__therem, {
     arg bufnum=0, inbus=30, outbus=20,
-    amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-    ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
-    offset=36, cutoff=0;
-    var note, in, out, signal;
-    var cutOff, rq, azThresh=0.7;
-    var scale = FloatArray[0,1,4,5,7,8,10];
+        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        offset=36, cutoff=0;
+    var in, out, signal;
+    var fbase=50000, shift=5000, freq;
     // Conversion.
-    cutOff = distance.linexp(0.0, 1.0, 500, 10000); // different from arg!
-    rq = distance.linlin(0, 2.sqrt, 0.5, 1);
-    note = (DegreeToKey.kr(LocalBuf.newFrom(scale), az.linlin(0,1, 0,24), 12, 1, offset)
-        + LFNoise1.kr([3, 3], 0.04)).midicps;
+    freq = az.linexp(0.5, 1, fbase, fbase + shift);
     // Synthesis.
-    in = GVerb.ar(
-        (Saw.ar(freq: (1..5) * note,
-            mul:velocity,
-            add:LFPar.ar(velocity.linexp(0,1, 0.01,100), 0.5,
-                LFNoise2.ar(LFNoise2.ar(mul:9, add:20), 0.2, 0.5))
-            )
-            + Pulse.ar(freq: LFNoise2.ar((1..5), 2).exprange(0.1, 1) * note,
-                mul:velocity.scurve)
-        ) / 16,
-        roomsize: distance.linlin(0,1, 2,80),
-        revtime: distance.linlin(0,1, 0.2,2)
+    in = BPF.ar(
+        (SinOsc.ar(fbase, 0, amp) * SinOsc.ar(freq)),
+        freq - (fbase - 50),
+        0.3
     );
-    signal = Mix.ar(in);
+    // 55000 - 16500
+    in = MidEQ.ar(in, freq-38500, 0.7, -60);
+    signal = FreeVerb.ar(in, 0.65, 0.65, 0.5, amp);
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -758,16 +750,16 @@ SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim = [-0.125pi, -0.625pi], speakerElev = 0,
-        speakerDist = [0.7, 0.7], maxDist = 0.7, scaleFlag = 1,
+        speakerAzim = [-0.25pi, -0.75pi], speakerElev = 0,
+        speakerDist = [2.2, 2.2], maxDist = 2.2, scaleFlag = 1,
         in, signal, out, room, mix;
-    distance = distance.linlin(0, 2.sqrt, 0.5, depth);
-    mix = distance.linexp(0.5, depth, 0.1, 0.8);
-    room = distance.linexp(0.5, depth, 0.2, 1);
+    distance = distance.linlin(0, 2.sqrt, 0.01, depth);
+    mix = distance.linexp(0.01, depth, 0.1, 0.8);
+    room = distance.linexp(0.01, depth, 0.2, 1);
     in = In.ar(inbus, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
-        distance.linlin(0.5, depth, 10000, 1000),
+        distance.linlin(0.01, depth, 10000, 1000),
     0.5);
     signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
     #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
@@ -785,9 +777,9 @@ SynthDef(\sr__s__ambisonic4, {
         speakerAzim = [-0.25pi, 0.25pi, 0.75pi, -0.75pi], speakerElev = [-0.1pi, 0, 0, -0.1pi],
         speakerDist = [2.5, 2.5, 2.5, 2.5], maxDist = 2.5, scaleFlag = 1,
         in, signal, out, room, mix;
-    distance = distance.linlin(0, 2.sqrt, 0.5, depth);
-    mix = distance.linexp(0.5, depth, 0.1, 0.8);
-    room = distance.linexp(0.5, depth, 0.2, 1);
+    distance = distance.linlin(0, 2.sqrt, 0.01, depth);
+    mix = distance.linexp(0.01, depth, 0.1, 0.8);
+    room = distance.linexp(0.01, depth, 0.2, 1);
     in = In.ar(inbus, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
@@ -809,9 +801,9 @@ SynthDef(\sr__s__ambisonic6, {
         speakerAzim = [-0.25pi, 0pi, 0.25pi, 0.75pi, 1pi, -0.75pi], speakerElev = [0, 0, 0, 0, 0, 0],
         speakerDist = [8, 3, 4, 4, 3, 8], maxDist = 8, scaleFlag = 1,
         in, signal, out, room, mix;
-    distance = distance.linlin(0, 2.sqrt, 0.5, depth);
-    mix = distance.linexp(0.5, depth, 0.1, 0.8);
-    room = distance.linexp(0.5, depth, 0.2, 1);
+    distance = distance.linlin(0, 2.sqrt, 0.01, depth);
+    mix = distance.linexp(0.01, depth, 0.1, 0.8);
+    room = distance.linexp(0.01, depth, 0.2, 1);
     in = In.ar(inbus, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
@@ -833,9 +825,9 @@ SynthDef(\sr__s__ambisonic8, {
         speakerAzim = [-0.25pi, 0pi, 0.25pi, 0.5pi, 0.75pi, 1pi, -0.75pi, -0.5pi], speakerElev = 0,
         speakerDist = [ 8, 8, 8, 8, 8, 8, 8, 8 ], maxDist = 6.3, scaleFlag = 1,
         in, signal, out, room, mix;
-    distance = distance.linlin(0, 2.sqrt, 0.5, depth);
-    mix = distance.linexp(0.5, depth, 0.1, 0.8);
-    room = distance.linexp(0.5, depth, 0.2, 1);
+    distance = distance.linlin(0, 2.sqrt, 0.01, depth);
+    mix = distance.linexp(0.01, depth, 0.1, 0.8);
+    room = distance.linexp(0.01, depth, 0.2, 1);
     in = In.ar(inbus, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
@@ -858,10 +850,10 @@ SynthDef(\sr__s__vbap4, {
     //Speakers config.
     speakerBuff= VBAPSpeakerArray.new(2, speakerAzim).loadToBuffer;
     //Conversion.
-    distance = distance.linlin(0, 2.sqrt, 0.5, depth);
-    mix = distance.linexp(0.5, depth, 0.1, 0.8);
-    room = distance.linexp(0.5, depth, 0.2, 1);
-    amp = distance.linexp(0.5, depth, 1, 0.001); // the closer, the louder
+    distance = distance.linlin(0, 2.sqrt, 0.01, depth);
+    mix = distance.linexp(0.01, depth, 0.1, 0.8);
+    room = distance.linexp(0.01, depth, 0.2, 1);
+    amp = distance.linexp(0.01, depth, 1, 0.001); // the closer, the louder
     azimuth = azimuth.linlin(-1pi, 1pi, -180, 180);
     elevation = elevation.linlin(-0.5pi, 0.5pi, -90, 90);
     spread = [100, 0, 4].asSpec.map(distance); // the closer the signal, the more speakers involved (welch-like)

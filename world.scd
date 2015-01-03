@@ -52,7 +52,7 @@ var skel = (
 //
 var oscParticle, oscPhysics, oscAudio, oscAction,
     oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
-    oscRemoveFunc;
+    oscRemoveFunc, oscGroupTree;
 
 // PHYSICS
 var star;
@@ -67,7 +67,8 @@ var paramsChanged;
 // SKELETON
 var skeleton = Dictionary.new,
     skeletonParticles, skeletonRemove,
-    getGuide, getSource, chooseSource;
+    getGuide, getSource, chooseSource,
+    jointVisible = #[\l_hand, \l_elbow, \neck, \r_elbow, \r_hand];
 
 // INTERFACE
 //
@@ -130,8 +131,24 @@ textForces = drawMonitorArea.(drawMonitorView.(winMonitor, height:65));
 textSkeleton = drawMonitorArea.(drawMonitorView.(winMonitor, height:80));
 textTest = drawMonitorArea.(drawMonitorView.(winMonitor, height:95));
 
-view.mouseDownAction = { |v, x, y|
-    star.position.set(x, y, 0);
+view.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
+    var processed = false;
+    if (clickCount == 2) {
+        physics.particles.do { |particle|
+            if (
+                ((x - particle.position.x).abs <= 20) &&
+                ((y - particle.position.y).abs <= 20)
+            ) {
+                processed = true;
+                if (particle != star) {
+                    unregisterParticle.(particles[particle]);
+                    removeParticle.(particle);
+                };
+            };
+        };
+    } {
+        if (processed.not) { star.position.set(x, y, 0) }
+    };
 };
 view.mouseMoveAction = view.mouseDownAction;
 
@@ -214,9 +231,18 @@ monitor = {
 };
 
 view.drawFunc = { |worldView|
+    // XXX
+    // fix errors (when skeleton appears)
     var springsPhysical, springMissed;
-    var particlesOnSprings;
+    var particlesOnSprings, particlesSkelVis, particlesHidden;
     var attractionsPhysical;
+    var partColor, partSize;
+
+    // depth
+    Pen.color = Color.new255(212, 156, 152, 50);
+    Pen.fillOval(Rect.aboutPoint(Point(world.width * 0.5, world.height * 0.5),
+        ~depth.linlin(1, 10, 20, world.height * 0.5),
+        ~depth.linlin(1, 10, 20, world.height * 0.5)));
 
     // calibration marks
     Pen.color = Color.grey(0.7);
@@ -231,8 +257,6 @@ view.drawFunc = { |worldView|
     Pen.line([world.width * 0.5, 25].asPoint, [world.width * 0.5, world.height - 25].asPoint);
     Pen.line([25, world.height * 0.5].asPoint, [world.width - 25, world.height * 0.5].asPoint);
     Pen.stroke;
-    // XXX
-    // TO-DO: draw depth!
 
     paramsChanged = false;
     if (worldParams != world) {
@@ -285,6 +309,8 @@ view.drawFunc = { |worldView|
     };
 
     // Manage particles.
+    particlesSkelVis = all {: v[k], v <- skeleton.values, k <- v.keys, jointVisible.includes(k) } ? [];
+    particlesHidden = all {: v[k], v <- skeleton.values, k <- v.keys, jointVisible.includes(k).not } ? [];
     particlesOnSprings = (all {: [g.a, g.b], g <- physics.springs} ? []).flatten;
     Array.newFrom(physics.particles).do { |particle|
         // Re-apply world forces, if there was any change in its parameters
@@ -294,24 +320,64 @@ view.drawFunc = { |worldView|
                 setSpringProp.(particle:particle);
             } {
                 // if particle isn't on spring, re-apply attractions
-                applyAttractions.(particle, world.mutualAttraction);
+                if (particlesHidden.includes(particle).not) { // exclude hidden particles
+                    applyAttractions.(particle, world.mutualAttraction);
+                }
             };
         };
         handleBoundaryCollisions.value(particle);
-        // Visualize particles.
-        if (particle == star) {
-            Pen.color = Color.red;
-            Pen.fillOval(Rect.aboutPoint(Point(particle.position.x, particle.position.y),
-                10 * particle.position.z.linlin(0, world.depth, 1, 0.1),
-                10 * particle.position.z.linlin(0, world.depth, 1, 0.1)));
-        } { // the heavier the object, the redder it appears
-            Pen.color = Color(particle.mass.linlin(0, 1, 0.2, 1),
-                particle.mass.linlin(0, 1, 0.7, 1), particle.mass.linlin(0, 1, 1, 0.1));
-            Pen.fillOval(Rect.aboutPoint(
-                Point(particle.position.x, particle.position.y),
-                5 * particle.position.z.linlin(0, world.depth, 1, 0.1),
-                5 * particle.position.z.linlin(0, world.depth, 1, 0.1)));
+
+        // send parameters to the group on Server
+        if (particles.keys.includes(particle)) {
+            position = Complex(
+                particle.position.x.linlin(0, world.width, 1, -1), // y
+                particle.position.y.linlin(0, world.height, -1, 1) // x
+            );
+            s.sendMsg("/n_set", particles[particle],
+                \ax, particle.position.x / world.width,
+                \ay, particle.position.y / world.height,
+                \az, particle.position.z.linlin(0, world.depth, 1, 0),
+                \azimuth, position.theta,
+                \distance, position.rho, // distance from the center
+                \elevation, particle.position.z.linlin(0, world.depth, 0.5pi, -0.5pi), // how high the object is (inverse)
+                \velocity, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
+                \amp, (
+                    particle.mass.clip(0.01, 0.8) // the main contributor to object's loudness is its mass
+                    + (mag3D.(particle.velocity) * 0.01) // subtle "colors" due to velocity
+                ).clip(0, 1),
+                \master, 1,
+                \depth, ~depth
+            );
         };
+
+        // Visualize particles.
+        if (particlesHidden.includes(particle).not) {
+            case
+            {particle == star} {
+                partColor = Color.red;
+                partSize = 15
+            }
+            { particlesSkelVis.includes(particle) } {
+                partColor = Color.white;
+                partSize = 10
+            }
+            {
+                partColor = Color(particle.mass.linlin(0, 1, 0.2, 1), // the heavier the object, the redder it appears
+                    particle.mass.linlin(0, 1, 0.7, 1), particle.mass.linlin(0, 1, 1, 0.1));
+                partSize = 5;
+                Pen.color = Color.grey(0.7);
+                Pen.stringAtPoint(particles[particle].asString.stripWhiteSpace,
+                    [
+                        (particle.position.x+10).clip(10, world.width-45),
+                        (particle.position.y+10).clip(10, world.height-15),
+                    ].asPoint,
+                    Font("Helvetica", 10));
+            };
+            Pen.color = partColor;
+            z = partSize * particle.position.z.linlin(0, world.depth, 1, 0.1);
+            Pen.fillOval(Rect.aboutPoint(Point(particle.position.x, particle.position.y), z, z));
+        };
+
         // Age control: particles age "backwards",
         // i.e. age = 0 is a death and positive age is afterlife.
         if (particle.age >= 0) { particle.dead = true };
@@ -321,33 +387,36 @@ view.drawFunc = { |worldView|
         };
     };
 
-    // Manage and visualize springs.
+    // Visualize springs.
     physics.springs.do { |spring, i|
         Pen.color = Color.white;
         Pen.moveTo(Point(spring.a.position.x, spring.a.position.y));
         Pen.lineTo(Point(spring.b.position.x, spring.b.position.y));
         Pen.stroke;
     };
-
-    // send parameters to the group on Server
-    particles.keysValuesDo { |particle, node|
-        position = Complex(
-            particle.position.x.linlin(0, world.width, 1, -1), // y
-            particle.position.y.linlin(0, world.height, -1, 1) // x
-        );
-        s.sendMsg("/n_set", node,
-            \ax, particle.position.x / world.width,
-            \ay, particle.position.y / world.height,
-            \az, particle.position.z.linlin(0, world.depth, 1, 0),
-            \azimuth, position.theta,
-            \distance, position.rho, // distance from the center
-            \elevation, particle.position.z.linlin(0, world.depth, 0.5pi, -0.5pi), // how high the object is (inverse)
-            \velocity, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
-            \amp, particle.mass.clip(0.01, 0.8) + (mag3D.(particle.velocity) * 0.01), // subtle change due to velocity
-            \master, 1,
-            \depth, ~depth
-        )
+    // Visualize attractions.
+    physics.attractions.do { |attr, i|
+        Pen.color = Color.yellow(alpha:0.3);
+        Pen.moveTo(Point(attr.a.position.x, attr.a.position.y));
+        Pen.lineTo(Point(attr.b.position.x, attr.b.position.y));
+        Pen.stroke;
     };
+    // Visualize joins connections.
+    Pen.color = Color.grey(0.5);
+    Pen.width = 4;
+    skeleton.values.do { |sk|
+        jointVisible.size.do { |j|
+            try {
+                Pen.moveTo(Point(sk[jointVisible[j]].position.x, sk[jointVisible[j]].position.y));
+                Pen.lineTo(Point(sk[jointVisible[j+1]].position.x, sk[jointVisible[j+1]].position.y));
+                Pen.stroke;
+            }
+        }
+    };
+
+    // XXX
+    // visualize number  of particles, nodes and synth names(?)
+    // instead of monitoring window
 
     monitor.();
 
@@ -537,7 +606,7 @@ chooseSource = {
 
 
 // Select source of force depending on the presence of skeleton.
-getSource = { |starAllowed=true|
+getSource = { |starAllowed=false|
     if (skeleton.keys.size > 0) {
         chooseSource.()
     } {
@@ -860,12 +929,18 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
 }, '/joint');
 
 
+oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
+    postf("from % received %\n", addr, msg);
+}, '/g_queryTree.reply');
+
+
 // Remove all OSC functions.
 oscRemoveFunc = {
     oscParticle.free;
     oscSkeletonNew.free;
     oscSkeletonLost.free;
     oscSkeletonJoint.free;
+    oscGroupTree.free;
 };
 
 

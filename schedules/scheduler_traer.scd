@@ -13,17 +13,15 @@ var trigSynth, synthNames, keyNames; // available SynthDefs
 var synths=Dictionary.new; // temp dictionary of the synths symbolic IDs vs. server Nodes
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 var key, current, next, syn, obj, age, mass, dummyParam, physics=(); // object's properties
-var win, info, buttons, keyboard, keyboardFunc, updateGui, // interface
+var win, info, elapsed, keyboard, keyboardFunc, updateGui, // interface
     stCurrNum, stCurrInfo, stNextNum, stNextInfo,
-    btPrev, btNext, timeLabel, slider, knob, checkbox, buttonCheckbox,
+    timeLabel, slider, knob, button, buttonCheckbox,
     panePar, pane, paneWidth, paneHeight, midiView, miscParams=();
 var valAsApec;
 var shade, count=0, animate=false; // schedule animation
 var getKey, displayEventInfo, convertTime, clipInc; // helper functions
-var midiNext, midiPrev, midiClean;
 var processEvents, groupNew, groupRemove, taskPlay, sendWorld,
     sendParticle, sendSNew, sendPhysics, sendAudio, sendAct; // acting functions
-var testLabel; // write here any test info
 
 
 // INITIAL
@@ -992,7 +990,7 @@ processEvents = { |k=nil|
 
 // GUI.
 //
-win = Window("sequencing and scheduling", Rect(1070, 800, 610, Window.screenBounds.height-250))
+win = Window("sequencing and scheduling", Rect(1070, 800, 610, Window.screenBounds.height-300))
     .acceptsMouseOver_(true);
 win.view.decorator = FlowLayout(win.view.bounds);
 
@@ -1003,30 +1001,8 @@ stCurrInfo = StaticText(info, 410@60).font_(Font("Monaco", 12)).background_(Colo
 stNextNum = StaticText(info, 70@90).font_(Font("Monaco", 32)).background_(Color.grey(0.4)).stringColor_(Color.white);
 stNextInfo = StaticText(info, 410@90).font_(Font("Monaco", 14)).background_(Color.grey(0.4)).stringColor_(Color.white);
 
-buttons = CompositeView(win, 80@150);
-buttons.decorator = FlowLayout(buttons.bounds);
-btNext = Button(buttons, 70@45).states_([[">>", Color.black, Color.white]])
-.action_({ |bt|
-    if (animate.not) {animate = true}; // bring it on!
-    stCurrNum.string = current = getKey.(current);
-    stCurrInfo.string = displayEventInfo.(current);
-    stNextNum.string = next = getKey.(current, 1);
-    stNextInfo.string = displayEventInfo.(next, 50);
-
-    processEvents.(current);
-});
-
-btPrev = Button(buttons, 70@45).states_([["<<", Color.black, Color.white]])
-.action_({ |bt|
-    stCurrNum.string = current = getKey.(current, -1);
-    stCurrInfo.string = displayEventInfo.(current);
-    stNextNum.string = next = getKey.(current, 1);
-    stNextInfo.string = displayEventInfo.(next);
-
-    processEvents.(current);
-});
-
-timeLabel = StaticText(buttons, 70@60).font_(Font("Monaco", 14));
+elapsed = CompositeView(win, 85@150);
+timeLabel = StaticText(elapsed, 85@80).font_(Font("Monaco", 18));
 
 keyboard = CompositeView(win, 600@170);
 keyboardFunc = { |synthName, params, spring=0, mass=1|
@@ -1057,7 +1033,7 @@ trigSynth.do { |key, i|
 };
 
 paneWidth = { |par, scale=0.5| (par.bounds.width * scale - 6).floor };
-paneHeight = { |par| par.bounds.height - 10 };
+paneHeight = { |par, scale=1| (par.bounds.height * scale - 10).floor };
 slider = { |par, val, layout='horz', scale=1|
     var bounds = paneWidth.(par)@20;
     if (layout != 'horz') { bounds = 40@(paneHeight.(par) * scale) };
@@ -1071,8 +1047,16 @@ knob = { |par, val, param|
         { |ez| sendPhysics.((message: \physics, params: [param, ez.value])) })
     .font_(Font("Monaco", 12))
 };
-buttonCheckbox = { |par, val, param, scale=1|
-    Button(par, paneWidth.(par, scale)@45).states_([
+button = { |par, val, param, scaleH=1, scaleW=1|
+    Button(par, paneWidth.(par, scaleW)@paneHeight.(par, scaleH)).states_([
+        [val.atFail(\label, { param }), Color.black, Color.white]
+    ])
+    .value_(val.atFail(\default, {0}).asInteger)
+    .font_(Font("Monaco", 10))
+    .canFocus_(false);
+};
+buttonCheckbox = { |par, val, param, scaleH=1, scaleW=1|
+    Button(par, paneWidth.(par, scaleW)@paneHeight.(par, scaleH)).states_([
         [val.atFail(\label, { param }), Color.black, Color.white],
         [val.atFail(\label, { param }), Color.white, Color.black]
     ])
@@ -1081,52 +1065,86 @@ buttonCheckbox = { |par, val, param, scale=1|
     .font_(Font("Monaco", 10))
     .canFocus_(false);
 };
-checkbox = { |par, val, param|
-    QCheckBox(par, 290@20)
-    .string_(val.atFail(\label, { param }))
-    .action_({ |cb| sendPhysics.((message: \physics, params: [param, cb.value.asInteger]))})
-};
 
 // MIDI interface (physics parameters)
-// XXX
-// - add "reset to factory settings"
-midiView = CompositeView(win, 600@390);
+midiView = CompositeView(win, 600@400);
 midiView.decorator = FlowLayout(midiView.bounds);
 // LEFT PANE
 panePar = CompositeView(midiView, paneWidth.(midiView)@paneHeight.(midiView))
     .background_(Color.grey(grey:0.7));
 panePar.decorator = FlowLayout(panePar.bounds);
 // LEFT PANE LEFT SIDE
-pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar));
+pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar, 0.85));
 pane.decorator = FlowLayout(pane.bounds);
 [\drag, \repulsion, \starMass].do { |key|
     physics[key][\gui] = knob.(pane, physics[key], key);
 };
-pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar));
+pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar, 0.85));
 miscParams[\serverVolume] = (
     midicc: 12, spec: \db,
     gui: slider.(pane, (param: "s.vol", label: "s.vol", spec: \db), \vert)
                .action_({ |sl| s.volume.volume = sl.value })
                .value_(1)
 );
-
 // LEFT PANE RIGHT SIDE
-pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar));
+pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar, 0.85));
 pane.decorator = FlowLayout(pane.bounds);
 [\gravX, \gravY, \gravZ].do { |key|
     physics[key][\gui] = knob.(pane, physics[key], key);
 };
-pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar));
+pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar, 0.85));
 pane.decorator = FlowLayout(pane.bounds);
+slider.(pane, dummyParam, \vert);
+// LEFT PANE BOTTOM
+pane = CompositeView(panePar, paneWidth.(panePar, 0.8)@paneHeight.(panePar, 0.17));
+pane.decorator = FlowLayout(pane.bounds);
+miscParams[\prev] = (
+    midinote: 46,
+    gui: button.(pane, dummyParam, "<<", 0.6, 0.5).action_({ |bt|
+        stCurrNum.string = current = getKey.(current, -1);
+        stCurrInfo.string = displayEventInfo.(current);
+        stNextNum.string = next = getKey.(current, 1);
+        stNextInfo.string = displayEventInfo.(next);
+        processEvents.(current);
+    })
+);
+miscParams[\next] = (
+    midinote: 43,
+    gui: button.(pane, dummyParam, ">>", 0.6, 0.5).action_({ |bt|
+        if (animate.not) {animate = true}; // bring it on!
+        stCurrNum.string = current = getKey.(current);
+        stCurrInfo.string = displayEventInfo.(current);
+        stNextNum.string = next = getKey.(current, 1);
+        stNextInfo.string = displayEventInfo.(next, 50);
+
+        processEvents.(current);
+    })
+);
+button.(pane, dummyParam, "RESET", 0.6, 0.5);
+miscParams[\reset] = (
+    midinote: 70,
+    gui: button.(pane, dummyParam, "X", 0.6, 0.5).action_({ |bt|
+        physics.values.do { |element|
+            try { element[\gui].valueAction_(element[\default]) };
+        }
+    })
+);
+miscParams[\removeall] = (
+    midinote: 58,
+    gui: button.(pane, dummyParam, "X", 0.6, 0.5).action_({ |bt|
+        sendAct.((params: [\remove, \all]))
+    })
+);
+button.(pane, dummyParam, "<NONE>", 0.6, 0.5);
+pane = CompositeView(panePar, paneWidth.(panePar, 0.2)@paneHeight.(panePar, 0.17));
 physics[\particles][\gui] = buttonCheckbox.(pane, physics[\particles], \particles);
-slider.(pane, dummyParam, \vert, 0.85);
 
 // RIGHT PANE
 panePar = CompositeView(midiView, paneWidth.(midiView)@paneHeight.(midiView))
     .background_(Color.grey(grey:0.7));
 panePar.decorator = FlowLayout(panePar.bounds);
 // RIGHT PANE LEFT SIDE
-pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar));
+pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar, 0.85));
 pane.decorator = FlowLayout(pane.bounds);
 param = (param: "depth", minval: 1, maxval: 10, step: 0.1, default: 5);
 miscParams[\depth] = (
@@ -1140,25 +1158,25 @@ miscParams[\depth] = (
 [\none, \none].do { |key| // Dummies
     knob.(pane, dummyParam, "<NONE>");
 };
-
-pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar));
+pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar, 0.85));
 slider.(pane, dummyParam, \vert);
 // RIGHT PANE RIGHT SIDE
-pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar));
+pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar, 0.85));
 pane.decorator = FlowLayout(pane.bounds);
 [\springRestLen, \springStrength, \springDamp].do { |key|
     physics[key][\gui] = knob.(pane, physics[key], key);
 };
-pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar));
+pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar, 0.85));
 pane.decorator = FlowLayout(pane.bounds);
+slider.(pane, dummyParam, \vert);
+// RIGHT PANE BOTTOM
+pane = CompositeView(panePar, paneWidth.(panePar, 0.8)@paneHeight.(panePar, 0.17));
+pane.decorator = FlowLayout(pane.bounds);
+4.do { button.(pane, dummyParam, "<NONE>", 0.6, 0.5) };
+pane = CompositeView(panePar, paneWidth.(panePar, 0.2)@paneHeight.(panePar, 0.17));
 physics[\mutualAttraction][\gui] = buttonCheckbox.(pane, physics[\mutualAttraction], \mutualAttraction);
-slider.(pane, dummyParam, \vert, 0.85);
 
-testLabel = StaticText(win, 600@50)
-    .background_(Color.red(alpha:0.1))
-    .font_(Font("Monaco", 20))
-    .align_(\topLeft);
-
+// KEYBOARD
 win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     [char, modifiers, unicode, keycode].postln;
     case
@@ -1187,7 +1205,7 @@ updateGui = { |params|
 };
 
 
-{ // GLOBAL APP CLOCK. Resolution: 100 milliseconds (one tenth of a second)
+{ // GLOBAL APP CLOCK. Resolution: 100 milliseconds (0.1 of a second)
     while {win.isClosed.not} {
         if (animate) {
             count = count + 1;
@@ -1200,8 +1218,8 @@ updateGui = { |params|
             win.refresh;
 
             if (count % 10 == 0) {
-                // TO-DO
-                // process timemarks here
+                // XXX
+                // process timemarks
             };
         };
         0.1.wait;
@@ -1210,9 +1228,8 @@ updateGui = { |params|
 
 win.front;
 
-MIDIIn.connectAll;
-
 // physics and miscellaneous parameters controlled by MIDI
+MIDIIn.connectAll;
 (physics ++ miscParams).values.do { |element|
     if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
         MIDIFunc.cc({ |val, ccNum, chan, srcID|
@@ -1231,19 +1248,6 @@ MIDIIn.connectAll;
         }, element[\midinote], 0);
     }
 };
-
-midiNext = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
-    { btNext.valueAction_(1) }.defer;
-}, 43, 0);
-midiPrev = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
-    { btPrev.valueAction_(1) }.defer;
-}, 46, 0);
-midiClean = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
-    sendAct.(\remove, \all)
-}, 58, 0);
-midiClean = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
-    sendAct.(\remove, \springs)
-}, 70, 0);
 
 CmdPeriod.doOnce({
     // Free buffers.

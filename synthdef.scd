@@ -296,7 +296,7 @@ SynthDef(\sr__e__probe, {
             )
         )
     );
-    2.do({in = AllpassN.ar(in, 0.05, [dtl, dtr], 3.0.rand, amp * 0.7)});
+    2.do({in = AllpassN.ar(in, 0.05, [dtl, dtr], 3.0.rand, amp * 2)});
     signal = Mix(in) * master;
     //Envelope.
     out = signal * EnvGen.kr(
@@ -344,7 +344,7 @@ SynthDef(\sr__e__melo, {
     var note, in, out, signal;
     // Conversion.
     note = (
-        DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 15), 12, 1, offset)
+        DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 24), 12, 1, offset)
         + LFNoise1.kr([3,3], 0.04)    // add some low freq stereo detuning
     ).midicps;
     // Synthesis.
@@ -490,7 +490,7 @@ SynthDef(\sr__e__gauss, {
     );
     in = Limiter.ar(
         MidEQ.ar(Mix.fill(10, in), 14000, velocity.lincurve(0, 1, 0.8, 0.1, 2), 8),
-        amp * 0.3);
+        amp * 0.2);
     signal = RLPF.ar(RLPF.ar(Mix.ar(in), cutOff, rq), cutOff, rq);
     //Envelope.
     out = signal * master * EnvGen.kr(
@@ -516,7 +516,7 @@ SynthDef(\sr__e__noisy, {
     ).softclip;
     in = [in, DelayN.ar(in, 0.04, 0.4)];
     4.do({in = AllpassN.ar(in, 0.5, [0.5.rand, 0.5.rand], 4, amp)});
-    signal = Mix.ar(in) * 0.05;
+    signal = Mix.ar(in) * 0.02;
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -535,17 +535,17 @@ SynthDef(\sr__e__entro, {
     rq = distance.linlin(0, 2.sqrt, 0.2, 1);
     freq = velocity.linexp(0, 1, 20, 1000);
     shift = ((velocity ** 0.2 * 30) ** 3).lag(0.5); // boost velocity
-    trig = velocity > 0.3;
+    trig = velocity > 0.2;
     timer = Timer.kr(trig);
     in = TChoose.ar((timer > 0.25) * trig, [
         RLPF.ar(Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
             LFNoise0.kr(1, 2, 10), r: LFNoise0.kr(1, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
             LFPulse.kr(LFSaw.ar(0.2).exp.cubed, 0.5, 2500, 3500),
-            velocity),
+            velocity.scurve),
         Saw.ar((1..15) * LFNoise0.kr(5, 10, 50) + SinOsc.ar((6..2) * 0.5))
         ]
     );
-    in = Mix.ar(in) * velocity * amp * 0.05; // too loud comparing to the rest, attenuate vol
+    in = Mix.ar(in) * velocity * amp * 0.1; // too loud comparing to the rest, attenuate vol
     signal = RLPF.ar(RLPF.ar(in, shift, rq), shift, rq);
     //Envelope.
     out = signal * master * EnvGen.kr(
@@ -671,7 +671,7 @@ SynthDef(\sr__e__therem, {
     );
     // 55000 - 16500
     in = MidEQ.ar(in, freq-38500, 0.7, -60);
-    signal = FreeVerb.ar(in, 0.65, 0.65, 0.5, amp);
+    signal = FreeVerb.ar(in, 0.65, 0.65, 0.5, (amp * 1.5).clip(0, 1));
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -760,7 +760,7 @@ SynthDef(\sr__s__ambisonic2, {
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.01, depth, 10000, 1000),
-    0.5);
+        0.5);
     signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
     #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
     out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,

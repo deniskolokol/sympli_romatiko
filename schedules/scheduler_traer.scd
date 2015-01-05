@@ -585,7 +585,6 @@ thePiece = (
             particle: (spring: 1, age: inf, mass: 0.9)
         )
     ],
-
     92: [
         ( // Remove all objects.
             info: "OUTRO",
@@ -622,7 +621,7 @@ thePiece = (
         (
             info: "heavy __pulse with long attack",
             message: \particle,
-            synth: (name: \sr__e__pulse, params: [\att, 200, \rel, 10, \ca, 5]),
+            synth: (name: \sr__e__pulse, params: [\att, 120, \rel, 10, \ca, 5]),
             particle: (spring: 1, age: inf, mass: 0.9)
         )
     ],
@@ -1124,9 +1123,7 @@ button.(pane, dummyParam, "RESET", 0.6, 0.5);
 miscParams[\reset] = (
     midinote: 70,
     gui: button.(pane, dummyParam, "X", 0.6, 0.5).action_({ |bt|
-        physics.values.do { |element|
-            try { element[\gui].valueAction_(element[\default]) };
-        }
+        sendWorld.([\action, \remove, \all]);
     })
 );
 miscParams[\removeall] = (

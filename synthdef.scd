@@ -853,7 +853,7 @@ SynthDef(\sr__s__vbap4, {
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);
     mix = distance.linexp(0.01, depth, 0.1, 0.8);
     room = distance.linexp(0.01, depth, 0.2, 1);
-    amp = distance.linexp(0.01, depth, 1, 0.001); // the closer, the louder
+    amp = distance.lincurve(0.01, 5, 1, 0.01, 4);
     azimuth = azimuth.linlin(-1pi, 1pi, -180, 180);
     elevation = elevation.linlin(-0.5pi, 0.5pi, -90, 90);
     spread = [100, 0, 4].asSpec.map(distance); // the closer the signal, the more speakers involved (welch-like)
@@ -864,6 +864,33 @@ SynthDef(\sr__s__vbap4, {
     0.5);
     signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
     out = VBAP.ar(4, signal, speakerBuff.bufnum, azimuth, elevation, spread);
+    Out.ar(outbus, out);
+}).send(s);
+
+
+SynthDef(\sr__s__vbap2, {
+    arg inbus=20, outbus=0, gate=1, rel=1,
+        azimuth=0.25pi, distance=0.5, elevation=0,
+        elevClip=0.1pi, depth=5;
+    var speakerAzim = #[-45, 45], speakerElev=0, speakerBuff, spread=0;
+    var in, amp, signal, out, room, mix;
+    //Speakers config.
+    speakerBuff= VBAPSpeakerArray.new(2, speakerAzim).loadToBuffer;
+    //Conversion.
+    distance = distance.linlin(0, 2.sqrt, 0.01, depth);
+    mix = distance.linexp(0.01, depth, 0.1, 0.8);
+    room = distance.linexp(0.01, depth, 0.2, 1);
+    amp = distance.lincurve(0.01, 5, 1, 0.01, 4);
+    azimuth = azimuth.linlin(-1pi, 1pi, -180, 180);
+    elevation = elevation.linlin(-0.5pi, 0.5pi, -90, 90);
+    spread = [100, 0, 4].asSpec.map(distance); // the closer the signal, the more speakers involved (welch-like)
+    in = In.ar(inbus, 1) * amp;
+    in = RLPF.ar(
+        FreeVerb.ar(in, mix, room, 0.2),
+        distance.linlin(0.5, depth, 10000, 1000),
+    0.5);
+    signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
+    out = VBAP.ar(2, signal, speakerBuff.bufnum, azimuth, elevation, spread);
     Out.ar(outbus, out);
 }).send(s);
 

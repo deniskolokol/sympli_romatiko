@@ -1,6 +1,7 @@
 (
 var srEnv;
 srEnv = Environment.make {
+    ~surround = "ambisonic2";
     ~currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
     ~depth = 5;
     ~inbus = 12;

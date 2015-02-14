@@ -1,7 +1,9 @@
 (
+// XXX - flexible setup of spatializer: intro - ambisonic2, rest - vbap2
+//
 var thePiece; // main dictionary with the sequence of scheduled tasks
 var samplesDir;
-var surround, mainInput, mainOutput; // audio setup for the current piece
+var mainInput, mainOutput; // audio setup for the current piece
 var inbus=12, outbus=0, audioThruBus=[21, 22]; // to main output
 var worldSize; // assume the World is a cube
 var param, parmDir = Dictionary.new; // Global params of the piece dictionary.
@@ -61,9 +63,7 @@ voices = List.new; // fill voices
     "marcin00.wav", "agata00.wav", "marcin01.wav", "agata01.wav", "marcin02.wav", "agata02.wav",
     "marcin03.wav", "agata03.wav", "marcin04.wav", "agata04.wav", "marcin05.wav", "agata05.wav",
     "marcin06.wav", "agata06.wav", "marcin07.wav", "agata07.wav", "marcin08.wav", "agata08.wav",
-    "marcin09.wav", "agata09.wav", "marcin10.wav", "agata10.wav", "marcin11.wav", "agata11.wav",
-    "marcin12.wav", "agata12.wav", "marcin13.wav", "agata13.wav", "marcin14.wav", "agata14.wav",
-    "marcin15.wav", "marcin16.wav"
+    "marcin09.wav", "agata09.wav", "marcin10.wav", "agata10.wav", "agata11.wav", "agata12.wav"
 ].do { |f, i|
     voices.add(Buffer.readChannel(s, PathName(samplesDir ++ f).fullPath, channels: [0]));
 };
@@ -110,7 +110,6 @@ keyNames = (12: "q", 13: "w", 14: "e", 15: "r", 17: "t", 16: "y",
     1:  "s", 2:  "d", 3:  "f", 5:  "g", 4:  "h", 38: "j", 40: "k",
     37: "l", 41: ";");
 
-surround = "ambisonic2";
 mainOutput = 0;
 mainInput = 20;
 worldSize = 800;
@@ -147,7 +146,7 @@ thePiece = (
     0: [
         (message: \action,  params: [\action, \remove, \all],
             info: "Remove all before start"),
-        (message: \audio,   params: [\surround, surround],
+        (message: \audio,   params: [\surround, ~surround],
             info: "Initial settings"),
         (message: \audio,   params: [\depth, ~depth]),
         (message: \physics, params: [\gravX, physics.gravX.default]),
@@ -170,7 +169,7 @@ thePiece = (
             message: \g_new,
             id: \intro_bundle,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
-                ["/s_new", "sr__s__"++surround, \next_node_id, 1, \group_id, // add spatializer to new group's tail
+                ["/s_new", "sr__s__" ++ ~surround, \next_node_id, 1, \group_id, // add spatializer to new group's tail
                     \depth, ~depth,
                     \inbus, 12, // getting signal from synth
                     \outbus, mainOutput], // to main output
@@ -221,7 +220,7 @@ thePiece = (
             message: \g_new,
             id: \intro_noisy,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
-                ["/s_new", "sr__s__"++surround, \next_node_id, 1, \group_id, // add spatializer to new group's tail
+                ["/s_new", "sr__s__" ++ ~surround, \next_node_id, 1, \group_id, // add spatializer to new group's tail
                     \depth, ~depth,
                     \inbus, 13, // getting signal from synth
                     \outbus, mainOutput], // to main output
@@ -397,26 +396,6 @@ thePiece = (
     47: [
         (
             info: "heavy __therem 2",
-            message: \particle,
-            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
-            particle: (age: inf, mass: 0.8, spring: 1)
-        ),
-    ],
-    48: [
-        (
-            info: "Remove all",
-            message: \action,  params: [\action, \remove, \all]
-        ),
-        (
-            info: "leave only 2 __therem - TAP twice for 2!",
-            message: \particle,
-            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
-            particle: (age: inf, mass: 0.8, spring: 1)
-        ),
-    ],
-    49: [
-        (
-            info: "Heavy __therem 2",
             message: \particle,
             synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
             particle: (age: inf, mass: 0.8, spring: 1)
@@ -646,12 +625,12 @@ task = (
         var key, next;
         var particleParams = [ // list of acceptable configurations
             [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.3, \partAgeThresh, 1.67, \partInitAccel, 10 ],
-            [\partSynth, \sr__e__cmb,   \partSigmoidRatio, 0.8, \partAgeThresh, 0.08, \partInitAccel, 2.6],
-            [                           \partSigmoidRatio, 0.4, \partAgeThresh, 1.04, \partInitAccel, 30 ],
-            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.7, \partAgeThresh, 1.08, \partInitAccel, 8.0],
-            [                           \partSigmoidRatio, 0.2, \partAgeThresh, 1.67, \partInitAccel, 1.0],
+            [                           \partSigmoidRatio, 0.7, \partAgeThresh, 0.20, \partInitAccel, 30 ],
             [\partSynth, \sr__e__melo,  \partSigmoidRatio, 0.7, \partAgeThresh, 0.78, \partInitAccel, 2.0],
+            [\partSynth, \sr__e__cmb,   \partSigmoidRatio, 0.4, \partAgeThresh, 0.20, \partInitAccel, 30 ],
+            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.7, \partAgeThresh, 1.08, \partInitAccel, 8.0],
             [\partSynth, \sr__e__pulse, \partSigmoidRatio, 0.2, \partAgeThresh, 1.03, \partInitAccel, 20 ],
+            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.2, \partAgeThresh, 1.67, \partInitAccel, 1.0],
         ];
         inf.do { |i|
             2.do { |j|
@@ -872,7 +851,7 @@ sendParticle = { |particle, synth|
     var node, spring, pos, x, y, z, age;
     pos = [particle.x, particle.y, particle.z];
     #x, y, z = Array.fill(pos.size, { |i| pos[i] ? worldSize.rand});
-    node = ~groupInit.(synth[\name], surround, params:synth[\params]);
+    node = ~groupInit.(synth[\name], ~surround, params:synth[\params]);
     sendWorld.(['/particle', 1, node, particle.atFail(\spring, {0}),
         particle.mass, x, y, z, particle.atFail(\age, {inf})]);
     node
@@ -989,7 +968,7 @@ processEvents = { |k=nil|
 
 // GUI.
 //
-win = Window("sequencing and scheduling", Rect(1070, 800, 610, Window.screenBounds.height-300))
+win = Window("sequencing and scheduling", Rect(1070, 800, 610, Window.screenBounds.height))
     .acceptsMouseOver_(true);
 win.view.decorator = FlowLayout(win.view.bounds);
 
@@ -1082,6 +1061,7 @@ pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar, 0.8
 miscParams[\serverVolume] = (
     midicc: 12, spec: \db,
     gui: slider.(pane, (param: "s.vol", label: "s.vol", spec: \db), \vert)
+               // DOESN'T WORK - WHY?
                .action_({ |sl| s.volume.volume = sl.value })
                .value_(1)
 );
@@ -1227,7 +1207,7 @@ win.front;
 
 // physics and miscellaneous parameters controlled by MIDI
 MIDIIn.connectAll;
-(physics ++ miscParams).values.do { |element|
+(physics.values ++ miscParams.values).do { |element|
     if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
         MIDIFunc.cc({ |val, ccNum, chan, srcID|
             {

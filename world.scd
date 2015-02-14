@@ -153,8 +153,6 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
 };
 
 view.drawFunc = { |worldView|
-    // XXX
-    // fix errors (when skeleton appears)
     var springsPhysical, springMissed;
     var particlesOnSprings, particlesSkelVis, particlesHidden;
     var attractionsPhysical;
@@ -498,23 +496,20 @@ applyAttractions = { |particle, mutual=false|
 // Choose a source (skeleton with the "lightest" hand).
 chooseSource = {
     var mass, sources = IdentityDictionary.new;
-    skeleton.keysValuesDo { |skel, joints|
-        joints.keysValuesDo { |joint, particle|
-            if (world.springSrcSkel.includes(joint)) {
-
-                // Calculate total mass connected to the current particle on springs.
-                mass = 0;
-                physics.springs.do { |spring|
-                    // A joint is always a source.
-                    if (spring.a == particle) { mass = mass + spring.b.mass };
+    skeleton.keysValuesDo { |num, skel|
+        world.springSrcSkel.do { |joint|
+            mass = 0;
+            physics.springs.do { |spring|
+                // joint is always a source
+                if (spring.a == skel[joint]) {
+                    mass = mass + spring.b.mass
                 };
-                sources[particle] = mass;
             };
+            sources.put(skel[joint], mass);
         };
     };
-
-    // choose among those with the minimum load
-    sources.findKeysForValue(sources.values.minItem).choose
+    // choose the one with minimum load
+    sources.findKeyForValue(sources.values.minItem)
     ??
     // if there are none, the probabilities of picking any of them are equal
     skeleton.choose[world.springSrcSkel.choose]
@@ -545,7 +540,7 @@ getGuide = {
         };
     };
     // the faster the object, the bigger a chance to become a guide
-    guides.findKeysForValue(guides.values.wchoose(guides.values.exp.normalizeSum))[0]
+    guides.findKeyForValue(guides.values.wchoose(guides.values.exp.normalizeSum))
 };
 
 

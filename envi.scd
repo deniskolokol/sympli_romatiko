@@ -16,7 +16,7 @@ srEnv = Environment.make {
         ((in + step).clip(lo, hi) % hi).clip(lo, hi)
     };
 
-    //Creates new group on Server, inserts synth and spatializer into it.
+    // Creates new group on Server, inserts synth and spatializer into it.
     // Assigns internal bus for rounting: each group of synth and its spatializer
     // should have a separate rounting bus for spatialization to take place individually.
     ~groupInit = {

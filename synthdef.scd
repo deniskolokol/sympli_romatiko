@@ -408,6 +408,7 @@ SynthDef(\sr__e__pulse, {
         ]
     );
     // Synthesis.
+    // XXX - Too sharp, add some delay to make it softer
     in = Blip.ar(SinOsc.kr(0.5, 0, LFDNoise1.kr(1.5), note), 100, 0.2);
     in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq);
     in = Limiter.ar(MidEQ.ar(in, [200, 1400], 0.7, 8), amp * 0.1);
@@ -750,8 +751,8 @@ SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim = [-0.25pi, -0.75pi], speakerElev = 0,
-        speakerDist = [2.2, 2.2], maxDist = 2.2, scaleFlag = 1,
+        speakerAzim = [-0.27pi, -0.72pi], speakerElev = 0,
+        speakerDist = [1.5, 1.5], maxDist = 1.5, scaleFlag = 1,
         in, signal, out, room, mix;
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);
     mix = distance.linexp(0.01, depth, 0.1, 0.8);

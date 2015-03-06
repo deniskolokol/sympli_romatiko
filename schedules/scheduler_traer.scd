@@ -60,10 +60,12 @@ samples = List.new; // fill samples
 
 voices = List.new; // fill voices
 [
-    "marcin00.wav", "agata00.wav", "marcin01.wav", "agata01.wav", "marcin02.wav", "agata02.wav",
-    "marcin03.wav", "agata03.wav", "marcin04.wav", "agata04.wav", "marcin05.wav", "agata05.wav",
-    "marcin06.wav", "agata06.wav", "marcin07.wav", "agata07.wav", "marcin08.wav", "agata08.wav",
-    "marcin09.wav", "agata09.wav", "marcin10.wav", "agata10.wav", "agata11.wav", "agata12.wav"
+    "00_marcin.wav", "01_agata.wav", "02_marcin.wav", "03_agata.wav", "04_marcin.wav",
+    "05_agata.wav", "06_marcin.wav", "07_agata.wav", "08_agata_marcin.wav", "09_agata.wav",
+    "10_dialog.wav", "11_marcin.wav", "12_agata.wav", "13_marcin.wav", "14_agata.wav",
+    "15_marcin.wav", "16_agata.wav", "17_marcin.wav", "18_agata.wav", "19_marcin.wav",
+    "20_agata.wav", "21_marcin.wav", "22_agata.wav", "23_marcin.wav", "24_agata.wav",
+    "25_marcin.wav", "26_agata.wav", "27_agata.wav"
 ].do { |f, i|
     voices.add(Buffer.readChannel(s, PathName(samplesDir ++ f).fullPath, channels: [0]));
 };
@@ -92,7 +94,6 @@ trigSynth = [ // keycodes for triggering obj creation with a synth
     35, \sr__e__melo,   // p
     33, \sr__e__ringz,  // [
     30, \sr__e__pulse,  // ]
-    42, \sr__e__analog, // \ (the answer to the ultimate question ))
     1,  \sr__g__reg,    // s
     2,  \sr__g__drone,  // d
     3,  \sr__g__gust,   // f
@@ -102,13 +103,15 @@ trigSynth = [ // keycodes for triggering obj creation with a synth
     40, \sr__g__unst,   // k
     37, \sr__g__chunk,  // l
     41, \sr__e__therem, // ;
+    39, \sr__e__silent, // "
+    42, \sr__e__analog, // \ (the answer to the ultimate question ))
 ];
 synthNames = Dictionary.newFrom(trigSynth);
 // TO-DO: names should be obtained automatically
 keyNames = (12: "q", 13: "w", 14: "e", 15: "r", 17: "t", 16: "y",
-    32: "u", 34: "i", 31: "o", 35: "p", 33: "[", 30: "]", 42: "\\",
+    32: "u", 34: "i", 31: "o", 35: "p", 33: "[", 30: "]",
     1:  "s", 2:  "d", 3:  "f", 5:  "g", 4:  "h", 38: "j", 40: "k",
-    37: "l", 41: ";");
+    37: "l", 41: ";", 39: "\"", 42: "\\");
 
 mainOutput = 0;
 mainInput = 20;
@@ -121,18 +124,21 @@ physics = (
     gravX: (label: "grav X", minval: -2.1, maxval: 2.0, default: 0, midicc: 27),
     gravY: (label: "grav Y", minval: -2.1, maxval: 2.0, default: 0, midicc: 28),
     gravZ: (label: "grav Z", minval: -2.1, maxval: 2.0, default: 0, midicc: 29),
+    partSigmoidRatio: (label: "sigmoid", minval: 0.3, maxval: 0.9, default: 0.7, midicc: 34),
+    partFreq: (label: "part freq", minval: 0.02, maxval: 0.9, default: 0.8, midicc: 35),
+    partAgeThresh: (label: "part age", minval: 0.1, maxval: 2, default: 0.84, midicc: 36),
+    partInitAccel: (label: "accel", minval: 0.5, maxval: 30, default: 5, midicc: 14),
     springRestLen: (label: "rest len", minval: 1, maxval: 15, step: 1, default: 2, midicc: 31),
     springStrength: (label: "strength", minval: 0.1, maxval: 2, default: 1, midicc: 32),
     springDamp: (label: "damp", minval: 0.1, maxval: 2, default: 2, midicc: 33),
-    particles: (label: "particl", default: false, midinote: 44),
-    mutualAttraction: (label: "mutual", default: true, midinote: 45)
+    mutualAttraction: (label: "mutual", default: true, midinote: 44),
+    particles: (label: "particl", default: false, midinote: 45)
 );
 physics.keys.do { |key|
     physics[key][\gui] = nil; // GUI element that controls the parameter
 };
 dummyParam = (param: "<NONE>", minval: 0, maxval: 1, step: 0.01, default: 0);
 valAsApec = { |param|
-    var spec;
     param.atFail(\spec, {[
             param.atFail(\minval, {0}), param.atFail(\maxval, {1}),
             param.atFail(\warp, {\lin}),
@@ -162,8 +168,9 @@ thePiece = (
         (message: \physics, params: [\mutualAttraction, physics.mutualAttraction.default]),
     ],
     5: [
-        // TO-DO:
-        // Re-write it to use groupInit, get read of groupNew,
+        // XXX:
+        // - re-write it to use groupInit, get read of groupNew,
+        // - louder \sr__e__humm, trajectory is closer to the center (it is sometimes too quiet)
         (
             info: "INTRO, no objects, only .kr buses",
             message: \g_new,
@@ -249,12 +256,16 @@ thePiece = (
         (
             info: "INTRO: voices background",
             message: \particle,
-            synth: (name: \sr__g__reg, params: [\ca, 5, \att, rand(40, 60), \rel, 10, \bufnum, voices.choose.bufnum]),
+            synth: (name: \sr__g__reg, params: [
+                \ca, 5, \att, rand(40, 60), \rel, 10, \bufnum, voices.choose.bufnum
+            ]),
             particle: (mass: 0.5),
         ),
         (
             message: \particle,
-            synth: (name: \sr__g__drone, params: [\ca, 5, \att, rand(80, 120), \rel, 10, \bufnum, voices.choose.bufnum]),
+            synth: (name: \sr__g__drone, params: [
+                \ca, 5, \att, rand(80, 120), \rel, 10, \bufnum, voices.choose.bufnum
+            ]),
             particle: (mass: 0.5),
         ),
     ],
@@ -333,7 +344,9 @@ thePiece = (
         (
             info: "heavy __analog - TAP twice for 2!",
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 1.0.rand, \rel, 10, \bufnum, scales[0].bufnum]),
+            synth: (name: \sr__e__analog, params: [
+                \att, 1.0.rand, \rel, 10, \bufnum, scales[0].bufnum
+            ]),
             particle: (mass: 1, spring: 1)
         ),
     ],
@@ -552,7 +565,7 @@ thePiece = (
         (
             info: "heavy __gauss - TAP twice for 2!",
             message: \particle,
-            synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
+            synth: (name: \sr__e__gauss, params: [\att, 100, \rel, 16, \ca, 5]),
             particle: (spring: 1, age: inf, mass: 0.9)
         ),
     ],
@@ -560,7 +573,7 @@ thePiece = (
         (
             info: "heavy __gauss 2",
             message: \particle,
-            synth: (name: \sr__e__gauss, params: [\att, 1, \rel, 8]),
+            synth: (name: \sr__e__gauss, params: [\att, 100, \rel, 16, \ca, 5]),
             particle: (spring: 1, age: inf, mass: 0.9)
         )
     ],
@@ -597,6 +610,7 @@ thePiece = (
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
             particle: (spring: 1, age: inf, mass: 0.9)
         ),
+        // XXX - __pulse should be more controllable! 2 notes, not more
         (
             info: "heavy __pulse with long attack",
             message: \particle,
@@ -676,6 +690,12 @@ task = (
         }
     }),
     voices: Task({
+        // XXX
+        // - don't use objects, but directly code behavior of synths (azimuth and distance)
+        // - split sounds to shorter fragments
+        // - make bigger pauses between sounds
+        // - dialog of Marcin and Agata - to one long file, start it together
+        //   with "voices background" (see schedule)
         var buff, syn, age, x, y, z, prob=0.2;
         inf.do { |j|
             buff = voices[(j % voices.size).asInt];
@@ -722,8 +742,8 @@ task = (
     sporadicPulse: Task({
         loop {
             sendParticle.(
-                particle: (age: rrand(1.7, 5.0), mass: 0.9, spring:[1, 0].wchoose([0.7, 0.3])),
-                synth: (name: \sr__e__pulse, params: [\att, 0.2, \rel, 3]));
+                particle: (age: rrand(2.7, 5.0), mass: 0.9, spring:[1, 0].wchoose([0.7, 0.3])),
+                synth: (name: \sr__e__pulse, params: [\att, 2, \rel, 3]));
             (20 + rand2(20 * 0.5)).wait;
         }
     }),
@@ -745,7 +765,7 @@ task = (
         }
     }),
     switchScale: Task({
-        var sca = scales[1..]; // first scale is a default one, don't take it into consideration
+        var sca = scales[0..1];
         inf.do{ |i|
             s.sendMsg("/n_set", nil, \bufnum, sca[i % sca.size].bufnum);
             (1..3).choose.wait;
@@ -968,48 +988,6 @@ processEvents = { |k=nil|
 
 // GUI.
 //
-win = Window("sequencing and scheduling", Rect(1070, 800, 610, Window.screenBounds.height))
-    .acceptsMouseOver_(true);
-win.view.decorator = FlowLayout(win.view.bounds);
-
-info = CompositeView(win, 500@165);
-info.decorator = FlowLayout(info.bounds);
-stCurrNum = StaticText(info, 70@60).font_(Font("Monaco", 32)).background_(Color.gray(0.8)).stringColor_(Color.gray(0.2));
-stCurrInfo = StaticText(info, 410@60).font_(Font("Monaco", 12)).background_(Color.gray(0.8)).stringColor_(Color.gray(0.2));
-stNextNum = StaticText(info, 70@90).font_(Font("Monaco", 32)).background_(Color.grey(0.4)).stringColor_(Color.white);
-stNextInfo = StaticText(info, 410@90).font_(Font("Monaco", 14)).background_(Color.grey(0.4)).stringColor_(Color.white);
-
-elapsed = CompositeView(win, 85@150);
-timeLabel = StaticText(elapsed, 85@80).font_(Font("Monaco", 18));
-
-keyboard = CompositeView(win, 600@170);
-keyboardFunc = { |synthName, params, spring=0, mass=1|
-    sendParticle.(
-        synth: (name: synthName, params: params),
-        particle: (spring:spring, mass:mass));
-};
-keyboard.decorator = FlowLayout(keyboard.bounds);
-keyboard.background = Color.new255(0, 0, 0, alpha:100);
-trigSynth.do { |key, i|
-    var view, buff;
-    if (i % 2 == 0) {
-        if (synthNames[key].asString.beginsWith("sr__e__")) { buff = scales.choose };
-        if (synthNames[key].asString.beginsWith("sr__g__")) { buff = voices.choose };
-        view = CompositeView(keyboard, 41@70);
-        view.decorator = FlowLayout(view.bounds);
-        Button(view, 41@45).states_(
-            [[keyNames[key].toUpper, Color.black, Color.white]]
-        ).canFocus_(false)
-        // TO-DO: Make use of Shift+Key (with or without spring)
-        .action_({ |bt| keyboardFunc.(synthNames[key], params: [\bufnum, buff.bufnum], spring:1) });
-        StaticText(view, 41@25).string_(
-            synthNames[key].asString.replace("sr__e__", "").replace("sr__g__", ""))
-        .align_(\topLeft)
-        .font_(Font("Monaco", 12))
-        .stringColor_(Color.white);
-    };
-};
-
 paneWidth = { |par, scale=0.5| (par.bounds.width * scale - 6).floor };
 paneHeight = { |par, scale=1| (par.bounds.height * scale - 10).floor };
 slider = { |par, val, layout='horz', scale=1|
@@ -1044,7 +1022,25 @@ buttonCheckbox = { |par, val, param, scaleH=1, scaleW=1|
     .canFocus_(false);
 };
 
-// MIDI interface (physics parameters)
+win = Window("sequencing and scheduling", Rect(1070, 800, 610, Window.screenBounds.height))
+    .acceptsMouseOver_(true);
+win.view.decorator = FlowLayout(win.view.bounds);
+
+info = CompositeView(win, 500@165);
+info.decorator = FlowLayout(info.bounds);
+stCurrNum = StaticText(info, 70@60).font_(Font("Monaco", 32))
+    .background_(Color.gray(0.8)).stringColor_(Color.gray(0.2));
+stCurrInfo = StaticText(info, 410@60).font_(Font("Monaco", 12))
+    .background_(Color.gray(0.8)).stringColor_(Color.gray(0.2));
+stNextNum = StaticText(info, 70@90).font_(Font("Monaco", 32))
+    .background_(Color.grey(0.4)).stringColor_(Color.white);
+stNextInfo = StaticText(info, 410@90).font_(Font("Monaco", 14))
+    .background_(Color.grey(0.4)).stringColor_(Color.white);
+
+elapsed = CompositeView(win, 85@150);
+timeLabel = StaticText(elapsed, 85@80).font_(Font("Monaco", 18));
+
+// MIDI interface (parameters)
 midiView = CompositeView(win, 600@400);
 midiView.decorator = FlowLayout(midiView.bounds);
 // LEFT PANE
@@ -1099,22 +1095,26 @@ miscParams[\next] = (
         processEvents.(current);
     })
 );
-button.(pane, dummyParam, "RESET", 0.6, 0.5);
-miscParams[\reset] = (
+miscParams[\removeall] = (
     midinote: 70,
     gui: button.(pane, dummyParam, "X", 0.6, 0.5).action_({ |bt|
         sendWorld.([\action, \remove, \all]);
     })
 );
-miscParams[\removeall] = (
+miscParams[\reset] = (
     midinote: 58,
-    gui: button.(pane, dummyParam, "X", 0.6, 0.5).action_({ |bt|
-        sendAct.((params: [\remove, \all]))
+    gui: button.(pane, dummyParam, "RESET", 0.6, 0.5).action_({ |bt|
+        physics.values.do { |element|
+            if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
+                element[\gui].valueAction_(element[\default])
+            }
+        }
     })
 );
-button.(pane, dummyParam, "<NONE>", 0.6, 0.5);
 pane = CompositeView(panePar, paneWidth.(panePar, 0.2)@paneHeight.(panePar, 0.17));
-physics[\particles][\gui] = buttonCheckbox.(pane, physics[\particles], \particles);
+physics[\mutualAttraction][\gui] = buttonCheckbox.(
+    pane, physics[\mutualAttraction], \mutualAttraction
+);
 
 // RIGHT PANE
 panePar = CompositeView(midiView, paneWidth.(midiView)@paneHeight.(midiView))
@@ -1123,20 +1123,12 @@ panePar.decorator = FlowLayout(panePar.bounds);
 // RIGHT PANE LEFT SIDE
 pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar, 0.85));
 pane.decorator = FlowLayout(pane.bounds);
-param = (param: "depth", minval: 1, maxval: 10, step: 0.1, default: 5);
-miscParams[\depth] = (
-    midicc: 34, minval: param[\minval], maxval: param[\maxval], step: param[\step],
-    gui: knob.(pane, param, "depth")
-    .action_({ |ez|
-        ~depth = ez.value;
-        sendAudio.((params: [\depth, ~depth]));
-    })
-);
-[\none, \none].do { |key| // Dummies
-    knob.(pane, dummyParam, "<NONE>");
+[\partSigmoidRatio, \partFreq, \partAgeThresh].do { |key|
+    physics[key][\gui] = knob.(pane, physics[key], key);
 };
 pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar, 0.85));
-slider.(pane, dummyParam, \vert);
+physics[\partInitAccel][\gui] = slider.(pane, physics[\partInitAccel], \vert);
+
 // RIGHT PANE RIGHT SIDE
 pane = CompositeView(panePar, paneWidth.(panePar, 0.33)@paneHeight.(panePar, 0.85));
 pane.decorator = FlowLayout(pane.bounds);
@@ -1145,19 +1137,52 @@ pane.decorator = FlowLayout(pane.bounds);
 };
 pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar, 0.85));
 pane.decorator = FlowLayout(pane.bounds);
-slider.(pane, dummyParam, \vert);
+param = (param: "depth", minval: 1, maxval: 10, step: 0.1, default: 5);
+miscParams[\depth] = (
+    midicc: 15, minval: param[\minval], maxval: param[\maxval], step: param[\step],
+    gui: slider.(pane, param, \vert)
+    .action_({ |ez|
+        ~depth = ez.value;
+        sendAudio.((params: [\depth, ~depth]));
+    })
+);
 // RIGHT PANE BOTTOM
 pane = CompositeView(panePar, paneWidth.(panePar, 0.8)@paneHeight.(panePar, 0.17));
 pane.decorator = FlowLayout(pane.bounds);
 4.do { button.(pane, dummyParam, "<NONE>", 0.6, 0.5) };
 pane = CompositeView(panePar, paneWidth.(panePar, 0.2)@paneHeight.(panePar, 0.17));
-physics[\mutualAttraction][\gui] = buttonCheckbox.(pane, physics[\mutualAttraction], \mutualAttraction);
+physics[\particles][\gui] = buttonCheckbox.(pane, physics[\particles], \particles);
 
 // KEYBOARD
+keyboard = CompositeView(win, 600@170).background_(Color.grey(grey:0.7));
+keyboardFunc = { |synthName, params, spring=0, mass=1|
+    sendParticle.(
+        synth: (name: synthName, params: params),
+        particle: (spring:spring, mass:mass));
+};
+keyboard.decorator = FlowLayout(keyboard.bounds);
+trigSynth.do { |key, i|
+    var view, buff;
+    if (i % 2 == 0) {
+        if (synthNames[key].asString.beginsWith("sr__e__")) { buff = scales.choose };
+        if (synthNames[key].asString.beginsWith("sr__g__")) { buff = voices.choose };
+        view = CompositeView(keyboard, 45@70);
+        view.decorator = FlowLayout(view.bounds);
+        Button(view, 41@45).states_(
+            [[keyNames[key].toUpper, Color.black, Color.white]])
+        .canFocus_(false)
+        .action_({ |bt| keyboardFunc.(synthNames[key], params: [\bufnum, buff.bufnum], spring:1) });
+        StaticText(view, 41@25).string_(
+            synthNames[key].asString.replace("sr__e__", "").replace("sr__g__", ""))
+        .align_(\topLeft)
+        .font_(Font("Monaco", 12))
+        .stringColor_(Color.white);
+    };
+};
 win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
-    [char, modifiers, unicode, keycode].postln;
+    //[char, modifiers, unicode, keycode].postln;
     case
-    { keycode == 6 && [0, 256].includes(modifiers) } { // Z - info
+    { keycode == 6 } { // Z - info
         if( [0, 256].includes(modifiers), {
             postf("window: left %, top %, width %, height %\n",
                 win.bounds.left, win.bounds.top, win.bounds.width, win.bounds.height);

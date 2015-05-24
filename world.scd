@@ -15,7 +15,7 @@ var world = (
     mutualAttraction: true,
     repulsion: 100,
     gravity: (x: 0, y: 0, z: 0),
-    drag: 0.001,
+    drag: 0.25,
     maxVel: 5,
 
     // springs behavior
@@ -28,8 +28,9 @@ var world = (
 
     // particles
     particles:         0, // run particles
-    partSigmoidRatio:  0.7, // steepness of sigmoid function determiming probability of particle being born
-    partFreq:          0.8, // generate a new particle \partFreq times per second
+    partSigmoidRatio:  0.7, // steepness of sigmoid function determiming
+                            // probability of particle being born
+    partFreq:          0.8, // generate new particle \partFreq times per second
     partAgeThresh:     0.84, // maximum particle age in cycles (sec)
     partInitAccel:     5, // particle initial acceleration
     partSynth:         \sr__e__pulse
@@ -72,8 +73,10 @@ var skeleton = Dictionary.new,
 
 // INTERFACE
 //
-var win = Window("Sympli Romatikó :: WORLD", Rect(0, 500, world.width, world.height), false);
-var view = UserView(win, Rect(0, 0, world.width, world.height)).background = Color.black;
+var win = Window("Sympli Romatikó :: WORLD",
+    Rect(0, 500, world.width, world.height), false);
+var view = UserView(win, Rect(0, 0, world.width, world.height))
+    .background = Color.black;
 
 // HELPER FUNCTIONS
 //
@@ -96,10 +99,6 @@ var mag3D = { |vec|
 
 // Simple sigmoid function.
 var sigmoid = { |ratio, value| 1 / (1 + exp((ratio * value).neg))};
-
-// Increments integers with a limit: resets to `lo` every time in + step reaches `hi`.
-var clipInc = { |in=0, step=1, lo=0, hi=inf| ((in + step).clip(lo, hi) % hi).clip(lo, hi)};
-
 
 // INTERFACE
 //
@@ -134,21 +133,25 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
         // WARNING - TEST ONLY!
         b = NetAddr.new("127.0.0.1", 57120);
         k.free;
-        k = Buffer.loadCollection(s, FloatArray[0, 3, 7, 10]); // default Scale buffer
+        k = Buffer.loadCollection(s, FloatArray[0, 3, 7, 10]); // default scale
         g = s.nextNodeID;
 
         s.sendBundle(0.001,
             ["/g_new", g],
-            ["/s_new", \sr__s__ambisonic2, s.nextNodeID, 1, g, // add spatializer to new group's tail
+            // add spatializer to new group's tail
+            ["/s_new", \sr__s__ambisonic2, s.nextNodeID, 1, g,
                 \inbus, 4, // getting signal from synth
                 \outbus, 0], // to main output
-            ["/s_new", \sr__e__analog, s.nextNodeID, 0, g, // add synth to new group's head
+            // add synth to new group's head
+            ["/s_new", \sr__e__analog, s.nextNodeID, 0, g,
                 \outbus, 4, // feeding into spatilizer
                 \depth, ~depth,
                 \bufnum, k.bufnum
             ]
         );
-        b.sendMsg('/particle', 1, g, 1, rrand(0.8, 2.0), 600.rand, 600.rand, 600.rand, inf);
+        b.sendMsg('/particle', 1, g, 1,
+            rrand(0.8, 2.0), 600.rand, 600.rand, 600.rand, inf
+            );
     }
 };
 

@@ -1,69 +1,36 @@
+// Sympli Romatikó
+// module: Scheduler
+// ---------------
 (
-var sequence; // main dictionary with the sequence of scheduled tasks
-var worldSize; // assume the World is a cube
-var param, parmDir = Dictionary.new; // Global params of the piece dictionary.
+var sequence; // main dictionary with the sequence of scheduled events and tasks
+var param; // global params
 var sGroupId; // root group
-var receiver; // communication
-var task; // tasks dictionary
-var guideBuff, samples, scales, voices; // buffers (sound files and scales)
+var defaultBuff;
 var trigSynth, synthNames, keyNames; // available SynthDefs
 var synths=Dictionary.new; // temp dictionary of the synths symbolic IDs vs. server Nodes
-var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 var key, current, next, syn, obj, age, mass, dummyParam, physics=(); // object's properties
-var win, info, elapsed, keyboard, keyboardFunc, updateGui, // interface
-    stCurrNum, stCurrInfo, stNextNum, stNextInfo,
-    timeLabel, slider, knob, button, buttonCheckbox,
-    panePar, pane, paneWidth, paneHeight, midiView, miscParams=();
+var win, seq, elapsed, keyboard, keyboardFunc, updateGui, // interface
+    stCurrNum, stCurrInfo, stNextNum, stNextInfo, timeLabel,
+    slider, knob, button, buttonCheckbox, dropdown,
+    panePar, pane, paneWidth, paneHeight, midiView, miscParams,
+    seqPaths, seqPathsFile, seqMenu, openSequence, loadSequence;
 var valAsApec;
 var shade, count=0, animate=false; // schedule animation
-var getKey, displayEventInfo, convertTime, clipInc; // helper functions
+var getKey, eventInfo, convertTime, clipInc, getIndex; // helper functions
 var processEvents, groupNew, groupRemove, taskPlay, sendWorld,
     sendParticle, sendSNew, sendPhysics, sendAudio, sendAct; // acting functions
 
 
 // INITIAL
 //
-// Net Address and Port of the Receiver.
-receiver = NetAddr.new("127.0.0.1", 57120);
+sequence=Dictionary.new;
+
 // Group for synths.
 sGroupId = s.nextNodeID;
 s.sendMsg("/g_new", sGroupId);
-// Sequence rules (Markov set).
-dictObjSeq = (
-    // [number of repeats] (to choose from) -> [timelapse] (current moment and age)
-    0: [(4..12), (1..6)], // short
-    1: [[1, 3, 5, 7, 9], ({rrand(5, 40)} ! 10)], // average
-    2: [[1, 2], ({rrand(30, 120)} ! 10)] // long (repeat)
-);
-msetObjSeq = MarkovSetN([], 2);
-dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 
-samplesDir = "~/Music/Sympli_Romatiko/samples/";
-samples = List.new;
-voices = List.new;
-PathName.new(samplesDir +/+ "drums").entries.do { |f, i|
-    try { samples.add(Buffer.readChannel(s, f.fullPath, channels: [0])) }
-};
-PathName.new(samplesDir +/+ "voices").entries.do { |f, i|
-    try { voices.add(Buffer.readChannel(s, f.fullPath, channels: [0])) }
-};
-guideBuff = Buffer.readChannel(s,
-    PathName(samplesDir +/+ "drums/drumguide.wav").fullPath, channels: [0]
-);
-
-
-scales = List.new; // fill scales
-[
-    FloatArray[0, 3, 7, 10], // scales[0] is the main scale
-    FloatArray[0, 1, 3, 7, 8], // the rest are specific to sequence's parts
-    FloatArray[0, 2],
-    FloatArray[0, 3],
-    FloatArray[1, 3],
-].do { |c, i|
-    scales.add(Buffer.loadCollection(s, c));
-};
-
-trigSynth = [ // keycodes for triggering obj creation with a synth
+// Keycodes for triggering obj creation with a synth.
+trigSynth = [
     12, \sr__e__wasp,   // q
     13, \sr__e__radio,  // w
     14, \sr__e__humm,   // e
@@ -95,220 +62,50 @@ keyNames = (12: "q", 13: "w", 14: "e", 15: "r", 17: "t", 16: "y",
     1:  "s", 2:  "d", 3:  "f", 5:  "g", 4:  "h", 38: "j", 40: "k",
     37: "l", 41: ";", 39: "\"", 42: "\\");
 
-worldSize = 800;
-
 physics = (
-    drag: (label: "drag", minval: 0.000, maxval: 0.500, step: 0.001, default: 0.001, midicc: 24),
-    repulsion: (label: "repulsion", minval: 1, maxval: 100, step: 5, default: 100, midicc: 25),
-    starMass: (label: "star mass", minval: 0.1, maxval: 5, step: 0.1, default: 1, midicc: 26),
-    gravX: (label: "grav X", minval: -2.1, maxval: 2.0, default: 0, midicc: 27),
-    gravY: (label: "grav Y", minval: -2.1, maxval: 2.0, default: 0, midicc: 28),
-    gravZ: (label: "grav Z", minval: -2.1, maxval: 2.0, default: 0, midicc: 29),
-    partSigmoidRatio: (label: "sigmoid", minval: 0.3, maxval: 0.9, default: 0.7, midicc: 34),
-    partFreq: (label: "part freq", minval: 0.02, maxval: 0.9, default: 0.8, midicc: 35),
-    partAgeThresh: (label: "part age", minval: 0.1, maxval: 2, default: 0.84, midicc: 36),
-    partInitAccel: (label: "accel", minval: 0.5, maxval: 30, default: 5, midicc: 14),
-    springRestLen: (label: "rest len", minval: 1, maxval: 15, step: 1, default: 2, midicc: 31),
-    springStrength: (label: "strength", minval: 0.1, maxval: 2, default: 1, midicc: 32),
-    springDamp: (label: "damp", minval: 0.1, maxval: 2, default: 2, midicc: 33),
-    mutualAttraction: (label: "mutual", default: true, midinote: 44),
-    particles: (label: "particl", default: false, midinote: 45)
+    drag:             ( label: "drag",      minval: 0.000, maxval: 0.500, step: 0.001, default: 0.001, midicc: 24   ),
+    repulsion:        ( label: "repulsion", minval: 1,     maxval: 100,   step: 5,     default: 100,   midicc: 25   ),
+    starMass:         ( label: "star mass", minval: 0.1,   maxval: 5,     step: 0.1,   default: 1,     midicc: 26   ),
+    gravX:            ( label: "grav X",    minval: -2.1,  maxval: 2.0,                default: 0,     midicc: 27   ),
+    gravY:            ( label: "grav Y",    minval: -2.1,  maxval: 2.0,                default: 0,     midicc: 28   ),
+    gravZ:            ( label: "grav Z",    minval: -2.1,  maxval: 2.0,                default: 0,     midicc: 29   ),
+    partSigmoidRatio: ( label: "sigmoid",   minval: 0.3,   maxval: 0.9,                default: 0.7,   midicc: 34   ),
+    partFreq:         ( label: "part freq", minval: 0.02,  maxval: 0.9,                default: 0.8,   midicc: 35   ),
+    partAgeThresh:    ( label: "part age",  minval: 0.1,   maxval: 2,                  default: 0.84,  midicc: 36   ),
+    partInitAccel:    ( label: "accel",     minval: 0.5,   maxval: 30,                 default: 5,     midicc: 14   ),
+    springRestLen:    ( label: "rest len",  minval: 1,     maxval: 15,    step: 1,     default: 2,     midicc: 31   ),
+    springStrength:   ( label: "strength",  minval: 0.1,   maxval: 2,                  default: 1,     midicc: 32   ),
+    springDamp:       ( label: "damp",      minval: 0.1,   maxval: 2,                  default: 2,     midicc: 33   ),
+    mutualAttraction: ( label: "mutual",                                               default: true,  midinote: 44 ),
+    particles:        ( label: "particl",                                              default: false, midinote: 45 )
 );
 physics.keys.do { |key|
     physics[key][\gui] = nil; // GUI element that controls the parameter
 };
+miscParams = Dictionary.new;
 dummyParam = (param: "<NONE>", minval: 0, maxval: 1, step: 0.01, default: 0);
 valAsApec = { |param|
-    param.atFail(\spec, {[
+    param.atFail(\spec, {
+        [
             param.atFail(\minval, {0}), param.atFail(\maxval, {1}),
             param.atFail(\warp, {\lin}),
             param.atFail(\step, {0}),
             param.atFail(\default, {0})
-        ]}
-    ).asSpec
+        ]
+    }).asSpec
 };
 
-sequence = ( );
+// Load sequence paths
+if (~currentDir.isNil) {
+    ~currentDir = PathName(thisProcess.nowExecutingPath).pathOnly
+};
+seqPathsFile = ~currentDir +/+ "seq.txt";
+seqPaths = List.newFrom(["", "Load..."]);
+try { // to load from settings file
+    seqPaths = seqPaths ++ File(seqPathsFile, "r").readAllString.interpret;
+};
 
-// Store global params of the piece in a dictionary.
-parmDir.putPairs(sequence[0][0][\params]);
-
-// Tasks dictionary.
-task = (
-    randomParticles: Task({
-        var key, next;
-        var particleParams = [ // list of acceptable configurations
-            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.3, \partAgeThresh, 1.67, \partInitAccel, 10 ],
-            [                           \partSigmoidRatio, 0.7, \partAgeThresh, 0.20, \partInitAccel, 30 ],
-            [\partSynth, \sr__e__melo,  \partSigmoidRatio, 0.7, \partAgeThresh, 0.78, \partInitAccel, 2.0],
-            [\partSynth, \sr__e__cmb,   \partSigmoidRatio, 0.4, \partAgeThresh, 0.20, \partInitAccel, 30 ],
-            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.7, \partAgeThresh, 1.08, \partInitAccel, 8.0],
-            [\partSynth, \sr__e__pulse, \partSigmoidRatio, 0.2, \partAgeThresh, 1.03, \partInitAccel, 20 ],
-            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.2, \partAgeThresh, 1.67, \partInitAccel, 1.0],
-        ];
-        inf.do { |i|
-            2.do { |j|
-                key = msetObjSeq.dict.keys.asArray.sort.wchoose([0.3, 0.6, 0.1]);
-                next = msetObjSeq.next(key);
-                next = (next + rand2(next * 0.25));
-                sendPhysics.(
-                    (message: \physics, params: particleParams[i % particleParams.size]),
-                );
-                next.wait;
-            };
-            0.01.wait;
-        }
-    }),
-
-    // INTRO:
-    // Picks up a key and the number of iterations randomly (average
-    // sequences are the most probable, long are the least probable).
-    //
-    // A new particle's age spans over to the next object birth (no gaps).
-    // The lighter the object the faster it dies, but demography is denser.
-    //
-    intro: Task({
-        var key, next, synth, x, y, z, age, node;
-        loop {
-            key = msetObjSeq.dict.keys.asArray.sort.wchoose([0.1, 10, 1].normalizeSum);
-            dictObjSeq[key.asInteger][0].choose.do{ |i|
-                next = msetObjSeq.next(key);
-                age = next * (1 + (1/(next.pow(0.33))));
-                mass = next.sqrt.clip(0.1, 0.3);
-                #x, y, z = (worldSize ! 3).rand;
-                synth = (name: [\sr__e__humm, \sr__e__radio][i % 2], // alternate
-                    params:[\att, rrand(1, 2), \bufnum, scales[4].bufnum]);
-                sendParticle.(synth: synth, particle: (mass:mass, x:x, y:y, z:z, age:age));
-                if (0.7.coin) {
-                    synth = (name: [\sr__e__lowe, \sr__e__radio, \sr__e__humm].wchoose([0.6, 0.2, 0.2]));
-                    sendParticle.(synth: synth, particle: (mass:mass, x:x, y:y, z:z,
-                        age:age + ((age * 0.25).rand2)));
-                };
-                next.wait;
-            };
-            0.01.wait;
-        }
-    }),
-    voices: Task({
-        var buff, syn, age, x, y, z, prob=0.2;
-        inf.do { |j|
-            buff = voices[(j % voices.size).asInt];
-            buff.postln;
-            age = buff.numFrames / buff.numChannels / buff.sampleRate;
-            #x, y, z = { rrand(worldSize, worldSize * ([0.1, 0.9].choose)) } ! 3;
-            case
-            // when voices are introduced, they should be clearly recognizable
-            {j <= 5} { syn = \sr__g__loop }
-            {(j > 5) && (j <= 10)} {syn = [\sr__g__loop, \sr__g__loopdel, \sr__g__unst].choose}
-            {j > 10} {
-                // later on "smooth them out" into a voice meshup
-                // they should appear closer to the center of the world
-                #x, y, z = { (worldSize / 2 + rand2(worldSize * 0.15))} ! 3;
-                prob = 0.6; // bigger chance that the next sample will cross with the current one
-                syn = [\sr__g__loop, \sr__g__unst, \sr__g__reg].wchoose([0.5, 0.3, 0.2]);
-                // and occasionally send a light __scratch with the same sample and age
-                if (0.3.coin) {
-                    sendParticle.(
-                        particle: (mass:0.1, x:x, y:z, z:z, age:age),
-                        synth: (name:\sr__g__scratch, params:[\att, 3, \bufnum, buff.bufnum])
-                    );
-                };
-            };
-            // main "voice particle"
-            sendParticle.(
-                particle: (mass:0.5, x:x, y:z, z:z, age:age),
-                synth: (name:syn, params:[\att, 2, \bufnum, buff.bufnum])
-            );
-            // vary waiting time - every now and then send the next particle
-            // without waiting until the end of the sample
-            if (prob.coin) { (age * 0.25).wait } { (age + rrand(4, 10)).wait }
-        }
-    }),
-    sporadicAnalogCutoff: Task({
-        var x, y, z;
-        loop {
-            x = (1.0.sum3rand * 100).abs + [100, 500].choose;
-            #y, z = ({ (1.0.sum3rand * 150).abs + 100 } ! 2);
-            sendParticle.(
-                particle: (mass:0.6, x:x, y:z, z:z, age:rrand(3, 4)),
-                synth: (name:\sr__e__analog, params:[\cutoff, -1, \att, 0.2, \rel, rrand(4, 6)])
-            );
-            (10 + 2.0.rand2).wait;
-        }
-    }),
-    sporadicPulse: Task({
-        loop {
-            (20 + rand2(20 * 0.25)).wait;
-            sendParticle.(
-                particle: (age: rrand(2.7, 5.0), mass: 0.9, spring:[1, 0].wchoose([0.7, 0.3])),
-                synth: (name: \sr__e__pulse, params: [\att, 2, \rel, 3]));
-            (20 + rand2(20 * 0.5)).wait;
-        }
-    }),
-    sporadicCMB: Task({
-        loop {
-            sendParticle.(
-                particle: (age: rrand(2, 5), mass: 0.9, spring: [1, 0].wchoose([0.7, 0.3])),
-                synth: (name: \sr__e__cmb, params: [\att, 1.5, \rel, 3]));
-            (30 + rand2(30 * 0.25)).wait;
-        }
-    }),
-    sporadicMelo: Task({
-        loop {
-            (20 + rand2(20 * 0.25)).wait;
-            sendParticle.(
-                particle: (age: rrand(5, 10), mass: 0.9, spring: [1, 0].wchoose([0.7, 0.3])),
-                synth: (name: \sr__e__melo, params: [\att, 1.5, \rel, 3, \bufnum, scales[0].bufnum]));
-            ((20 + rand2(20 * 0.25))/2).wait;
-        }
-    }),
-    switchScale: Task({
-        var sca = scales[0..1];
-        inf.do{ |i|
-            s.sendMsg("/n_set", nil, \bufnum, sca[i % sca.size].bufnum);
-            (1..3).choose.wait;
-            s.sendMsg("/n_set", nil, \bufnum, nil);
-            (60..120).choose.wait;
-        }
-    }),
-    granWave: Task({
-        var buff, age, timeprop, next=20;
-        var introSynths = [\sr__g__loop, \sr__g__slic, \sr__g__drone, \sr__g__reg, \sr__g__gust];
-        // Probablity of choosing a particular synth decreases towards the end of the list.
-        var introSynthProb = Array.fill(introSynths.size, {exprand(0.01, 1.00)}).normalizeSum.sort.reverse;
-        // WARNING!
-        // For this particlular piece we play it only twice, instead of inf.do
-        2.do{ |j|
-            // Start fade-in synth before the wave.
-            age = rrand(5, 8);
-            sendParticle.(
-                particle: (mass:0.5, spring:1, age:age),
-                synth: (
-                    name:introSynths.wchoose(introSynthProb),
-                    params:[\att, 4, \rel, 3.0.rand, \bufnum, guideBuff.bufnum])
-            );
-            // Wait attack time with little overlap with a wave.
-            4.wait;
-            // Alternate between samples.
-            buff = samples[(j % samples.size).asInt];
-            {
-                200.do { |i|
-                    timeprop = (i / 199.0) ** 3;
-                    sendSNew.(
-                        (synth: (
-                            name: \sr__u__grain,
-                            params: [\bufnum, buff.bufnum, \busnum, audioThruBus[i % audioThruBus.size],
-                                \rate, 1 + timeprop.rand2.pow(2), \pos, rrand(0.0, timeprop), \amp, exprand(0.05, 1.00)]
-                            )
-                        ),
-                    );
-                    rrand((timeprop * 0.1).max(0.01), timeprop * 0.4).wait
-                };
-            }.fork;
-            rrand(20, 45).wait;
-        }
-    })
-);
+defaultBuff = Buffer.loadCollection(s, FloatArray[0, 3, 7, 10]);
 
 // Send synth to server.
 sendSNew = { |data|
@@ -353,42 +150,26 @@ groupRemove = { |data|
 };
 
 
-// Sends message to the World.
-sendWorld = { |msg|
-    receiver.sendBundle(0.01, msg);
-};
+// local wrappers of messages to the World.
+sendWorld = { |data| ~sendMessage.(data[\message], data[\params]) };
 
+sendAudio = { |params| ~sendMessage.('/audio', params) };
 
-// Sends particle creation message to the World:
-// [create:1, node, spring:0|1, mass:9, x:470, y:300, z:250, age:inf]
-// Returns Server node.
-sendParticle = { |particle, synth|
-    var node, spring, pos, x, y, z, age;
-    pos = [particle.x, particle.y, particle.z];
-    #x, y, z = Array.fill(pos.size, { |i| pos[i] ? worldSize.rand});
-    node = ~groupInit.(synth[\name], ~surround, params:synth[\params]);
-    sendWorld.(['/particle', 1, node, particle.atFail(\spring, {0}),
-        particle.mass, x, y, z, particle.atFail(\age, {inf})]);
-    node
-};
+sendAct = { |params| ~sendMessage.('/action', params) };
 
+sendParticle = { |particle, synth| ~sendParticle.(particle, synth) };
 
-// Sends parameter to the World.
 sendPhysics = { |data|
-    receiver.sendBundle(0.001, ['/physics'] ++ data[\params]);
-    updateGui.(data[\params])
-};
-
-
-// Send audio parameters.
-sendAudio = { |data|
-    receiver.sendBundle(0.001, ['/audio'] ++ data[\params])
-};
-
-
-// Send action to the World.
-sendAct = { |data|
-    receiver.sendBundle(0.001, ['/action'] ++ data[\params])
+    var params;
+    params = Dictionary.newFrom(data[\params]);
+    params.keysValuesDo { |k, v|
+        if (v == \default) {
+            params[k] = physics[k][\default]
+        }
+    };
+    params = params.asKeyValuePairs;
+    ~sendMessage.('/physics', params);
+    updateGui.(params)
 };
 
 
@@ -410,7 +191,7 @@ taskPlay = { |task, play=false|
 // Obtain the key next/prev to current.
 getKey = { |current=nil, next=1|
     var k, c;
-    k = sequence.keys.asArray.asInteger.sort;
+    k = sequence.events.keys.asArray.asInteger.sort;
     c = k.indexOf(current) ? -1;
     k[c + next] ? k[0]; // Go back to beginning upon reaching the upper threshold.
 };
@@ -420,17 +201,17 @@ getKey = { |current=nil, next=1|
 clipInc = { |in=0, step=1, lo=0, hi=inf| ((in + step).clip(lo, hi) % hi).clip(lo, hi)};
 
 
-// Convert all event's [\info] keys into info string.
-displayEventInfo = { |k=nil, lim=50|
+// Converts all event's [\info] keys into info string.
+eventInfo = { |k=nil, lim=50|
     var infoStr, val, sF;
-    val = sequence.atFail(k, {[]});
+    val = sequence.events.atFail(k, {[]});
     sF = { |l| format(" %\n", if (l.size <= lim) {l} {l[..lim] ++ "..."})};
     infoStr = all{: sF.(l[\info].asString), l <- val, l.keys.includes(\info)};
     "".catList(infoStr)
 };
 
 
-// Convert time to readable format.
+// Converts timecode to readable format.
 convertTime = { |timecode|
     var sec=0, min=0, minstring="00", secstring="00";
     if(timecode >= 60) {
@@ -445,19 +226,71 @@ convertTime = { |timecode|
 };
 
 
+// Obtains index of val in container (list, array, etc.)
+// WARNING! Quick and dirty, not universal!
+getIndex = { |container, val|
+    var ind;
+    if (val.class == String) {
+        container.do { |el, i| if (el == val) { ind = i } };
+    } {
+        ind = container.indexOf(val)
+    };
+    ind
+};
+
+
+// Loads sequence from file.
+loadSequence = { |path|
+    postf("Loading schedule %...\n", PathName.new(path).fileName);
+    if (this.executeFile(path).isNil.not) {
+        postf("OK\n\n");
+        sequence = ~sequence;
+        if (seqPaths.asString.contains(path).not) {
+            seqPaths.insert(2, path); // to the top, but after ["", "Load.."]
+        };
+        getIndex.(seqPaths, path)
+    } {
+        postf("Not OK\n\n");
+        try {
+            seqPaths.removeAt(getIndex.(seqPaths, path));
+        };
+        0
+    }
+};
+
+
+// Opens sequence from file.
+openSequence = { |element|
+    animate = false;
+    case
+    { element.value == 1 } {
+        Dialog.openPanel({ |path|
+            element.value = loadSequence.(path);
+            win.name = format("sequence: %", PathName.new(path).fileName);
+        });
+    }
+    { element.value > 1 } {
+        element.value = loadSequence.(seqPaths[element.value]); // open from file
+        win.name = format("sequence: %",
+            PathName.new(seqPaths[element.value]).fileName
+        );
+    }
+    { win.name = "sequencing and scheduling" };
+};
+
+
 // Process specific key from sequence.
-processEvents = { |k=nil|
-    var val = sequence.atFail(k, {[]});
-    val.do { |d, l|
+processEvents = { |key|
+    sequence.events.atFail(key, {[]}).do { |d, l|
         d[\message].switch(
             \physics, { // send World parameter(s)
                 sendPhysics.(d)
             },
             \audio, { // send audio parameter(s)
-                sendAudio.(d)
+                sendAudio.(d[\params])
             },
             \task, { // launch/stop a task
-                taskPlay.(task[d[\name]], d[\act].booleanValue)
+                taskPlay.(sequence.tasks[d[\name]], d[\act].booleanValue)
             },
             \particle, { // single object creation
                 sendParticle.(particle:d[\particle], synth:d[\synth])
@@ -478,7 +311,7 @@ processEvents = { |k=nil|
                 groupRemove.(d)
             },
             { // default function
-                sendWorld.(d[\params])
+                sendWorld.(d)
             }
         )
     }
@@ -519,24 +352,55 @@ buttonCheckbox = { |par, val, param, scaleH=1, scaleW=1|
     .font_(Font("Monaco", 10))
     .canFocus_(false);
 };
+dropdown = { |par, label, items, action, initVal=0, scale=1|
+    var labelWidth=0;
+    if (label.isNil.not) { labelWidth = label.size * 9};
+    EZPopUpMenu(par,
+        bounds: paneWidth.(par, scale)@20,
+        label: label,
+        items: items,
+        globalAction: action,
+        initVal: initVal,
+        labelWidth: labelWidth
+    )
+    .font_(Font("Helvetica", 11))
+};
+
 
 win = Window("sequencing and scheduling", Rect(700, 800, 610, Window.screenBounds.height))
     .acceptsMouseOver_(true);
 win.view.decorator = FlowLayout(win.view.bounds);
 
-info = CompositeView(win, 500@165);
-info.decorator = FlowLayout(info.bounds);
-stCurrNum = StaticText(info, 70@60).font_(Font("Monaco", 32))
+seq = CompositeView(win, (win.bounds.width-10)@165);
+seq.decorator = FlowLayout(seq.bounds);
+
+// current event's number and info
+stCurrNum = StaticText(seq, 70@60).font_(Font("Monaco", 32))
     .background_(Color.gray(0.8)).stringColor_(Color.gray(0.2));
-stCurrInfo = StaticText(info, 410@60).font_(Font("Monaco", 12))
+stCurrInfo = StaticText(seq, 410@60).font_(Font("Monaco", 12))
     .background_(Color.gray(0.8)).stringColor_(Color.gray(0.2));
-stNextNum = StaticText(info, 70@90).font_(Font("Monaco", 32))
+
+// open file with sequence
+pane = CompositeView(seq, 103@60);
+pane.decorator = FlowLayout(pane.bounds);
+StaticText(pane, (pane.bounds.width-10)@20).font_(Font("Monaco", 11))
+    .stringColor_(Color.gray(0.2)).string_("Open sequence");
+dropdown.(pane,
+    items:seqPaths[..1] ++ seqPaths[2..].collect({|a| PathName(a).fileName }),
+    action:openSequence
+);
+
+// next (awaiting) event's number and info
+stNextNum = StaticText(seq, 70@90).font_(Font("Monaco", 32))
     .background_(Color.grey(0.4)).stringColor_(Color.white);
-stNextInfo = StaticText(info, 410@90).font_(Font("Monaco", 14))
+stNextInfo = StaticText(seq, 410@90).font_(Font("Monaco", 14))
     .background_(Color.grey(0.4)).stringColor_(Color.white);
 
-elapsed = CompositeView(win, 85@150);
-timeLabel = StaticText(elapsed, 85@80).font_(Font("Monaco", 18));
+// time elapsed since the start
+elapsed = CompositeView(seq, 103@90).background_(Color.grey(0.4));
+elapsed.decorator = FlowLayout(elapsed.bounds);
+timeLabel = StaticText(elapsed, elapsed.bounds.width@elapsed.bounds.height)
+    .font_(Font("Monaco", 20)).stringColor_(Color.white);
 
 // MIDI interface (parameters)
 midiView = CompositeView(win, 600@400);
@@ -573,29 +437,38 @@ pane.decorator = FlowLayout(pane.bounds);
 miscParams[\prev] = (
     midinote: 46,
     gui: button.(pane, dummyParam, "<<", 0.6, 0.5).action_({ |bt|
-        stCurrNum.string = current = getKey.(current, -1);
-        stCurrInfo.string = displayEventInfo.(current);
-        stNextNum.string = next = getKey.(current, 1);
-        stNextInfo.string = displayEventInfo.(next);
-        processEvents.(current);
+        if (sequence.isNil.not) {
+            if (sequence.size > 0) {
+                stCurrNum.string = current = getKey.(current, -1);
+                stCurrInfo.string = eventInfo.(current);
+                stNextNum.string = next = getKey.(current, 1);
+                stNextInfo.string = eventInfo.(next);
+
+                processEvents.(current);
+            }
+        }
     })
 );
 miscParams[\next] = (
     midinote: 43,
     gui: button.(pane, dummyParam, ">>", 0.6, 0.5).action_({ |bt|
-        if (animate.not) {animate = true}; // bring it on!
-        stCurrNum.string = current = getKey.(current);
-        stCurrInfo.string = displayEventInfo.(current);
-        stNextNum.string = next = getKey.(current, 1);
-        stNextInfo.string = displayEventInfo.(next, 50);
+        if (sequence.isNil.not) {
+            if (sequence.size > 0) {
+                if (animate.not) {animate = true}; // bring it on!
+                stCurrNum.string = current = getKey.(current);
+                stCurrInfo.string = eventInfo.(current);
+                stNextNum.string = next = getKey.(current, 1);
+                stNextInfo.string = eventInfo.(next, 50);
 
-        processEvents.(current);
+                processEvents.(current);
+            }
+        }
     })
 );
 miscParams[\removeall] = (
     midinote: 70,
     gui: button.(pane, dummyParam, "X", 0.6, 0.5).action_({ |bt|
-        sendWorld.([\action, \remove, \all]);
+        sendWorld.((message: \action, params: [\remove, \all]));
     })
 );
 miscParams[\reset] = (
@@ -655,14 +528,24 @@ keyboard = CompositeView(win, 600@170).background_(Color.grey(grey:0.7));
 keyboardFunc = { |synthName, params, spring=0, mass=1|
     sendParticle.(
         synth: (name: synthName, params: params),
-        particle: (spring:spring, mass:mass));
+        particle: (spring:spring, mass:mass)
+    );
 };
 keyboard.decorator = FlowLayout(keyboard.bounds);
+
 trigSynth.do { |key, i|
     var view, buff;
     if (i % 2 == 0) {
-        if (synthNames[key].asString.beginsWith("sr__e__")) { buff = scales.choose };
-        if (synthNames[key].asString.beginsWith("sr__g__")) { buff = voices.choose };
+        if (sequence.size > 0) {
+            if (synthNames[key].asString.beginsWith("sr__e__")) {
+                buff = sequence.scales.choose
+            };
+            if (synthNames[key].asString.beginsWith("sr__g__")) {
+                buff = sequence.voices.choose
+            };
+        } {
+            buff = defaultBuff
+        };
         view = CompositeView(keyboard, 45@70);
         view.decorator = FlowLayout(view.bounds);
         Button(view, 41@45).states_(
@@ -676,6 +559,7 @@ trigSynth.do { |key, i|
         .stringColor_(Color.white);
     };
 };
+
 win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     //[char, modifiers, unicode, keycode].postln;
     case
@@ -713,6 +597,7 @@ updateGui = { |params|
             shade = (count % 8) * 0.1;
             stNextNum.background = Color.grey(shade);
             stNextInfo.background = Color.grey(shade);
+            elapsed.background = Color.grey(shade);
             timeLabel.string = convertTime.(count / 10);
             win.refresh;
 
@@ -749,11 +634,12 @@ MIDIIn.connectAll;
 };
 
 CmdPeriod.doOnce({
+    try {
+        seqPathsFile = File.new(seqPathsFile, "w");
+        seqPathsFile.write(seqPaths[2..].asCompileString); // drop ["", "Load.."]
+        seqPathsFile.close;
+    };
     // Free buffers.
-    guideBuff.free;
-    samples.do { |buff| buff.free};
-    scales.do  { |buff| buff.free};
-    voices.do  { |buff| buff.free};
     MIDIIn.disconnect;
     win.close;
 });

@@ -1,18 +1,17 @@
-/*
-Sympli Romatiko SynthDefs
-
-Naming synths:
-\sr__<t>__<name>, where:
-<t> - type of the synth, where:
-    g - granular (\bufnum points to a buffer with a sound file loaded)
-    e - electronic (if there is a \bufnum it can point to a buffer with a scale)
-    p - percussion
-    s - spatialization
-    r - recording
-    u - utilities
-<name> - something meaninful
-*/
-
+// Sympli Romatikó
+// module: SynthDefs
+// ---------------
+// Naming synths:
+// \sr__<t>__<name>, where:
+//     <t> - type of the synth, where:
+//         g - granular (\bufnum points to a buffer with a sound file loaded)
+//         e - electronic (if there is a \bufnum it can point to a buffer with a scale)
+//         p - percussion
+//         s - spatialization
+//         r - recording
+//         u - utilities
+//     <name> - something meaninful
+//
 // Generators.
 //
 // - every time a Gen synth is created, its output (mono!) is sent to a chosen bus,
@@ -296,7 +295,7 @@ SynthDef(\sr__e__probe, {
             )
         )
     );
-    2.do({in = AllpassN.ar(in, 0.05, [dtl, dtr], 3.0.rand, amp * 2)});
+    2.do({in = AllpassN.ar(in, 0.05, [dtl, dtr], 3.0.rand, amp * 0.5)});
     signal = Mix(in) * master;
     // Envelope.
     out = signal * EnvGen.kr(
@@ -753,7 +752,7 @@ SynthDef(\sr__s__ambisonic2, {
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
         speakerAzim=[-0.25pi, -0.75pi], speakerElev = 0,
-        speakerDist=[1, 1], maxDist=2.2, scaleFlag=1,
+        speakerDist=[0.7, 0.7], maxDist=0.7, scaleFlag=1,
         in, signal, out, room, mix;
     maxDist = speakerDist.maxItem;
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);

@@ -1,13 +1,26 @@
 // Sympli Romatikó
 // module: World
-
+// ---------------
 (
-//PARAMETERS
+var world, worldParams, audio, skel;
+var paramsChanged;
+var oscParticle, oscPhysics, oscAudio, oscAction,
+    oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
+    oscRemoveFunc, oscGroupTree;
+var star, physics, particles, springs, position;
+var initParticle, removeParticle, removeAll,
+    registerParticle, unregisterParticle, particleSystem,
+    applyAttractions, removeAttraction, handleBoundaryCollisions,
+    registerSpring, registerSprings, applySpring, removeSpring, setSpringProp;
+var resolveSpringEnd, decodeParticle;
+var skeleton, skeletonParticles, skeletonRemove,
+    getGuide, getSource, chooseSource, jointVisible;
+var win, view;
+var mag3D, sigmoid;
+
+// INITIAL
 //
-var world = (
-    width: 700,
-    height: 700,
-    depth: 700,
+world = (
     starMass: 1,
     particleDefaultMass: 0.5,
     particleDefaultAge: inf,
@@ -35,73 +48,33 @@ var world = (
     partInitAccel:     5, // particle initial acceleration
     partSynth:         \sr__e__pulse
 );
-var worldParams = Dictionary.newFrom(world); // tracing changes of the world
-
-var audio = (
+try {
+    world.width = ~worldSize;
+    world.height = ~worldSize;
+    world.depth = ~worldSize;
+} {
+    world.width = 700;
+    world.height = 700;
+    world.depth = 700;
+};
+worldParams = Dictionary.newFrom(world); // tracing changes of the world
+audio = (
     surround: "ambisonic2",
     fountainSynth: \sr__e__analog,
     in: 20,
     out: 0
 );
-
-var skel = (
+skel = (
     waitBeforeRemove: 5,
     limit: 1
 );
-
-// COMMUNICATION
-//
-var oscParticle, oscPhysics, oscAudio, oscAction,
-    oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
-    oscRemoveFunc, oscGroupTree;
-
-// PHYSICS
-var star;
-var physics, particles, springs, position;
-var initParticle, removeParticle, removeAll,
-    registerParticle, unregisterParticle, particleSystem,
-    applyAttractions, removeAttraction, handleBoundaryCollisions,
-    registerSpring, registerSprings, applySpring, removeSpring, setSpringProp;
-var resolveSpringEnd, decodeParticle;
-var paramsChanged;
-
-// SKELETON
-var skeleton = Dictionary.new,
-    skeletonParticles, skeletonRemove,
-    getGuide, getSource, chooseSource,
-    jointVisible = #[\l_hand, \l_elbow, \neck, \r_elbow, \r_hand];
+skeleton = Dictionary.new;
+jointVisible = #[\l_hand, \l_elbow, \neck, \r_elbow, \r_hand];
 
 // INTERFACE
 //
-var win = Window("Sympli Romatikó :: WORLD",
-    Rect(0, 500, world.width, world.height), false);
-var view = UserView(win, Rect(0, 0, world.width, world.height))
-    .background = Color.black;
-
-// HELPER FUNCTIONS
-//
-// 3-d vector(s) magnitude.
-// `vec` can be either dictionary-like object (x:x, y:y, z:z), in which case
-// a siggle float value of the magnitude is returned, or a collection of such
-// objects, which result in a collection of magnitudes.
-var mag3D = { |vec|
-    var func = { |vector| (vector.x.sumsqr(vector.y) + vector.z.pow(2)).sqrt};
-    var result = 0;
-    try {
-        result = func.(vec)
-    } {
-        result = List.new;
-        vec.do { |vector| result.add(func.(vector)) };
-        result = result.asArray;
-    };
-    result
-};
-
-// Simple sigmoid function.
-var sigmoid = { |ratio, value| 1 / (1 + exp((ratio * value).neg))};
-
-// INTERFACE
-//
+win = Window("Sympli Romatikó :: WORLD", Rect(0, 500, world.width, world.height), false);
+view = UserView(win, Rect(0, 0, world.width, world.height)).background = Color.black;
 view.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
     var processed = false;
     if (clickCount == 2) {
@@ -713,6 +686,29 @@ skeletonRemove = { |id|
     };
     skeleton.removeAt(id)
 };
+
+
+// HELPER FUNCTIONS
+//
+// 3-d vector(s) magnitude.
+// `vec` can be either dictionary-like object (x:x, y:y, z:z), in which case
+// a siggle float value of the magnitude is returned, or a collection of such
+// objects, which result in a collection of magnitudes.
+mag3D = { |vec|
+    var func = { |vector| (vector.x.sumsqr(vector.y) + vector.z.pow(2)).sqrt};
+    var result = 0;
+    try {
+        result = func.(vec)
+    } {
+        result = List.new;
+        vec.do { |vector| result.add(func.(vector)) };
+        result = result.asArray;
+    };
+    result
+};
+
+// Simple sigmoid function.
+sigmoid = { |ratio, value| 1 / (1 + exp((ratio * value).neg))};
 
 
 // OSC

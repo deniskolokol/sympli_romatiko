@@ -1,3 +1,8 @@
+// Sympli Romatikó
+// module: Environment
+// -------------------
+// connecting together World, Sceduler and SynthDefs
+//
 (
 var srEnv;
 srEnv = Environment.make {
@@ -9,6 +14,8 @@ srEnv = Environment.make {
     ~audioThruBus = [21, 22];
     ~mainInput = 20;
     ~mainOutput = 0;
+    ~worldSize = 700; // assume the World is a cube
+    ~receiver = NetAddr.new("127.0.0.1", 57120);
 
     // Increments integers with a limit: resets to `lo` every time
     // in + step reaches `hi`
@@ -63,6 +70,33 @@ srEnv = Environment.make {
             }
         }).play;
     };
+
+    // Sends message to the World.
+    ~sendMessage = { |msg, params, lag=0.001|
+        if (msg.isNil.not) {
+            ~receiver.sendBundle(lag, [msg] ++ (params ? []));
+        };
+    };
+
+    // Sends particle creation message to the World:
+    // [create:1, node, spring:0|1, mass:9, x:470, y:300, z:250, age:inf]
+    // Returns Server node.
+    ~sendParticle = { |particle, synth|
+        var x, y, z, node, spring, age, params;
+        #x, y, z = [\x, \y, \z].collect({ |k| particle.atFail(k, { ~worldSize.rand }) });
+        particle.putAll((x: x, y: y, z: z));
+        node = ~groupInit.(synth[\name], ~surround, params:synth[\params]);
+        params = [
+            1, // create
+            node,
+            particle.atFail(\spring, {0}), // spring:0|1
+            particle.mass,
+            particle.x, particle.y, particle.z,
+            particle.atFail(\age, {inf}) // if inf, particle will be waiting for the romoval signal
+        ];
+        ~sendMessage.('/particle', params);
+        node
+    };
 };
 
 currentEnvironment = srEnv;
@@ -74,7 +108,7 @@ if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
 };
 "Loading scheduler...".postln;
 if (this.executeFile(
-    ~currentDir +/+ "schedules/scheduler_traer.scd").isNil.not) {
+    ~currentDir +/+ "scheduler.scd").isNil.not) {
     postf("OK\n\n")
 };
 "Loading world...".postln;

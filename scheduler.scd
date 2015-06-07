@@ -13,12 +13,13 @@ var win, seq, elapsed, keyboard, keyboardFunc, updateGui, // interface
     stCurrNum, stCurrInfo, stNextNum, stNextInfo, timeLabel,
     slider, knob, button, buttonCheckbox, dropdown,
     panePar, pane, paneWidth, paneHeight, midiView, miscParams,
-    seqPaths, seqPathsFile, seqMenu, openSequence, loadSequence;
+    seqFiles, seqPaths, seqPathsFile, seqMenu, openSequence, loadSequence;
 var valAsApec;
 var shade, count=0, animate=false; // schedule animation
-var getKey, eventInfo, convertTime, clipInc, getIndex; // helper functions
-var processEvents, groupNew, groupRemove, taskPlay, sendWorld,
-    sendParticle, sendSNew, sendPhysics, sendAudio, sendAct; // acting functions
+var getKey, eventInfo, convertTime, getIndex, fileNames; // helper functions
+var groupNew, groupRemove, stopAllTasks, taskPlay, // acting functions
+    sendAct, sendWorld, sendParticle, sendSNew, sendPhysics, sendAudio,
+    switchEvent, processEvents;
 
 
 // INITIAL
@@ -188,19 +189,6 @@ taskPlay = { |task, play=false|
 };
 
 
-// Obtain the key next/prev to current.
-getKey = { |current=nil, next=1|
-    var k, c;
-    k = sequence.events.keys.asArray.asInteger.sort;
-    c = k.indexOf(current) ? -1;
-    k[c + next] ? k[0]; // Go back to beginning upon reaching the upper threshold.
-};
-
-
-// Increments integers with a limit: resets to `lo` every time in + step reaches `hi`.
-clipInc = { |in=0, step=1, lo=0, hi=inf| ((in + step).clip(lo, hi) % hi).clip(lo, hi)};
-
-
 // Converts all event's [\info] keys into info string.
 eventInfo = { |k=nil, lim=50|
     var infoStr, val, sF;
@@ -222,7 +210,7 @@ convertTime = { |timecode|
     };
     if (min < 10) {minstring = "0"++min.asString} {minstring = min.asString};
     if (sec < 10) {secstring = "0"++sec.asString} {secstring = sec.asString};
-    format("%:%", minstring, secstring)
+    format("%:%", minstring, secstring);
 };
 
 
@@ -239,13 +227,23 @@ getIndex = { |container, val|
 };
 
 
+stopAllTasks = {
+    try {
+        sequence.tasks.do { |task|
+            taskPlay.(task[\name], false)
+        }
+    }
+};
+
+
 // Loads sequence from file.
 loadSequence = { |path|
     postf("Loading schedule %...\n", PathName.new(path).fileName);
+    stopAllTasks.();
     if (this.executeFile(path).isNil.not) {
         postf("OK\n\n");
         sequence = ~sequence;
-        if (seqPaths.asString.contains(path).not) {
+        if (seqPaths.asString.contains(path).not) { // XXX
             seqPaths.insert(2, path); // to the top, but after ["", "Load.."]
         };
         getIndex.(seqPaths, path)
@@ -254,28 +252,68 @@ loadSequence = { |path|
         try {
             seqPaths.removeAt(getIndex.(seqPaths, path));
         };
-        0
+        0 // if unsuccessful, return 1st element ("")
     }
+};
+
+
+// Obtain the key next/prev to current.
+getKey = { |current, next=1|
+    var k, c;
+    k = sequence.events.keys.asArray.asInteger.sort;
+    c = k.indexOf(current) ? -1;
+    k[c + next] ? k[0]; // Go back to beginning upon reaching the upper threshold.
+};
+
+
+// Get only filenames from sequence paths.
+fileNames = { |paths|
+    paths[..1] ++ paths[2..].collect({|a| PathName(a).fileName })
 };
 
 
 // Opens sequence from file.
 openSequence = { |element|
+    var val;
     animate = false;
     case
     { element.value == 1 } {
         Dialog.openPanel({ |path|
-            element.value = loadSequence.(path);
+            val = loadSequence.(path); // XXX - shouldn't items be first?
+            element.items = fileNames.(seqPaths); // XXX - update properly!
+            element.value = val;
             win.name = format("sequence: %", PathName.new(path).fileName);
         });
     }
     { element.value > 1 } {
-        element.value = loadSequence.(seqPaths[element.value]); // open from file
+        val = loadSequence.(seqPaths[element.value]); // open from file
+        element.value = val;
         win.name = format("sequence: %",
             PathName.new(seqPaths[element.value]).fileName
         );
     }
     { win.name = "sequencing and scheduling" };
+    try { timeLabel.string = convertTime.(0) };
+    try {
+        stNextNum.string = getKey.(next:1);
+        stNextInfo.string = eventInfo.(0);
+    }
+};
+
+// Switches to the next or prev event in a sequence
+// and updates GUI.
+switchEvent = { |nxt=1|
+    if (sequence.isNil.not) {
+        if (sequence.size > 0) {
+            stCurrNum.string = current = getKey.(current, nxt);
+            stCurrInfo.string = eventInfo.(current);
+            stNextNum.string = next = getKey.(current, 1);
+            stNextInfo.string = eventInfo.(next);
+            if (animate.not && (nxt > 0)) {animate = true}; // bring it on!
+
+            processEvents.(current);
+        }
+    }
 };
 
 
@@ -352,7 +390,7 @@ buttonCheckbox = { |par, val, param, scaleH=1, scaleW=1|
     .font_(Font("Monaco", 10))
     .canFocus_(false);
 };
-dropdown = { |par, label, items, action, initVal=0, scale=1|
+dropdown = { |par, label, items, action, initVal=0, initAction=false, scale=1|
     var labelWidth=0;
     if (label.isNil.not) { labelWidth = label.size * 9};
     EZPopUpMenu(par,
@@ -361,9 +399,10 @@ dropdown = { |par, label, items, action, initVal=0, scale=1|
         items: items,
         globalAction: action,
         initVal: initVal,
+        initAction: initAction,
         labelWidth: labelWidth
     )
-    .font_(Font("Helvetica", 11))
+    .font_(Font("Helvetica", 11));
 };
 
 
@@ -384,23 +423,29 @@ stCurrInfo = StaticText(seq, 410@60).font_(Font("Monaco", 12))
 pane = CompositeView(seq, 103@60);
 pane.decorator = FlowLayout(pane.bounds);
 StaticText(pane, (pane.bounds.width-10)@20).font_(Font("Monaco", 11))
-    .stringColor_(Color.gray(0.2)).string_("Open sequence");
-dropdown.(pane,
-    items:seqPaths[..1] ++ seqPaths[2..].collect({|a| PathName(a).fileName }),
-    action:openSequence
-);
-
+    .stringColor_(Color.gray(0.2)).string_("Sequence");
 // next (awaiting) event's number and info
 stNextNum = StaticText(seq, 70@90).font_(Font("Monaco", 32))
     .background_(Color.grey(0.4)).stringColor_(Color.white);
 stNextInfo = StaticText(seq, 410@90).font_(Font("Monaco", 14))
     .background_(Color.grey(0.4)).stringColor_(Color.white);
+// Warning! Order is important: pane first, then stNextNum and stNextInfo,
+// then dropdown with sequence name (dropdown is placed on a pane,
+// but its .action fills strings of stNextNum and stNextInfo)
+seqFiles = fileNames.(seqPaths);
+dropdown.(pane,
+    items: seqFiles,
+    initVal: if (seqFiles.size > 2) { 2 } { 0 },
+    action: openSequence,
+    initAction: true
+);
 
 // time elapsed since the start
 elapsed = CompositeView(seq, 103@90).background_(Color.grey(0.4));
 elapsed.decorator = FlowLayout(elapsed.bounds);
 timeLabel = StaticText(elapsed, elapsed.bounds.width@elapsed.bounds.height)
-    .font_(Font("Monaco", 20)).stringColor_(Color.white);
+    .font_(Font("Monaco", 20)).stringColor_(Color.white)
+    .string_(convertTime.(0));
 
 // MIDI interface (parameters)
 midiView = CompositeView(win, 600@400);
@@ -434,35 +479,18 @@ slider.(pane, dummyParam, \vert);
 // LEFT PANE BOTTOM
 pane = CompositeView(panePar, paneWidth.(panePar, 0.8)@paneHeight.(panePar, 0.17));
 pane.decorator = FlowLayout(pane.bounds);
+
+
 miscParams[\prev] = (
     midinote: 46,
     gui: button.(pane, dummyParam, "<<", 0.6, 0.5).action_({ |bt|
-        if (sequence.isNil.not) {
-            if (sequence.size > 0) {
-                stCurrNum.string = current = getKey.(current, -1);
-                stCurrInfo.string = eventInfo.(current);
-                stNextNum.string = next = getKey.(current, 1);
-                stNextInfo.string = eventInfo.(next);
-
-                processEvents.(current);
-            }
-        }
+        switchEvent.(-1)
     })
 );
 miscParams[\next] = (
     midinote: 43,
     gui: button.(pane, dummyParam, ">>", 0.6, 0.5).action_({ |bt|
-        if (sequence.isNil.not) {
-            if (sequence.size > 0) {
-                if (animate.not) {animate = true}; // bring it on!
-                stCurrNum.string = current = getKey.(current);
-                stCurrInfo.string = eventInfo.(current);
-                stNextNum.string = next = getKey.(current, 1);
-                stNextInfo.string = eventInfo.(next, 50);
-
-                processEvents.(current);
-            }
-        }
+        switchEvent.(1)
     })
 );
 miscParams[\removeall] = (

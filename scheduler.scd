@@ -16,7 +16,8 @@ var win, seq, elapsed, keyboard, keyboardFunc, updateGui, // interface
     seqFiles, seqPaths, seqPathsFile, seqMenu, openSequence, loadSequence;
 var valAsApec;
 var shade, count=0, animate=false; // schedule animation
-var getKey, eventInfo, convertTime, getIndex, fileNames; // helper functions
+var getKey, eventInfo, convertTime, getIndex, // helper functions
+    fileNames, numChannels;
 var groupNew, groupRemove, stopAllTasks, taskPlay, // acting functions
     sendAct, sendWorld, sendParticle, sendSNew, sendPhysics, sendAudio,
     switchEvent, processEvents;
@@ -355,6 +356,15 @@ processEvents = { |key|
     }
 };
 
+// Figures out first output channel and total number of output channels.
+numChannels = {
+    var numCh;
+    numCh = ~surround[~surround.size-1..].asInteger;
+    if (numCh == 0) { ~surround[~surround.size-2..].asInteger };
+    [~outbus, numCh]
+};
+
+
 // GUI.
 //
 paneWidth = { |par, scale=0.5| (par.bounds.width * scale - 6).floor };
@@ -547,7 +557,38 @@ miscParams[\depth] = (
 // RIGHT PANE BOTTOM
 pane = CompositeView(panePar, paneWidth.(panePar, 0.8)@paneHeight.(panePar, 0.17));
 pane.decorator = FlowLayout(pane.bounds);
-4.do { button.(pane, dummyParam, "<NONE>", 0.6, 0.5) };
+3.do { button.(pane, dummyParam, "<NONE>", 0.6, 0.5) };
+miscParams[\record] = (
+    midinote: 59,
+    gui: buttonCheckbox.(pane, dummyParam, "REC", 0.6, 0.5).action_({ |bt|
+        var dirname, filename;
+        if (bt.value == 1) {
+            dirname = ~currentDir +/+ "rec";
+            if (File.type(dirname) == \not_found) {
+                File.mkdir(dirname)
+            };
+            filename = dirname +/+ "sr__rec__0";
+            PathName(dirname).filesDo { |fname|
+                fname = fname.fileNameWithoutExtension;
+                if ("sr__rec__[0-9]+".matchRegexp(fname)) {
+                    if (File.type(dirname +/+ PathName(fname).nextName) == \not_found) {
+                        filename = dirname +/+ PathName(fname).nextName;
+                    }
+                };
+            };
+            filename = filename ++ ".aif";
+            s.recChannels = sum(numChannels.());
+            s.recHeaderFormat = "AIFF";
+            s.recSampleFormat = "int16";
+            AppClock.sched(0, {
+                fork { s.prepareForRecord(filename); s.sync; s.record }
+                }
+            );
+        } {
+            s.stopRecording
+        }
+    })
+);
 pane = CompositeView(panePar, paneWidth.(panePar, 0.2)@paneHeight.(panePar, 0.17));
 physics[\particles][\gui] = buttonCheckbox.(pane, physics[\particles], \particles);
 

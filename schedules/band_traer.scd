@@ -7,7 +7,7 @@ var audioThruBus=[21, 22];
 
 //GLOBAL
 ~sequence = (
-    title: "",
+    title: "Sympli Romatiko: band in Traer World",
 
     // step marks (numbered) and time marks (entitled)
     // (

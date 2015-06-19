@@ -54,7 +54,7 @@ trigSynth = [
     40, \sr__g__unst,   // k
     37, \sr__g__chunk,  // l
     41, \sr__e__therem, // ;
-    39, \sr__e__silent, // "
+    39, \sr__e__neural, // "
     42, \sr__e__analog, // \ (the answer to the ultimate question ))
 ];
 synthNames = Dictionary.newFrom(trigSynth);
@@ -120,7 +120,6 @@ sendSNew = { |data|
         ++ data[\synth].atFail(\params, {[]})
     );
 };
-
 
 // Sends bundle to server, places everything mentioned to the top level group.
 // This is different from ~groupInit by allowing for an arbitrary number of
@@ -490,7 +489,6 @@ slider.(pane, dummyParam, \vert);
 pane = CompositeView(panePar, paneWidth.(panePar, 0.8)@paneHeight.(panePar, 0.17));
 pane.decorator = FlowLayout(pane.bounds);
 
-
 miscParams[\prev] = (
     midinote: 46,
     gui: button.(pane, dummyParam, "<<", 0.6, 0.5).action_({ |bt|
@@ -554,6 +552,7 @@ miscParams[\depth] = (
         sendAudio.((params: [\depth, ~depth]));
     })
 );
+
 // RIGHT PANE BOTTOM
 pane = CompositeView(panePar, paneWidth.(panePar, 0.8)@paneHeight.(panePar, 0.17));
 pane.decorator = FlowLayout(pane.bounds);
@@ -607,7 +606,7 @@ trigSynth.do { |key, i|
     if (i % 2 == 0) {
         if (sequence.size > 0) {
             if (synthNames[key].asString.beginsWith("sr__e__")) {
-                buff = sequence.scales.choose
+                buff = sequence.scales[0]
             };
             if (synthNames[key].asString.beginsWith("sr__g__")) {
                 buff = sequence.voices.choose

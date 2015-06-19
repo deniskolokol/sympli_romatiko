@@ -470,6 +470,64 @@ SynthDef(\sr__e__analog, {
 }).add;
 
 
+// XXX
+// very raw, finish it!
+SynthDef(\sr__e__neural, {
+    arg bufnum=0, inbus=30, outbus=20,
+        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        offset=36, cutoff=0, threshold=0.7, scope=12;
+    var note, in, out, signal;
+    var rq;
+    var freq, trig, timer, mul, add;
+    // Conversion.
+    mul = velocity.linlin(0, 1, 1850, 2350);
+    add = distance.linlin(0, 1, 2250, 5800);
+    trig = velocity > 0.33; // high velocity causes sharp switch
+    timer = Timer.kr(trig);
+    freq = TRand.kr(trig:Delay2.kr(Dust.kr(velocity.linexp(0.01, 1, 0.5, 10))));
+    cutoff = SelectX.kr(BinaryOpUGen('<', cutoff, 0) * 2,
+        [ // Positive cutoff falls at the freq range 500..5000
+            TWChoose.kr((timer > 0.25) * trig,
+                [
+                    LFNoise0.ar(freq, mul, add),
+                    LFNoise1.ar(freq, mul, add),
+                    LFNoise2.ar(freq).clip2 * mul + add // quadratic interpolation can push beyond [-1..1]
+                ],
+                [0.1, 0.3, 0.6]
+            ),
+            5666 // zero or negative cutoff means constant
+        ]
+    );
+    rq = SelectX.kr(BinaryOpUGen('==', cutoff, 5666) * 2,
+        [ // If cutoff is variable, RQ depends on az.
+            velocity.linlin(0, 1, 0.8, 0.2),
+            0.1 // constant cutoff means constant RQ
+        ]
+    );
+    note = SelectX.kr(BinaryOpUGen('<', az, threshold) * 2,
+        [   // Go melodic above height threshold.
+            DegreeToKey.kr(bufnum, az.linlin(threshold, 1, 0, scope), 12, 1, offset),
+            az.linlin(0, threshold, (offset-6), offset) // bottom to middle change continuously
+        ]
+    );
+    // Synthesis.
+    in = TermanWang.ar(
+        2.0 + SinOsc.ar(az.linexp(0.01, 1, 10, 10000), 0, az.linexp(0.01, 1, 0.1, 100.0)),
+        Impulse.kr(distance.linexp(0.01, 1, 1, 10000)),
+        0.01, 0.01, 1.0, 1.0, 1.0,
+        ax.linlin(0, 1, 0.4, 1.2), ay.linlin(0, 1, 2.0, 4.0)
+    ) * 0.5;
+    in = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq);
+    signal = Compander.ar(in, in, 0.1, slopeBelow: 1, slopeAbove: 0.5,
+        clampTime: 0.01, relaxTime: 0.01, mul: amp);
+    //Envelope.
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(outbus, out);
+}).add;
+
+
 SynthDef(\sr__e__gauss, {
     arg bufnum=0, inbus=30, outbus=20,
     amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
@@ -751,8 +809,8 @@ SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim=[-0.25pi, -0.75pi], speakerElev = 0,
-        speakerDist=[0.7, 0.7], maxDist=0.7, scaleFlag=1,
+        speakerAzim=[-0.12pi, -0.88pi], speakerElev = 0,
+        speakerDist=[3.2, 3.2], maxDist=3.2, scaleFlag=1,
         in, signal, out, room, mix;
     maxDist = speakerDist.maxItem;
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);

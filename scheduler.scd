@@ -6,19 +6,33 @@ var sequence; // main dictionary with the sequence of scheduled events and tasks
 var param; // global params
 var sGroupId; // root group
 var defaultBuff;
-var trigSynth, synthNames, keyNames; // available SynthDefs
-var synths=Dictionary.new; // temp dictionary of the synths symbolic IDs vs. server Nodes
-var key, current, next, syn, obj, age, mass, dummyParam, physics=(); // object's properties
-var win, seq, elapsed, keyboard, keyboardFunc, updateGui, // interface
+
+// available SynthDefs
+var trigSynth, synthNames, keyNames;
+
+// dictionary of the synths symbolic IDs vs. server Nodes
+var synths=Dictionary.new;
+
+// object's properties
+var key, current, next, syn, obj, age, mass, dummyParam, physics=();
+
+// GUI
+var win, seq, elapsed, keyboard, keyboardFunc, updateGui,
     stCurrNum, stCurrInfo, stNextNum, stNextInfo, timeLabel,
     slider, knob, button, buttonCheckbox, dropdown,
     panePar, pane, paneWidth, paneHeight, midiView, miscParams,
     seqFiles, seqPaths, seqPathsFile, seqMenu, openSequence, loadSequence;
 var valAsApec;
-var shade, count=0, animate=false; // schedule animation
-var getKey, eventInfo, convertTime, getIndex, // helper functions
+
+// schedule animation
+var shade, count=0, animate=false;
+
+// helper functions
+var getKey, eventInfo, convertTime, getIndex,
     fileNames, numChannels;
-var groupNew, groupRemove, stopAllTasks, taskPlay, // acting functions
+
+// acting functions
+var groupNew, groupRemove, removeAll, taskPlay, stopAllTasks,
     sendAct, sendWorld, sendParticle, sendSNew, sendPhysics, sendAudio,
     switchEvent, processEvents;
 
@@ -173,15 +187,24 @@ sendPhysics = { |data|
     updateGui.(params)
 };
 
+// Remove all objects from the World and release all synths
+removeAll = {
+    sendAct.([\remove, \all]);
+    stopAllTasks.();
+    synths.values.do { |node|
+        groupRemove.((id: node))
+    };
+};
+
 
 // Run or stop task.
 taskPlay = { |task, play=false|
+    task.postln;
     try {
         if (play) {
             task.play(doReset:true)
         } {
-            task.stop;
-            task.reset;
+            task.stop.reset;
         }
     } { |err|
         postf("Error while trying to switch task % on or off:\n%\n", task, err);
@@ -228,9 +251,9 @@ getIndex = { |container, val|
 
 
 stopAllTasks = {
-    try {
+    if (sequence.size > 0) {
         sequence.tasks.do { |task|
-            taskPlay.(task[\name], false)
+            taskPlay.(task, false)
         }
     }
 };
@@ -239,7 +262,7 @@ stopAllTasks = {
 // Loads sequence from file.
 loadSequence = { |path|
     postf("Loading schedule %...\n", PathName.new(path).fileName);
-    stopAllTasks.();
+    removeAll.();
     if (this.executeFile(path).isNil.not) {
         postf("OK\n\n");
         sequence = ~sequence;
@@ -292,12 +315,14 @@ openSequence = { |element|
             PathName.new(seqPaths[element.value]).fileName
         );
     }
-    { win.name = "sequencing and scheduling" };
-    try { timeLabel.string = convertTime.(0) };
-    try {
-        stNextNum.string = getKey.(next:1);
-        stNextInfo.string = eventInfo.(0);
-    }
+    { // otherwise
+        win.name = "sequencing and scheduling";
+    };
+
+    current = -1;
+    stNextNum.string = getKey.(current:current, next:1);
+    stNextInfo.string = eventInfo.(0);
+    timeLabel.string = convertTime.(0);
 };
 
 // Switches to the next or prev event in a sequence
@@ -438,6 +463,12 @@ stNextNum = StaticText(seq, 70@90).font_(Font("Monaco", 32))
     .background_(Color.grey(0.4)).stringColor_(Color.white);
 stNextInfo = StaticText(seq, 410@90).font_(Font("Monaco", 14))
     .background_(Color.grey(0.4)).stringColor_(Color.white);
+// time elapsed since the start
+elapsed = CompositeView(seq, 103@90).background_(Color.grey(0.4));
+elapsed.decorator = FlowLayout(elapsed.bounds);
+timeLabel = StaticText(elapsed, elapsed.bounds.width@elapsed.bounds.height)
+    .font_(Font("Monaco", 20)).stringColor_(Color.white)
+    .string_(convertTime.(0));
 // Warning! Order is important: pane first, then stNextNum and stNextInfo,
 // then dropdown with sequence name (dropdown is placed on a pane,
 // but its .action fills strings of stNextNum and stNextInfo)
@@ -448,13 +479,6 @@ dropdown.(pane,
     action: openSequence,
     initAction: true
 );
-
-// time elapsed since the start
-elapsed = CompositeView(seq, 103@90).background_(Color.grey(0.4));
-elapsed.decorator = FlowLayout(elapsed.bounds);
-timeLabel = StaticText(elapsed, elapsed.bounds.width@elapsed.bounds.height)
-    .font_(Font("Monaco", 20)).stringColor_(Color.white)
-    .string_(convertTime.(0));
 
 // MIDI interface (parameters)
 midiView = CompositeView(win, 600@400);
@@ -503,9 +527,7 @@ miscParams[\next] = (
 );
 miscParams[\removeall] = (
     midinote: 70,
-    gui: button.(pane, dummyParam, "X", 0.6, 0.5).action_({ |bt|
-        sendWorld.((message: \action, params: [\remove, \all]));
-    })
+    gui: button.(pane, dummyParam, "X", 0.6, 0.5).action_({ |bt| removeAll.() })
 );
 miscParams[\reset] = (
     midinote: 58,
@@ -632,19 +654,19 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     //[char, modifiers, unicode, keycode].postln;
     case
     { keycode == 6 } { // Z - info
-        if( [0, 256].includes(modifiers), {
+        if ([0, 256].includes(modifiers)) {
             postf("window: left %, top %, width %, height %\n",
                 win.bounds.left, win.bounds.top, win.bounds.width, win.bounds.height);
-        });
+        }
     }
-    { keycode == 7 && [0, 256].includes(modifiers) } { sendWorld.([\action, \remove, \all]) }
     { synthNames.keys.includes(keycode) } {
-        modifiers.switch(
-            0, { keyboardFunc.(synthNames[keycode], spring:1) },
-            256, { keyboardFunc.(synthNames[keycode], spring:1) },
-            131072, { keyboardFunc.(synthNames[keycode], spring:0) } // Shift + <key> - no spring
-        )
+        if (modifiers == 131072) { // Shift + <key> - no spring
+            keyboardFunc.(synthNames[keycode], spring:0)
+        } {
+            keyboardFunc.(synthNames[keycode], spring:1)
+        }
     }
+    { keycode == 7 && [0, 256].includes(modifiers) } { removeAll.() }
 };
 
 // Updates value of a GUI element upon sending a message to the world.

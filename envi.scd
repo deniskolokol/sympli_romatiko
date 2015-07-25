@@ -31,6 +31,9 @@ srEnv = Environment.make {
     ~groupInit = {
         arg synth, spatial, bufnum, busnum, params;
         var node, l=30, h=53;
+        if (spatial.isNil) {
+            spatial = ~surround
+        };
         spatial = spatial.asString;
         if (spatial.beginsWith("sr__s__").not) {
             spatial = "sr__s__" ++ spatial.toLower

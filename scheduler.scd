@@ -21,7 +21,7 @@ var win, seq, elapsed, keyboard, keyboardFunc, updateGui,
     stCurrNum, stCurrInfo, stNextNum, stNextInfo, timeLabel,
     slider, knob, button, buttonCheckbox, dropdown,
     panePar, pane, paneWidth, paneHeight, midiView, miscParams,
-    seqFiles, seqPaths, seqPathsFile, seqMenu, openSequence, loadSequence;
+    seqPaths, seqPathsFile, seqMenu, openSequence, loadSequence;
 var valAsApec;
 
 // schedule animation
@@ -68,7 +68,7 @@ trigSynth = [
     40, \sr__g__unst,   // k
     37, \sr__g__chunk,  // l
     41, \sr__e__therem, // ;
-    39, \sr__e__neural, // "
+    39, \sr__e__growl,  // "
     42, \sr__e__analog, // \ (the answer to the ultimate question ))
 ];
 synthNames = Dictionary.newFrom(trigSynth);
@@ -121,7 +121,8 @@ try { // to load from settings file
     seqPaths = seqPaths ++ File(seqPathsFile, "r").readAllString.interpret;
 };
 
-defaultBuff = Buffer.loadCollection(s, FloatArray[0, 3, 7, 10]);
+//defaultBuff = Buffer.loadCollection(s, FloatArray[0, 3, 7, 10]);
+defaultBuff = Buffer.loadCollection(s, Scale.ahirbhairav.degrees);
 
 // Send synth to server.
 sendSNew = { |data|
@@ -199,7 +200,6 @@ removeAll = {
 
 // Run or stop task.
 taskPlay = { |task, play=false|
-    task.postln;
     try {
         if (play) {
             task.play(doReset:true)
@@ -266,7 +266,7 @@ loadSequence = { |path|
     if (this.executeFile(path).isNil.not) {
         postf("OK\n\n");
         sequence = ~sequence;
-        if (seqPaths.asString.contains(path).not) { // XXX
+        if (seqPaths.asString.contains(path).not) {
             seqPaths.insert(2, path); // to the top, but after ["", "Load.."]
         };
         getIndex.(seqPaths, path)
@@ -297,20 +297,24 @@ fileNames = { |paths|
 
 // Opens sequence from file.
 openSequence = { |element|
-    var val;
+    var val, top=2;
     animate = false;
     case
     { element.value == 1 } {
         Dialog.openPanel({ |path|
-            val = loadSequence.(path); // XXX - shouldn't items be first?
-            element.items = fileNames.(seqPaths); // XXX - update properly!
+            val = loadSequence.(path);
+            element.items = fileNames.(seqPaths);
             element.value = val;
             win.name = format("sequence: %", PathName.new(path).fileName);
         });
     }
     { element.value > 1 } {
         val = loadSequence.(seqPaths[element.value]); // open from file
-        element.value = val;
+        if (val > top) { // place at the top
+            seqPaths.insert(top, seqPaths.pop(val));
+            element.items = fileNames.(seqPaths);
+            element.value = top;
+        };
         win.name = format("sequence: %",
             PathName.new(seqPaths[element.value]).fileName
         );
@@ -472,10 +476,9 @@ timeLabel = StaticText(elapsed, elapsed.bounds.width@elapsed.bounds.height)
 // Warning! Order is important: pane first, then stNextNum and stNextInfo,
 // then dropdown with sequence name (dropdown is placed on a pane,
 // but its .action fills strings of stNextNum and stNextInfo)
-seqFiles = fileNames.(seqPaths);
 dropdown.(pane,
-    items: seqFiles,
-    initVal: if (seqFiles.size > 2) { 2 } { 0 },
+    items: fileNames.(seqPaths),
+    initVal: if (seqPaths.size > 2) { 2 } { 0 },
     action: openSequence,
     initAction: true
 );
@@ -662,7 +665,8 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     { synthNames.keys.includes(keycode) } {
         if (modifiers == 131072) { // Shift + <key> - no spring
             keyboardFunc.(synthNames[keycode], spring:0)
-        } {
+        };
+        if ([0, 256].includes(modifiers)) {
             keyboardFunc.(synthNames[keycode], spring:1)
         }
     }
@@ -700,8 +704,6 @@ updateGui = { |params|
     }
 }.fork(AppClock);
 
-win.front;
-
 // physics and miscellaneous parameters controlled by MIDI
 MIDIIn.connectAll;
 (physics.values ++ miscParams.values).do { |element|
@@ -723,14 +725,18 @@ MIDIIn.connectAll;
     }
 };
 
-CmdPeriod.doOnce({
+win.onClose = {
     try {
         seqPathsFile = File.new(seqPathsFile, "w");
         seqPathsFile.write(seqPaths[2..].asCompileString); // drop ["", "Load.."]
         seqPathsFile.close;
     };
-    // Free buffers.
+    defaultBuff.free;
     MIDIIn.disconnect;
+};
+win.front;
+
+CmdPeriod.doOnce({
     win.close;
 });
 )

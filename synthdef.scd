@@ -407,7 +407,6 @@ SynthDef(\sr__e__pulse, {
         ]
     );
     // Synthesis.
-    // XXX - Too sharp, add some delay to make it softer
     in = Blip.ar(SinOsc.kr(0.5, 0, LFDNoise1.kr(1.5), note), 100, 0.2);
     in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq);
     in = Limiter.ar(MidEQ.ar(in, [200, 1400], 0.7, 8), amp * 0.1);
@@ -470,14 +469,15 @@ SynthDef(\sr__e__analog, {
 }).add;
 
 
-// XXX
-// very raw, finish it!
+// XXX - to-do:
+// - add less obvious elevation based control (az)
+// - more effective compander, possibly multiband! don't allow it to burst!
 SynthDef(\sr__e__neural, {
     arg bufnum=0, inbus=30, outbus=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0, threshold=0.7, scope=12;
-    var note, in, out, signal;
+    var in, out, signal;
     var rq;
     var freq, trig, timer, mul, add;
     // Conversion.
@@ -505,19 +505,13 @@ SynthDef(\sr__e__neural, {
             0.1 // constant cutoff means constant RQ
         ]
     );
-    note = SelectX.kr(BinaryOpUGen('<', az, threshold) * 2,
-        [   // Go melodic above height threshold.
-            DegreeToKey.kr(bufnum, az.linlin(threshold, 1, 0, scope), 12, 1, offset),
-            az.linlin(0, threshold, (offset-6), offset) // bottom to middle change continuously
-        ]
-    );
     // Synthesis.
     in = TermanWang.ar(
         2.0 + SinOsc.ar(az.linexp(0.01, 1, 10, 10000), 0, az.linexp(0.01, 1, 0.1, 100.0)),
         Impulse.kr(distance.linexp(0.01, 1, 1, 10000)),
         0.01, 0.01, 1.0, 1.0, 1.0,
         ax.linlin(0, 1, 0.4, 1.2), ay.linlin(0, 1, 2.0, 4.0)
-    ) * 0.5;
+    ) * 0.2;
     in = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq);
     signal = Compander.ar(in, in, 0.1, slopeBelow: 1, slopeAbove: 0.5,
         clampTime: 0.01, relaxTime: 0.01, mul: amp);
@@ -528,11 +522,118 @@ SynthDef(\sr__e__neural, {
 }).add;
 
 
+// XXX - make it a descent synth.
+SynthDef(\sr__e__dempad, {
+    arg bufnum=0, inbus=30, outbus=20,
+        amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
+        offset=36, cutoff=0;
+    var detune=0.2, // XXX - increase detune on extreme velocities (?)
+        lag=0.1, // XXX - make it dependent on param
+        rate=3, // XXX - make it dependent on param
+        tones=50, // XXX - make it dependent on velocity with curve
+        noOfSynths=20;
+    var in, out, signal;
+    var freq = offset + #[0, 5, 9]; // XXX - delete after alternative solution is completed
+
+    in = Mix.fill(tones,
+        { |index|
+            var trig = Impulse.kr(0) + Dust2.kr(rate);
+            var pitches = Lag.kr(
+                Select.kr(
+                    Demand.kr(trig, 0, Drand([0, 1, 2], inf)),
+                    //freq // original
+                    DegreeToKey.kr(bufnum, index.linlin(0, tones, 0, 6), 12, 1, offset)
+                )
+                + TRand.kr(detune.neg, detune, trig),
+                lag * Rand(0.8, 1.2)
+            ).midicps;
+
+            SinOscFB.ar(
+                pitches,
+                Rand(0, 0.8),
+                amp * Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2))
+            )
+            * ( if(index < noOfSynths, 1, 0) );
+        }
+    );
+    signal = Mix(in) * (1 / noOfSynths) * Line.kr(0.0, 1.0, 0.3);
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(outbus, out);
+}).add;
+
+
+SynthDef(\sr__e__growl, {
+    arg bufnum=0, inbus=30, outbus=20,
+        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, elevation=0, velocity=0.5,
+        gx=0.1, gy=0.1, gz=0.1, gAzimuth=0, gDistance=0.5, gElevation=0.5,
+        offset=6, cutoff=0;
+    var in, out, signal;
+    var cutOff, rq, rate, pitches, trig, freq, mul, add, detune, lag,
+        note=offset,
+        meloThresh=0.5,
+        tones=10,
+        noOfSynths=20;
+
+    // Conversion.
+    freq = velocity.linexp(0, 1, 0.5, 5);
+    mul = velocity.lincurve(0, 1, 400, 2000, 4);
+    add = velocity.lincurve(0, 1, 600, 10000, 4);
+    rq = velocity.lincurve(0, 1, 0.5, 0.1, 4);
+    cutOff = LFNoise2.ar(freq).clip2 * mul + add;
+    rate = velocity.linlin(0, 1, 2, 4).round;
+    trig = Impulse.kr(0) + Dust2.kr(rate);
+    lag = velocity.lincurve(0, 1, 0.5, 0.05, -4);
+    detune = velocity.lincurve(0, 1, 0.1, 0.5, 4);
+    note = DegreeToKey.kr(bufnum,
+        // guide params for fine control of pitch and threshold
+        Gate.kr(gz.linlin(0, 1, 0, 15), gDistance - meloThresh),
+        12, 1, offset
+    ).min(124);
+
+    // Synthesis.
+    in = Mix.fill(tones,
+        { |index|
+            pitches = Lag.kr(
+                Select.kr(
+                    Demand.kr(trig, 0, Drand([0, 1, 2], inf)),
+                    DegreeToKey.kr(bufnum, index.linlin(0, tones, 0, 6), 12, 1, note)
+                )
+                + TRand.kr(detune.neg, detune, trig),
+                lag * Rand(0.8, 1.2)
+            ).min(127).midicps;
+
+            Blip.ar(
+                SinOsc.kr(0.5, 0, LFDNoise1.kr(1.5), pitches),
+                100,
+                SelectX.kr(BinaryOpUGen('<', ay, 0.5),
+                    [
+                        velocity.scurve,
+                        amp * Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2))
+                    ]
+                )
+            )
+            * ( if(index < noOfSynths, 1, 0) );
+        }
+    );
+    in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq);
+    in = Limiter.ar(MidEQ.ar(in, [200, 1400], 0.7, 8), amp * 0.3);
+    signal = Mix.ar(in);
+
+    // Envelope.
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(outbus, out);
+}).add;
+
+
 SynthDef(\sr__e__gauss, {
     arg bufnum=0, inbus=30, outbus=20,
-    amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
-    ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
-    offset=36, cutoff=0;
+        amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
+        offset=36, cutoff=0;
     var note, scale, in, out, signal;
     var cutOff, rq, dur, width;
     // Conversion.
@@ -809,8 +910,8 @@ SynthDef(\sr__s__ambisonic2, {
     arg inbus=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5;
     var w, x, y, z, r, s, t, u, v,
-        speakerAzim=[-0.12pi, -0.88pi], speakerElev = 0,
-        speakerDist=[3.2, 3.2], maxDist=3.2, scaleFlag=1,
+        speakerAzim=[-0.25pi, -0.75pi], speakerElev = 0,
+        speakerDist=[2, 2], maxDist, scaleFlag=1,
         in, signal, out, room, mix;
     maxDist = speakerDist.maxItem;
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);

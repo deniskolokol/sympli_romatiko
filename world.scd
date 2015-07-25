@@ -11,12 +11,21 @@ var star, physics, particles, springs, position;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
-    registerSpring, registerSprings, applySpring, removeSpring, setSpringProp;
+    registerSpring, registerSprings, applySpring, removeSpring,
+    getSpringForParticle, setSpringProp;
 var resolveSpringEnd, decodeParticle;
 var skeleton, skeletonParticles, skeletonRemove,
-    getGuide, getSource, chooseSource, jointVisible;
+    defineGuide, getGuide, defineSource, chooseSource, jointVisible;
+var getParticlesOnSprings, getParticlesSkelVis, getParticlesHidden;
 var win, view;
-var mag3D, sigmoid;
+var mag3D, sigmoid, xyz, xyz2ade;
+var ax, ay, az, azimuth, distance, elevation,
+    guide, gx, gy, gz,
+    gAzimuth, gDistance, gElevation;
+var attractionsPhysical, springsPhysical, springMissed,
+    particlesOnSprings, particlesSkelVis, particlesHidden,
+    partColor, partSize;
+
 
 // INITIAL
 //
@@ -129,11 +138,6 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
 };
 
 view.drawFunc = { |worldView|
-    var springsPhysical, springMissed;
-    var particlesOnSprings, particlesSkelVis, particlesHidden;
-    var attractionsPhysical;
-    var partColor, partSize;
-
     // depth
     Pen.color = Color.new255(212, 156, 152, 50);
     Pen.fillOval(Rect.aboutPoint(Point(world.width * 0.5, world.height * 0.5),
@@ -177,7 +181,7 @@ view.drawFunc = { |worldView|
     // Particle system.
     if (world.particles.booleanValue) {
         if (worldView.frame % (worldView.frameRate * world.partFreq).round == 0) {
-            particleSystem.(getGuide.())
+            particleSystem.(defineGuide.())
         }
     };
 
@@ -205,9 +209,9 @@ view.drawFunc = { |worldView|
     };
 
     // Manage particles.
-    particlesSkelVis = all {: v[k], v <- skeleton.values, k <- v.keys, jointVisible.includes(k) } ? [];
-    particlesHidden = all {: v[k], v <- skeleton.values, k <- v.keys, jointVisible.includes(k).not } ? [];
-    particlesOnSprings = (all {: [g.a, g.b], g <- physics.springs} ? []).flatten;
+    particlesSkelVis = getParticlesSkelVis.();
+    particlesHidden = getParticlesHidden.();
+    particlesOnSprings = getParticlesOnSprings.();
     Array.newFrom(physics.particles).do { |particle|
         // Re-apply world forces, if there was any change in its parameters
         if (paramsChanged) {
@@ -225,22 +229,38 @@ view.drawFunc = { |worldView|
 
         // send parameters to the group on Server
         if (particles.keys.includes(particle)) {
-            position = Complex(
-                particle.position.x.linlin(0, world.width, 1, -1), // y
-                particle.position.y.linlin(0, world.height, -1, 1) // x
-            );
+            #ax, ay, az = xyz.(particle.position);
+            #azimuth, distance, elevation = xyz2ade.(particle.position);
+            if (particlesOnSprings.includes(particle)) {
+                guide = getGuide.(particle);
+                #gx, gy, gz = xyz.(guide.position);
+                #gAzimuth, gDistance, gElevation = xyz2ade.(guide.position);
+            } { // in the absense of guide, a particle is a guide for itself.
+                guide = particle;
+                #gx, gy, gz = [ax, ay, az];
+                #gAzimuth, gDistance, gElevation = [azimuth, distance, elevation];
+            };
             s.sendMsg("/n_set", particles[particle][\node],
-                \ax, particle.position.x / world.width,
-                \ay, particle.position.y / world.height,
-                \az, particle.position.z.linlin(0, world.depth, 1, 0),
-                \azimuth, position.theta,
-                \distance, position.rho, // distance from the center
-                \elevation, particle.position.z.linlin(0, world.depth, 0.5pi, -0.5pi), // how high the object is (inverse)
+                // particle params
+                \ax, ax,
+                \ay, ay,
+                \az, az,
+                \azimuth, azimuth,
+                \distance, distance,
+                \elevation, elevation,
                 \velocity, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
                 \amp, (
                     particle.mass.clip(0.01, 0.8) // the main contributor to object's loudness is its mass
                     + (mag3D.(particle.velocity) * 0.01) // subtle "colors" due to velocity
                 ).clip(0, 1),
+                // guide params
+                \gx, gx,
+                \gy, gy,
+                \gz, gz,
+                \gzimuth, gAzimuth,
+                \gDistance, gDistance,
+                \gElevation, gElevation,
+                // general
                 \master, 1,
                 \depth, ~depth
             );
@@ -367,7 +387,31 @@ registerSpring = { |spring|
 };
 
 
-// Register springs from List in the global dictionary.
+//
+getParticlesSkelVis = {
+    all {: v[k], v <- skeleton.values, k <- v.keys,
+        jointVisible.includes(k)
+    } ? []
+};
+
+
+//
+getParticlesHidden = {
+    all {: v[k], v <- skeleton.values, k <- v.keys,
+        jointVisible.includes(k).not
+    } ? []
+};
+
+
+//
+getParticlesOnSprings = {
+    (
+        all {: [g.a, g.b], g <- physics.springs} ? []
+    ).flatten
+};
+
+
+// Registers all springs from List in the global dictionary.
 registerSprings = { |springsList|
     springsList.do { |spring|
         registerSpring.(spring)
@@ -388,12 +432,20 @@ resolveSpringEnd = { |end|
 };
 
 
-// Apply spring: choose a source and connect particle to it.
+// Finds
+getSpringForParticle = { |particle|
+    var spring;
+    physics.springs.do { |sp|
+        if ([sp.a, sp.b].includes(particle)) { spring = sp }
+    };
+    spring
+};
+
+
+// Sets worlds parameters to spring.
 setSpringProp = { |spring, particle|
     if (spring.isNil) {
-        physics.springs.do { |sp|
-            if ([sp.a, sp.b].includes(particle)) { spring = sp }
-        }
+        spring = getSpringForParticle.(particle)
     };
     spring.setDamping(world.springDamp);
     spring.setRestLength(world.springRestLen);
@@ -404,7 +456,7 @@ setSpringProp = { |spring, particle|
 // Apply spring: choose a source and connect particle to it.
 applySpring = { |particle, source, ks, d, r|
     var spring;
-    if (source.isNil) { source = getSource.() };
+    if (source.isNil) { source = defineSource.() };
     source = resolveSpringEnd.(source);
     particle = resolveSpringEnd.(particle);
     if (particle.isNil.not && source.isNil.not) {
@@ -493,7 +545,7 @@ chooseSource = {
 
 
 // Select source of force depending on the presence of skeleton.
-getSource = { |starAllowed=false|
+defineSource = { |starAllowed=true|
     if (skeleton.keys.size > 0) {
         chooseSource.()
     } {
@@ -502,8 +554,8 @@ getSource = { |starAllowed=false|
 };
 
 
-// Select guide (where obj appears) depending on objects velocity.
-getGuide = {
+// Define guide (where obj appears) depending on objects velocity.
+defineGuide = {
     var guides = IdentityDictionary[star -> mag3D.(star.velocity)];
     skeleton.keysValuesDo { |skel, joints|
         world.springSrcSkel.do { |jt|
@@ -519,12 +571,22 @@ getGuide = {
     guides.findKeyForValue(guides.values.wchoose(guides.values.exp.normalizeSum))
 };
 
+// Get object's guide, if any.
+getGuide = { |particle|
+    var spring, guide;
+    spring = getSpringForParticle.(particle);
+    if (spring.isNil.not) {
+        guide = spring.a
+    };
+    guide
+};
+
 
 // Init new particle.
 initParticle = { |mass, x, y, z, age, vel|
     var particle, guide;
     if ([x, y, z].any({ |i| i < 0 })) { // negative coordinates ask for guide
-        guide = getGuide.();
+        guide = defineGuide.();
         #x, y, z = [guide.position.x, guide.position.y, guide.position.z];
     } {
         #x, y, z = [x ? world.width.rand, y ? world.height.rand, z ? world.depth.rand]
@@ -707,8 +769,35 @@ mag3D = { |vec|
     result
 };
 
+
 // Simple sigmoid function.
 sigmoid = { |ratio, value| 1 / (1 + exp((ratio * value).neg))};
+
+
+// Returns azimuth, distance and elevation for a position defined as [x, y, z]
+xyz2ade = { |position|
+    var pos, elev;
+    pos = Complex(
+        position.x.linlin(0, world.width, 1, -1), // y
+        position.y.linlin(0, world.height, -1, 1) // x
+    );
+    elev = position.z.linlin(0, world.depth, 0.5pi, -0.5pi);
+    [
+        pos.theta, // azimuth
+        pos.rho, // distance from center
+        elev // elevation (inverse)
+    ]
+};
+
+
+// Reurns x, y and z in required format.
+xyz = { |position|
+    [
+        position.x / world.width,
+        position.y / world.height,
+        position.z.linlin(0, world.depth, 1, 0) // inverse
+    ]
+};
 
 
 // OSC

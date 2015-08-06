@@ -23,7 +23,7 @@ var validScales=all{: c, c <- ScaleInfo.scales, c.pitchesPerOctave == 12};
 currentScale = ~sequence.scales[3];
 
 // events
- ~sequence.events = (
+~sequence.events = (
     0: [
         (message: \action,  params: [\remove, \all],
             info: "Remove all before start"),

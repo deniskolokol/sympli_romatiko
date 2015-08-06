@@ -1,6 +1,5 @@
 *.DS_Store
-settings.conf
-seq.txt
+conf/*
 rec
 *.wav
 *.aiff

@@ -115,7 +115,7 @@ valAsApec = { |param|
 if (~currentDir.isNil) {
     ~currentDir = PathName(thisProcess.nowExecutingPath).pathOnly
 };
-seqPathsFile = ~currentDir +/+ "seq.txt";
+seqPathsFile = ~currentDir +/+ "conf/sequences.conf";
 seqPaths = List.newFrom(["", "Load..."]);
 try { // to load from settings file
     seqPaths = seqPaths ++ File(seqPathsFile, "r").readAllString.interpret;
@@ -276,7 +276,7 @@ loadSequence = { |path|
             seqPaths.removeAt(getIndex.(seqPaths, path));
         };
         0 // if unsuccessful, return 1st element ("")
-    }
+    };
 };
 
 
@@ -511,7 +511,16 @@ pane.decorator = FlowLayout(pane.bounds);
 };
 pane = CompositeView(panePar, paneWidth.(panePar, 0.17)@paneHeight.(panePar, 0.85));
 pane.decorator = FlowLayout(pane.bounds);
-slider.(pane, dummyParam, \vert);
+
+miscParams[\maxDist] = (
+    midicc: 12,
+    gui: slider.(pane,
+        (param: "maxDist", label: "dist",
+            spec: [1, 30, \lin, 0.1, ~speakers.maxDist]), \vert)
+        .action_({ |sl| ~speakers.maxDist = sl.value })
+        .value_(~speakers.maxDist)
+);
+
 // LEFT PANE BOTTOM
 pane = CompositeView(panePar, paneWidth.(panePar, 0.8)@paneHeight.(panePar, 0.17));
 pane.decorator = FlowLayout(pane.bounds);

@@ -2,7 +2,6 @@
 var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
-var audioThruBus=[21, 22];
 
 
 //GLOBAL

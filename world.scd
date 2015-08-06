@@ -2,9 +2,9 @@
 // module: World
 // ---------------
 (
-var world, worldParams, audio, skel;
+var world, worldParams, skel;
 var paramsChanged;
-var oscParticle, oscPhysics, oscAudio, oscAction,
+var oscParticle, oscPhysics, oscAction,
     oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
     oscRemoveFunc, oscGroupTree;
 var star, physics, particles, springs, position;
@@ -18,16 +18,22 @@ var skeleton, skeletonParticles, skeletonRemove,
     defineGuide, getGuide, defineSource, chooseSource, jointVisible;
 var getParticlesOnSprings, getParticlesSkelVis, getParticlesHidden;
 var win, view;
-var mag3D, sigmoid, xyz, xyz2ade;
+var mag3D, sigmoid, xyz, xyz2ade, ade2xyz;
 var ax, ay, az, azimuth, distance, elevation,
     guide, gx, gy, gz,
     gAzimuth, gDistance, gElevation;
 var attractionsPhysical, springsPhysical, springMissed,
     particlesOnSprings, particlesSkelVis, particlesHidden,
     partColor, partSize;
+var listenerPos, currSpeaker;
 
 
 // INITIAL
+//
+// XXX - re-factor
+// `world` -> `worldParams`
+// `physics` -> `world`::`EnTraerWorld`(TraerParticleSystem) // EnTraer == Entropia of Traer Physics
+// all functions that work with particles and springs -> methods of `world`
 //
 world = (
     starMass: 1,
@@ -67,43 +73,79 @@ try {
     world.depth = 700;
 };
 worldParams = Dictionary.newFrom(world); // tracing changes of the world
-audio = (
-    surround: "ambisonic2",
-    fountainSynth: \sr__e__analog,
-    in: 20,
-    out: 0
-);
 skel = (
     waitBeforeRemove: 5,
     limit: 1
 );
 skeleton = Dictionary.new;
 jointVisible = #[\l_hand, \l_elbow, \neck, \r_elbow, \r_hand];
+listenerPos = ( // as default - center of the world
+    x: world.width * 0.5,
+    y: world.height * 0.5,
+    z: world.depth * 0.5
+);
 
 // INTERFACE
 //
 win = Window("Sympli Romatikó :: WORLD", Rect(0, 500, world.width, world.height), false);
 view = UserView(win, Rect(0, 0, world.width, world.height)).background = Color.black;
 view.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
-    var processed = false;
-    if (clickCount == 2) {
+    var speakerPos, speakerSize, speakers2Remove, processed=false;
+    case
+    { [0, 256].includes(modifiers) } { // no modifiers
         physics.particles.do { |particle|
             if (
                 ((x - particle.position.x).abs <= 20) &&
                 ((y - particle.position.y).abs <= 20)
             ) {
-                processed = true;
-                if (particle != star) {
-                    unregisterParticle.(particles[particle][\node]);
-                    removeParticle.(particle);
+                if (clickCount == 2) { // double-click removes a particle
+                    if (particle != star) { // star cannot be removed
+                        unregisterParticle.(particles[particle][\node]);
+                        removeParticle.(particle);
+                    };
+                } {
+                    particle.position.set(x, y, particle.position.z)
                 };
+                processed = true;
             };
         };
-    } {
-        if (processed.not) { star.position.set(x, y, 0) }
-    };
+
+        if (processed.not) { // process speakers only if no particles were processed
+            ~speakers.items.do { |speaker, i|
+                speakerPos = ade2xyz.(speaker, ~speakers.maxDist);
+                speakerSize = speakerPos.z.linlin(0, world.depth, 40, 15);
+                if (
+                    ((x - speakerPos.x).abs <= (speakerSize / 2)) &&
+                    ((y - speakerPos.y).abs <= (speakerSize / 2))
+                ) {
+                    if (clickCount == 2) {
+                        ~speakers.removeSpeaker(i);
+                    } {
+                        #azimuth, distance, elevation = xyz2ade.([x, y].asPoint);
+                        ~speakers.items[i].dist = distance.linlin(0, 1, 0, ~speakers.maxDist);
+                        ~speakers.items[i].azim = azimuth;
+                        currSpeaker = i;
+                    }
+                }
+            };
+        };
+    }
+    { modifiers == 262144 } { // Ctrl + Mouse - add speaker
+        #azimuth, distance, elevation = xyz2ade.((x:x, y:y, z:world.depth*0.5));
+        distance = distance.linlin(0, 1, 0, ~speakers.maxDist);
+        ~speakers.items.add((dist: distance, azim: azimuth, elev: elevation)
+        );
+    }
+    { modifiers == 524288 } { // Alt + Mouse
+        star.position.set(x, y, 0) // moves the Star
+    }
+    { modifiers == 131072 } { // Shift + Mouse
+    }
 };
 view.mouseMoveAction = view.mouseDownAction;
+view.mouseUpAction = {
+    currSpeaker = nil
+};
 
 win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
     case
@@ -135,12 +177,33 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
             rrand(0.8, 2.0), 600.rand, 600.rand, 600.rand, inf
             );
     }
+    { keycode == 24 && [0, 256].includes(modifiers) } { // "+" ("=")
+        if (currSpeaker.isNil.not) { // increase speaker elevation
+            ~speakers.items[currSpeaker].elev = min(
+                ~speakers.items[currSpeaker].elev + 0.00872664, 0.5pi
+            ).round(0.00872664) // round to 0.5 degrees
+        }
+    }
+    { keycode == 27 && [0, 256].includes(modifiers) } { // "-"
+        if (currSpeaker.isNil.not) { // decrease speaker elevation
+            ~speakers.items[currSpeaker].elev = max(
+                ~speakers.items[currSpeaker].elev - 0.00872664, -0.5pi
+            ).round(0.00872664) // round to 0.5 degrees
+        }
+    }
 };
 
 view.drawFunc = { |worldView|
+    // maxDist
+    Pen.color = Color.new255(48, 45, 92, 150);
+    Pen.fillOval(Rect.aboutPoint(
+        Point(world.width * 0.5, world.height * 0.5),
+        world.width * 0.5, world.height * 0.5));
+
     // depth
-    Pen.color = Color.new255(212, 156, 152, 50);
-    Pen.fillOval(Rect.aboutPoint(Point(world.width * 0.5, world.height * 0.5),
+    Pen.color = Color.new255(108, 107, 152, 50);
+    Pen.fillOval(Rect.aboutPoint(
+        Point(world.width * 0.5, world.height * 0.5),
         ~depth.linlin(1, 10, 20, world.height * 0.5),
         ~depth.linlin(1, 10, 20, world.height * 0.5)));
 
@@ -157,6 +220,45 @@ view.drawFunc = { |worldView|
     Pen.line([world.width * 0.5, 25].asPoint, [world.width * 0.5, world.height - 25].asPoint);
     Pen.line([25, world.height * 0.5].asPoint, [world.width - 25, world.height * 0.5].asPoint);
     Pen.stroke;
+
+    // speakers
+    ~speakers.items.do { |speaker, i|
+        var pos, speakerSize;
+        pos = ade2xyz.(speaker, ~speakers.maxDist);
+        speakerSize = pos.z.linlin(0, world.depth, 40, 15);
+
+        Pen.color = Color.grey(pos.z.linlin(0, world.depth, 1, 0.7));
+        // distance
+        Pen.line(
+            [listenerPos.x, listenerPos.y].asPoint,
+            [pos.x, pos.y].asPoint
+        );
+        Pen.stringAtPoint((speaker.dist.round(0.1)).asString++" m",
+            [pos.x-(speakerSize*0.5), pos.y+(speakerSize*0.6)].asPoint
+        );
+        // azimuth
+        Pen.addArc([listenerPos.x, listenerPos.y].asPoint,
+            i*35+35, 1pi, 1pi-speaker.azim.linlin(-1pi, 1pi, 0, 2pi)
+        );
+        Pen.stringAtPoint((speaker.azim * 180 / 1pi).round.asString,
+            [
+                world.width/2-(i*32+32),
+                world.height*0.492+(speaker.azim/(speaker.azim).abs*9)
+            ].asPoint
+        );
+        // elevation
+        Pen.stringAtPoint(
+            ((speaker.elev * 180 / 1pi).round(0.1)).asString,
+            [pos.x-(speakerSize*0.5), pos.y-speakerSize].asPoint
+        );
+        Pen.stroke;
+
+        Pen.fillRect(Rect(pos.x-(speakerSize*0.5), pos.y-(speakerSize*0.5), speakerSize, speakerSize));
+        Pen.color = Color.black;
+        Pen.stringAtPoint((i+1).asString,
+            [pos.x - (speakerSize*0.1), pos.y-(speakerSize*0.1)].asPoint
+        );
+    };
 
     paramsChanged = false;
     if (worldParams != world) {
@@ -545,7 +647,7 @@ chooseSource = {
 
 
 // Select source of force depending on the presence of skeleton.
-defineSource = { |starAllowed=true|
+defineSource = { |starAllowed=false|
     if (skeleton.keys.size > 0) {
         chooseSource.()
     } {
@@ -620,7 +722,7 @@ particleSystem = { |guide|
                 world.partAgeThresh.logistic,
                 [vel.x, vel.y, vel.z].neg * world.partInitAccel.max(0.01)),
             ~groupInit.(
-                world.partSynth, audio.surround, params:[\att, 2.0.rand]
+                world.partSynth, params:[\att, 2.0.rand]
             )
         );
     }
@@ -789,6 +891,18 @@ xyz2ade = { |position|
     ]
 };
 
+ade2xyz = { |position, maxDist|
+    var pos, distAdj;
+    var mC = 2.sqrt; // max in Cartesian plane (from center to wall)
+    distAdj = position.dist.linlin(0, maxDist, 0, mC); // adjust distance on [0, maxDist]
+    pos = Polar(distAdj, position.azim).asCartesian;
+    (
+        x: pos.x.linlin(mC.neg, mC, world.width, 0),
+        y: pos.y.linlin(mC.neg, mC, 0, world.height),
+        z: position.elev.linlin(-0.5pi, 0.5pi, world.depth, 0) // inverse
+    )
+};
+
 
 // Reurns x, y and z in required format.
 xyz = { |position|
@@ -905,13 +1019,6 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
         }
     );
 }, '/action');
-
-
-// Catch messages related to audio setup.
-oscAudio= OSCFunc({ |msg, time, addr, recvPort|
-    postf("from % received %\n", addr, msg);
-    audio.putPairs(msg[1..]);
-}, '/audio');
 
 
 // Catch messages related to skeleton.

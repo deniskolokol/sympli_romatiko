@@ -8,7 +8,7 @@ var sGroupId; // root group
 var defaultBuff;
 
 // available SynthDefs
-var trigSynth, synthNames, keyNames;
+var trigSynth, synthNames, trigCodes;
 
 // dictionary of the synths symbolic IDs vs. server Nodes
 var synths=Dictionary.new;
@@ -46,37 +46,30 @@ sGroupId = s.nextNodeID;
 s.sendMsg("/g_new", sGroupId);
 
 // Keycodes for triggering obj creation with a synth.
-trigSynth = [
-    12, \sr__e__wasp,   // q
-    13, \sr__e__radio,  // w
-    14, \sr__e__humm,   // e
-    15, \sr__e__gauss,  // r
-    17, \sr__e__entro,  // t
-    16, \sr__e__noisy,  // y
-    32, \sr__e__probe,  // u
-    34, \sr__e__cmb,    // i
-    31, \sr__e__lowe,   // o
-    35, \sr__e__melo,   // p
-    33, \sr__e__ringz,  // [
-    30, \sr__e__pulse,  // ]
-    1,  \sr__g__reg,    // s
-    2,  \sr__g__drone,  // d
-    3,  \sr__g__gust,   // f
-    5,  \sr__g__slic,   // g
-    4,  \sr__g__loop,   // h
-    38, \sr__g__scratch,// j
-    40, \sr__g__unst,   // k
-    37, \sr__g__chunk,  // l
-    41, \sr__e__therem, // ;
-    39, \sr__e__growl,  // "
-    42, \sr__e__analog, // \ (the answer to the ultimate question ))
+trigCodes = [
+    12, "q", 13, "w", 14, "e", 15, "r", 17, "t", 16, "y",
+    32, "u", 34, "i", 31, "o", 35, "p", 33, "[", 30, "]",
+    1,  "s", 2,  "d", 3,  "f", 5,  "g", 4,  "h", 38, "j", 40, "k",
+    37, "l", 41, ";", 39, "\"", 42, "\\"
 ];
-synthNames = Dictionary.newFrom(trigSynth);
-// TO-DO: names should be obtained automatically
-keyNames = (12: "q", 13: "w", 14: "e", 15: "r", 17: "t", 16: "y",
-    32: "u", 34: "i", 31: "o", 35: "p", 33: "[", 30: "]",
-    1:  "s", 2:  "d", 3:  "f", 5:  "g", 4:  "h", 38: "j", 40: "k",
-    37: "l", 41: ";", 39: "\"", 42: "\\");
+
+// collect keys and synths in a form of dict, unsorted
+synthNames = Dictionary.newFrom(
+    (all {: [~synths[k][\key], k],
+        k <- ~synths.keys,
+        trigCodes.includes(~synths[k][\key])
+    }).flatten
+);
+
+// sort it according to the order of elements in trigCodes
+trigSynth = (
+    all {: [key, synthNames[key]],
+        key <- all{: k, k <- trigCodes, trigCodes.indexOf(k).even}
+    }
+).flatten;
+
+// convert trigCodes to dictionary for easier access
+trigCodes = Dictionary.newFrom(trigCodes);
 
 physics = (
     drag:             ( label: "drag",      minval: 0.000, maxval: 0.500, step: 0.001, default: 0.001, midicc: 24   ),
@@ -626,7 +619,7 @@ pane = CompositeView(panePar, paneWidth.(panePar, 0.2)@paneHeight.(panePar, 0.17
 physics[\particles][\gui] = buttonCheckbox.(pane, physics[\particles], \particles);
 
 // KEYBOARD
-keyboard = CompositeView(win, 600@170).background_(Color.grey(grey:0.7));
+keyboard = CompositeView(win, 600@200).background_(Color.grey(grey:0.7));
 keyboardFunc = { |synthName, params, spring=0, mass=1|
     sendParticle.(
         synth: (name: synthName, params: params),
@@ -637,23 +630,34 @@ keyboard.decorator = FlowLayout(keyboard.bounds);
 
 trigSynth.do { |key, i|
     var view, buff;
-    if (i % 2 == 0) {
-        if (sequence.size > 0) {
-            if (synthNames[key].asString.beginsWith("sr__e__")) {
-                buff = sequence.scales[0]
-            };
-            if (synthNames[key].asString.beginsWith("sr__g__")) {
-                buff = sequence.voices.choose
-            };
-        } {
-            buff = defaultBuff
-        };
-        view = CompositeView(keyboard, 45@70);
+    if (trigCodes[key].isNil.not) {
+        view = CompositeView(keyboard, 45@90);
         view.decorator = FlowLayout(view.bounds);
-        Button(view, 41@45).states_(
-            [[keyNames[key].toUpper, Color.black, Color.white]])
+        Button(view, 41@37).states_(
+            [[trigCodes[key].toUpper, Color.black, Color.white]])
         .canFocus_(false)
-        .action_({ |bt| keyboardFunc.(synthNames[key], params: [\bufnum, buff.bufnum], spring:1) });
+        .action_({ |bt|
+            if (sequence.size > 0) {
+                if (synthNames[key].asString.beginsWith("sr__e__")) {
+                    buff = sequence.scales[0]
+                };
+                if (synthNames[key].asString.beginsWith("sr__g__")) {
+                    buff = sequence.voices.choose
+                };
+            } {
+                buff = defaultBuff
+            };
+            keyboardFunc.(synthNames[key], params: [\bufnum, buff.bufnum], spring:1)
+        });
+        NumberBox(view, 41@20).value_(
+            ~synths.atFail(synthNames[key], {~synths[\sr__e__silent]})[\attenuate]
+        )
+        .action_({ |nb|
+            ~synths[synthNames[key]][\attenuate] = nb.value;
+        })
+        .clipLo_(0.01)
+        .clipHi_(2)
+        .step_(0.01);
         StaticText(view, 41@25).string_(
             synthNames[key].asString.replace("sr__e__", "").replace("sr__g__", ""))
         .align_(\topLeft)

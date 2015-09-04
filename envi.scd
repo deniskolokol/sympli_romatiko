@@ -7,13 +7,11 @@
 var srEnv;
 var currentDir;
 var key, subkey, branch, conf, confFile, confKeys;
-confKeys = [ // keys to save to conf file
-    'surround', 'depth',
-    'inbus', 'outbus', 'audioThruBus', 'mainInput', 'mainOutput',
-    'worldSize', 'receiver', 'speakers'
-];
+var synthNames;
 
-// LOAD ENVIRONMENT
+
+// ENVIRONMENT
+//
 "Loading environment...".postln;
 currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
 confFile = currentDir +/+ "conf/environment.conf";
@@ -55,6 +53,105 @@ srEnv = Environment.make {
             }
         }
     );
+    ~synths = conf.atFail(\synths, {(
+        sr__e__wasp: (
+            key: 12, // q
+            attenuate: 0.02,
+        ),
+        sr__e__radio: (
+            key: 13, // w
+            attenuate: 0.06,
+        ),
+        sr__e__humm: (
+            key: 14, // e
+            attenuate: 0.1,
+        ),
+        sr__e__gauss: (
+            key: 15, // r
+            attenuate: 0.2,
+        ),
+        sr__e__entro: (
+            key: 17, // t
+            attenuate: 0.1,
+        ),
+        sr__e__noisy: (
+            key: 16, // y
+            attenuate: 0.02,
+        ),
+        sr__e__probe: (
+            key: 32, // u
+            attenuate: 0.5,
+        ),
+        sr__e__cmb: (
+            key: 34, // i
+            attenuate: 0.5,
+        ),
+        sr__e__lowe: (
+            key: 31, // o
+            attenuate: 0.05,
+        ),
+        sr__e__melo: (
+            key: 35, // p
+            attenuate: 0.5,
+        ),
+        sr__e__ringz: (
+            key: 33, // [
+            attenuate: 0.2,
+        ),
+        sr__e__pulse: (
+            key: 30, // ]
+            attenuate: 0.1,
+        ),
+        \sr__g__reg: (
+            key: 1, // s
+            attenuate: 1,
+        ),
+        \sr__g__drone: (
+            key: 2, // d
+            attenuate: 1,
+        ),
+        \sr__g__gust: (
+            key: 3, // f
+            attenuate: 1,
+        ),
+        \sr__g__slic: (
+            key: 5, // g
+            attenuate: 1,
+        ),
+        \sr__g__loop: (
+            key: 4, // h
+            attenuate: 1,
+        ),
+        \sr__g__scratch: (
+            key: 38, // j
+            attenuate: 1,
+        ),
+        \sr__g__unst: (
+            key: 40, // k
+            attenuate: 1,
+        ),
+        \sr__g__chunk: (
+            key: 37, // l
+            attenuate: 1,
+        ),
+        \sr__e__therem: (
+            key: 41, // ;
+            attenuate: 1.5,
+        ),
+        \sr__e__growl: (
+            key: 39, // "
+            attenuate: 0.3,
+        ),
+        \sr__e__analog: (
+            key: 42, // \ (the answer to the ultimate question ))
+            attenuate: 0.05,
+        ),
+        \sr__e__silent: (
+            key: nil,
+            attenuate: 1,
+        )
+        )}
+    );
 
     // Increments integers with a limit: resets to `lo` every time
     // in + step reaches `hi`
@@ -69,31 +166,39 @@ srEnv = Environment.make {
     // take place individually.
     ~groupInit = {
         arg synth, bufnum, busnum, params;
-        var node, spatial, l=30, h=53;
+        var node, spatial, synthName, l=30, h=53;
         spatial = format("sr__s__%%", ~surround, ~speakers.items.size);
         node = s.nextNodeID;
         if (busnum.isNil) {
             busnum = ~clipInc.(~route ?? l, lo:l, hi:h);
             ~route = busnum;
         };
-        spatial = ["/s_new", spatial, s.nextNodeID, 1, node,
+
+        spatial = [
+            "/s_new", spatial, s.nextNodeID, 1, node, // spatializer goes to a new group's tail
             \inbus, busnum, // getting signal from synth
             \outbus, ~mainOutput, // to main output
-            \depth, ~depth]
+            \depth, ~depth
+        ] ++ [\maxDist, ~speakers.maxDist]
         ++ [\speakerAzim, $[] ++ ~speakers.collectAzim() ++ [$]]
         ++ [\speakerDist, $[] ++ ~speakers.collectDist() ++ [$]]
-        ++ [\speakerElev, $[] ++ ~speakers.collectElev() ++ [$]]
-        ++ [\maxDist, ~speakers.maxDist];
+        ++ [\speakerElev, $[] ++ ~speakers.collectElev() ++ [$]];
+
+        synthName = synth;
+        synth = ~synths.atFail(synthName, {~synths[\sr__e__silent]});
+        synth = [
+            "/s_new", synthName, s.nextNodeID, 0, node, // synth goes to a new group's head
+            \inbus, ~mainInput, // getting signal from external input
+            \outbus, busnum, // feeding into spatilizer
+            \bufnum, bufnum,
+            \attenuate, synth[\attenuate]
+        ] ++ (params ? []);
+
         s.sendBundle(0.01,
             ["/error", 0], // turn errors off locally
             ["/g_new", node],
-            // add spatializer to new group's tail
             spatial,
-            // add synth to new group's head
-            ["/s_new", synth, s.nextNodeID, 0, node,
-                \inbus, ~mainInput, // getting signal from external input
-                \outbus, busnum, // feeding into spatilizer
-                \bufnum, bufnum] ++ (params ? [])
+            synth
         );
         node // return ID of the Group created
     };
@@ -141,7 +246,9 @@ srEnv = Environment.make {
 };
 currentEnvironment = srEnv;
 
-// LOAD MODULES
+
+// MODULES
+//
 "Loading synth definitions...".postln;
 if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
     postf("OK\n\n")
@@ -158,6 +265,11 @@ if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
 
 CmdPeriod.doOnce({
     "Saving environment conf...".postln;
+    confKeys = [ // keys to save to conf file
+        'surround', 'depth',
+        'inbus', 'outbus', 'audioThruBus', 'mainInput', 'mainOutput',
+        'worldSize', 'receiver', 'speakers', 'synths'
+    ];
     conf = Dictionary.newFrom(currentEnvironment);
     currentEnvironment.keysValuesDo { |envKey, envVal|
         if (confKeys.includes(envKey).not) {

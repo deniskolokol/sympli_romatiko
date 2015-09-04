@@ -2,8 +2,9 @@
 // module: World
 // ---------------
 (
-var world, worldParams, skel;
+var win, view;
 var paramsChanged;
+var world, worldParams, skel;
 var oscParticle, oscPhysics, oscAction,
     oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
     oscRemoveFunc, oscGroupTree;
@@ -17,7 +18,6 @@ var resolveSpringEnd, decodeParticle;
 var skeleton, skeletonParticles, skeletonRemove,
     defineGuide, getGuide, defineSource, chooseSource, jointVisible;
 var getParticlesOnSprings, getParticlesSkelVis, getParticlesHidden;
-var win, view;
 var mag3D, sigmoid, xyz, xyz2ade, ade2xyz;
 var ax, ay, az, azimuth, distance, elevation,
     guide, gx, gy, gz,
@@ -25,7 +25,7 @@ var ax, ay, az, azimuth, distance, elevation,
 var attractionsPhysical, springsPhysical, springMissed,
     particlesOnSprings, particlesSkelVis, particlesHidden,
     partColor, partSize;
-var listenerPos, currSpeaker;
+var listenerPos, currSpeaker, getSynthName;
 
 
 // INITIAL
@@ -355,6 +355,7 @@ view.drawFunc = { |worldView|
                     particle.mass.clip(0.01, 0.8) // the main contributor to object's loudness is its mass
                     + (mag3D.(particle.velocity) * 0.01) // subtle "colors" due to velocity
                 ).clip(0, 1),
+
                 // guide params
                 \gx, gx,
                 \gy, gy,
@@ -362,9 +363,10 @@ view.drawFunc = { |worldView|
                 \gzimuth, gAzimuth,
                 \gDistance, gDistance,
                 \gElevation, gElevation,
+
                 // general
                 \master, 1,
-                \depth, ~depth
+                \depth, ~depth,
             );
         };
 
@@ -541,6 +543,29 @@ getSpringForParticle = { |particle|
         if ([sp.a, sp.b].includes(particle)) { spring = sp }
     };
     spring
+};
+
+
+// Figures out full synth name in a form "\sr__%__%"
+// based on its short name, or a node, or a living particle.
+getSynthName = { |shortName, node, particle|
+    var synthName="", checkNames;
+    if (particle.isNil.not) {
+        shortName = particles[particle][\synth]
+    };
+    if (node.isNil.not) {
+        shortName = all {: particles[p][\synth], p <- particles, p[\node] == node};
+        shortName = shortName[0]
+    };
+    if (shortName.isNil.not) {
+        checkNames = all {: format("\sr__%__%", nm, shortName.asString), nm <- ["e", "g", "p"]};
+        checkNames.do { |name|
+            if (~synths.keys.includes(name.asSymbol)) {
+                synthName = name
+            };
+        };
+    };
+    synthName.asSymbol
 };
 
 

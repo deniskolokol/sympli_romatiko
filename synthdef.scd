@@ -27,7 +27,7 @@
 SynthDef(\sr__g__reg, {
     arg bufnum=0, inbus=30, outbus=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
+        amp=1, attenuate=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, out, signal;
     var trate, dur, pos, clk, ds, rate=1;
     // Conversion.
@@ -39,7 +39,7 @@ SynthDef(\sr__g__reg, {
     pos = Integrator.kr(BrownNoise.kr(ds));
     // Synthesis.
     in = TGrains.ar(2, clk, bufnum, BufRateScale.kr(bufnum) * rate, pos, dur);
-    signal = Mix.ar(in) * amp;
+    signal = Mix.ar(in) * amp * attenuate;
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -50,7 +50,7 @@ SynthDef(\sr__g__reg, {
 SynthDef(\sr__g__drone, {
     arg bufnum=0, inbus=30, outbus=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
+        amp=1, attenuate=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, out, signal;
     var trate, dur, pos, clk, ds, rate=1;
     // Conversion.
@@ -62,7 +62,7 @@ SynthDef(\sr__g__drone, {
     pos = ax * BufDur.kr(bufnum);
     // Synthesis.
     in = TGrains.ar(2, clk, bufnum, BufRateScale.kr(bufnum) * rate, pos + TRand.kr(0, 0.01, clk), dur);
-    signal = Mix.ar(in) * amp;
+    signal = Mix.ar(in) * amp * attenuate;
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -73,7 +73,7 @@ SynthDef(\sr__g__drone, {
 SynthDef(\sr__g__gust, { // ~ gusts of wind
     arg bufnum=0, inbus=30, outbus=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
+        amp=1, attenuate=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, out, signal;
     var trate, dur, pos, clk, d, zz, ds;
     // Conversion.
@@ -90,7 +90,8 @@ SynthDef(\sr__g__gust, { // ~ gusts of wind
         dur: Dseq([1, d.value, 1, zz.value, 0.5, 0.5, 0.1, zz.value] * 2, inf) / trate,
         amp: Dseq([1, 0, zz.value.min(1.3), 0, 0.6, 0.3, 1, 0.1, 0.1], inf)
     );
-    signal = Mix.ar(in) * amp;
+    // XXX - add Compander here to smooth out sometimes violent dynamics!
+    signal = Mix.ar(in) * amp * attenuate;
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -101,7 +102,7 @@ SynthDef(\sr__g__gust, { // ~ gusts of wind
 SynthDef(\sr__g__slic, { // slicing
     arg bufnum=0, inbus=30, outbus=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
+        amp=1, attenuate=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, out, signal;
     var trate, dur, pos, clk, rate=1, ds;
     // Conversion.
@@ -113,7 +114,7 @@ SynthDef(\sr__g__slic, { // slicing
     pos = ax * BufDur.kr(bufnum);
     // Synthesis.
     in = TGrains.ar(2, clk, bufnum, (2 ** WhiteNoise.kr(2)) * rate, BufFrames.ir(bufnum) * pos, dur, 0);
-    signal = Mix.ar(in) * amp;
+    signal = Mix.ar(in) * amp * attenuate;
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -124,16 +125,17 @@ SynthDef(\sr__g__slic, { // slicing
 SynthDef(\sr__g__scratch, { // ~ chunks of sound
     arg bufnum=0, inbus=30, outbus=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
+        amp=1, attenuate=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, signal, out;
     var rate, pos, ds;
     // Conversion.
     ds = distance/3.44;
     rate = velocity.linlin(0, 1, 0.1, 1.9);
+    // XXX - for finer control ise gx instead of ax
     pos = ax * BufDur.kr(bufnum);
     // Synthesis.
     in = BufRd.ar(1, bufnum, Lag.ar(K2A.ar(BufFrames.ir(bufnum) * pos), 4), 1);
-    signal = in * amp;
+    signal = in * amp * attenuate;
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -144,14 +146,14 @@ SynthDef(\sr__g__scratch, { // ~ chunks of sound
 SynthDef(\sr__g__loop, {
     arg bufnum=0, inbus=30, outbus=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
-        pos=0, amp=1, master=1, gate=1, rate=1, att=1, rel=1, ca=3, cr= -3;
+        pos=0, amp=1, attenuate=1, master=1, gate=1, rate=1, att=1, rel=1, ca=3, cr= -3;
     var in, signal, out, ds;
     ds = distance/3.44;
     in = PlayBuf.ar(1, bufnum,
         // slight disturbances of rate
         BufRateScale.kr(bufnum) * (rate + LFNoise1.kr(LFNoise1.ar(1.4, 1, 1.6), 0.15)),
         Impulse.ar(BufDur.kr(bufnum).reciprocal), BufFrames.ir(bufnum) * pos);
-    signal = in * amp;
+    signal = in * amp * attenuate;
     // Envelope.
     out = signal * master * EnvGen.kr(Env.asr(att, 1, rel, [ca, cr]), gate: gate, doneAction:2);
     Out.ar(outbus, out)
@@ -178,7 +180,7 @@ SynthDef(\sr__g__loopdel, {
 SynthDef(\sr__g__unst, {
     arg bufnum=0, inbus=30, outbus=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
-        pos=0, amp=1, master=1, gate=1, rate=1, att=1, rel=1, ca=3, cr= -3;
+        pos=0, amp=1, attenuate=1, master=1, gate=1, rate=1, att=1, rel=1, ca=3, cr= -3;
     var in, signal, out, ds;
     ds = distance/3.44;
     in = PlayBuf.ar(1, bufnum,
@@ -193,7 +195,7 @@ SynthDef(\sr__g__unst, {
         TRand.kr(0, BufFrames.ir(bufnum), Dust.kr(0.2))
     );
     signal = RLPF.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds),
-        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp;
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp * attenuate;
     // Envelope.
     out = signal * master * EnvGen.kr(Env.asr(att, 1, rel, [ca, cr]), gate: gate, doneAction:2);
     Out.ar(outbus, out)
@@ -203,7 +205,7 @@ SynthDef(\sr__g__unst, {
 SynthDef(\sr__g__chunk, { // ~ chunks of sound
     arg bufnum=0, inbus=30, outbus=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
-        pos=0, amp=1, master=1, gate=1, rate=1, att=1, rel=1, ca=3, cr= -3;
+        pos=0, amp=1, attenuate=1, master=1, gate=1, rate=1, att=1, rel=1, ca=3, cr= -3;
     var in, signal, out;
     var trate, ds;
     // Conversion.
@@ -217,7 +219,7 @@ SynthDef(\sr__g__chunk, { // ~ chunks of sound
     );
     signal = RLPF.ar(
         DelayL.ar(FreeVerb.ar(in, distance.clip(0.01, 1), ds, 0.2), 0.3, ds),
-        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp;
+        distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp * attenuate;
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -253,7 +255,7 @@ SynthDef(\sr__e__silent, {
 
 SynthDef(\sr__e__lowe, { // the "lowe"st
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
@@ -266,7 +268,7 @@ SynthDef(\sr__e__lowe, { // the "lowe"st
     b = dir[1].hypot(dir[0]) * 400 + 200;
     c = velocity.linlin(0, 1, 50, 150);
     // Synthesis.
-    in = SinOsc.ar(c, BPF.ar(BPF.ar(LFSaw.ar(freq * xx, 0, a), b), xx, q), amp * 0.05);
+    in = SinOsc.ar(c, BPF.ar(BPF.ar(LFSaw.ar(freq * xx, 0, a), b), xx, q), amp * attenuate);
     signal = RLPF.ar(Limiter.ar(Mix.ar(in)), distance.linlin(0, 2.sqrt, 500, 10000), 0.5);
     // Envelope.
     out = signal * master * EnvGen.kr(
@@ -277,7 +279,7 @@ SynthDef(\sr__e__lowe, { // the "lowe"st
 
 SynthDef(\sr__e__probe, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
@@ -295,7 +297,7 @@ SynthDef(\sr__e__probe, {
             )
         )
     );
-    2.do({in = AllpassN.ar(in, 0.05, [dtl, dtr], 3.0.rand, amp * 0.5)});
+    2.do({in = AllpassN.ar(in, 0.05, [dtl, dtr], 3.0.rand, amp * attenuate)});
     signal = Mix(in) * master;
     // Envelope.
     out = signal * EnvGen.kr(
@@ -306,7 +308,7 @@ SynthDef(\sr__e__probe, {
 
 SynthDef(\sr__e__cmb, { // CMB ~ "Cosmic Backgroud Radiation"
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
@@ -327,7 +329,7 @@ SynthDef(\sr__e__cmb, { // CMB ~ "Cosmic Backgroud Radiation"
     in = Mix.fill(3, {CombL.ar(mix, 0.1, 0.03.linrand, 4.0.linrand)});
     in = in.distort * 0.5;
     6.do({in= AllpassN.ar(in, 0.05, [0.05.rand, 0.05.rand], 3)});
-    signal = LeakDC.ar(in * 0.5); // attenuate the volume a bit
+    signal = LeakDC.ar(in * attenuate);
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -337,7 +339,7 @@ SynthDef(\sr__e__cmb, { // CMB ~ "Cosmic Backgroud Radiation"
 
 SynthDef(\sr__e__melo, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
@@ -353,7 +355,7 @@ SynthDef(\sr__e__melo, {
         + Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
             LFNoise0.kr(1.0.rand, 2, 10), r: LFNoise0.kr(1.0.rand, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
         LFNoise0.kr(0.2, 38, 115).midicps, 0.1,
-        mul:(amp * velocity * 0.5).scurve // sigmoid: the faster, the more present
+        mul:(amp * velocity * attenuate).scurve // sigmoid: the faster, the more present
         // mul:velocity // simply the faster the louder
     );
     in = [in, DelayN.ar(in, 0.04, 0.04)];
@@ -368,7 +370,7 @@ SynthDef(\sr__e__melo, {
 
 SynthDef(\sr__e__ringz, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.2, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var in, out, signal;
@@ -382,7 +384,7 @@ SynthDef(\sr__e__ringz, {
         + RLPF.ar(LFSaw.ar((1..10) * fbase * az, shift, velocity))
     ).softclip;
     5.do({in});
-    signal = Limiter.ar(MidEQ.ar(Mix.ar(in), 14000, 0.7, 8), amp * 0.2);
+    signal = Limiter.ar(MidEQ.ar(Mix.ar(in), 14000, 0.7, 8), amp * attenuate);
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -392,7 +394,7 @@ SynthDef(\sr__e__ringz, {
 
 SynthDef(\sr__e__pulse, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
@@ -409,7 +411,7 @@ SynthDef(\sr__e__pulse, {
     // Synthesis.
     in = Blip.ar(SinOsc.kr(0.5, 0, LFDNoise1.kr(1.5), note), 100, 0.2);
     in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq);
-    in = Limiter.ar(MidEQ.ar(in, [200, 1400], 0.7, 8), amp * 0.1);
+    in = Limiter.ar(MidEQ.ar(in, [200, 1400], 0.7, 8), amp * attenuate);
     signal = Mix.ar(in);
     // Envelope.
     out = signal * master * EnvGen.kr(
@@ -420,7 +422,7 @@ SynthDef(\sr__e__pulse, {
 
 SynthDef(\sr__e__analog, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0, threshold=0.7, scope=12;
     var note, in, out, signal;
@@ -460,7 +462,7 @@ SynthDef(\sr__e__analog, {
         ]
     );
     // Synthesis.
-    in = Mix.fill(8, { LFSaw.ar((note + 0.1.rand2).midicps) * 0.05 });
+    in = Mix.fill(8, { LFSaw.ar((note + 0.1.rand2).midicps) * attenuate });
     signal = RLPF.ar(RLPF.ar(in, cutoff, rq), cutoff, rq);
     // Envelope.
     out = signal * master * EnvGen.kr(
@@ -566,7 +568,7 @@ SynthDef(\sr__e__dempad, {
 
 SynthDef(\sr__e__growl, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.3, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, elevation=0, velocity=0.5,
         gx=0.1, gy=0.1, gz=0.1, gAzimuth=0, gDistance=0.5, gElevation=0.5,
         offset=6, cutoff=0;
@@ -619,7 +621,7 @@ SynthDef(\sr__e__growl, {
         }
     );
     in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq);
-    in = Limiter.ar(MidEQ.ar(in, [200, 1400], 0.7, 8), amp * 0.3);
+    in = Limiter.ar(MidEQ.ar(in, [200, 1400], 0.7, 8), amp * attenuate);
     signal = Mix.ar(in);
 
     // Envelope.
@@ -631,7 +633,7 @@ SynthDef(\sr__e__growl, {
 
 SynthDef(\sr__e__gauss, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
+        amp=1, attenuate=0.2, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
         offset=36, cutoff=0;
     var note, scale, in, out, signal;
@@ -651,7 +653,7 @@ SynthDef(\sr__e__gauss, {
     );
     in = Limiter.ar(
         MidEQ.ar(Mix.fill(10, in), 14000, velocity.lincurve(0, 1, 0.8, 0.1, 2), 8),
-        amp * 0.2);
+        amp * attenuate);
     signal = RLPF.ar(RLPF.ar(Mix.ar(in), cutOff, rq), cutOff, rq);
     // Envelope.
     out = signal * master * EnvGen.kr(
@@ -662,7 +664,7 @@ SynthDef(\sr__e__gauss, {
 
 SynthDef(\sr__e__noisy, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.02, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
 	var in, out, signal;
@@ -677,7 +679,7 @@ SynthDef(\sr__e__noisy, {
     ).softclip;
     in = [in, DelayN.ar(in, 0.04, 0.4)];
     4.do({in = AllpassN.ar(in, 0.5, [0.5.rand, 0.5.rand], 4, amp)});
-    signal = Mix.ar(in) * 0.02;
+    signal = Mix.ar(in) * attenuate;
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -687,7 +689,7 @@ SynthDef(\sr__e__noisy, {
 
 SynthDef(\sr__e__entro, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var freq, shift, rq, in, out, signal;
@@ -706,7 +708,7 @@ SynthDef(\sr__e__entro, {
         Saw.ar((1..15) * LFNoise0.kr(5, 10, 50) + SinOsc.ar((6..2) * 0.5))
         ]
     );
-    in = Mix.ar(in) * velocity * amp * 0.1; // too loud comparing to the rest, attenuate vol
+    in = Mix.ar(in) * velocity * amp * attenuate;
     signal = RLPF.ar(RLPF.ar(in, shift, rq), shift, rq);
     // Envelope.
     out = signal * master * EnvGen.kr(
@@ -717,7 +719,7 @@ SynthDef(\sr__e__entro, {
 
 SynthDef(\sr__e__humm, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
@@ -727,7 +729,7 @@ SynthDef(\sr__e__humm, {
     // Synthesis.
     in = LFSaw.ar((1..5) * note, abs(velocity * 2), velocity)
          + Impulse.ar((0..4) + SinOsc.ar((4..8) * note).exprange(0.3, 300));
-    in = Mix.ar(in) * amp * 0.1;
+    in = Mix.ar(in) * amp * attenuate;
     signal = RLPF.ar(in, LinLin.kr(velocity, 0, 1, 80, 30).midicps, velocity);
     // Envelope.
     out = signal * master * EnvGen.kr(
@@ -738,7 +740,7 @@ SynthDef(\sr__e__humm, {
 
 SynthDef(\sr__e__radio, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.06, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var freq, in, out, signal;
@@ -763,7 +765,7 @@ SynthDef(\sr__e__radio, {
             * SinOsc.ar(SinOsc.ar(velocity, 0, 0.1), 0, 0.1, 1), 0.001, 0.0015,
             mul:velocity.scurve
         )
-    ) * amp * 0.06;
+    ) * amp * attenuate;
     signal = Mix.ar(in);
     // Envelope.
     out = signal * master * EnvGen.kr(
@@ -774,7 +776,7 @@ SynthDef(\sr__e__radio, {
 
 SynthDef(\sr__e__wasp, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.02, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, scale, in, out, signal;
@@ -803,7 +805,7 @@ SynthDef(\sr__e__wasp, {
         * SinOsc.ar(SinOsc.ar((2..6) * az*0.1, 0, 0.1), 0, 0.1, 1),
         attacktime: velocity.linlin(0, 1, 0.100, 0.0010),
         decaytime: velocity.linlin(0, 1, 0.015, 0.0015),
-        mul: amp * 0.02
+        mul: amp * attenuate
     );
     in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq);
     signal = Mix.ar(in);
@@ -816,7 +818,7 @@ SynthDef(\sr__e__wasp, {
 
 SynthDef(\sr__e__therem, {
     arg bufnum=0, inbus=30, outbus=20,
-        amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=1.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var in, out, signal;
@@ -831,7 +833,7 @@ SynthDef(\sr__e__therem, {
     );
     // 55000 - 16500
     in = MidEQ.ar(in, freq-38500, 0.7, -60);
-    signal = FreeVerb.ar(in, 0.65, 0.65, 0.5, (amp * 1.5).clip(0, 1));
+    signal = FreeVerb.ar(in, 0.65, 0.65, 0.5, (amp * attenuate).clip(0, 1));
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);

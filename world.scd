@@ -164,11 +164,11 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
             ["/g_new", g],
             // add spatializer to new group's tail
             ["/s_new", \sr__s__ambisonic2, s.nextNodeID, 1, g,
-                \inbus, 4, // getting signal from synth
+                \route, 4, // getting signal from synth
                 \outbus, 0], // to main output
             // add synth to new group's head
             ["/s_new", \sr__e__analog, s.nextNodeID, 0, g,
-                \outbus, 4, // feeding into spatilizer
+                \route, 4, // feeding into spatilizer
                 \depth, ~depth,
                 \bufnum, k.bufnum
             ]
@@ -746,9 +746,7 @@ particleSystem = { |guide|
             initParticle.(0.2, guide.position.x, guide.position.y, guide.position.z,
                 world.partAgeThresh.logistic,
                 [vel.x, vel.y, vel.z].neg * world.partInitAccel.max(0.01)),
-            ~groupInit.(
-                world.partSynth, params:[\att, 2.0.rand]
-            )
+            ~groupInit.(world.partSynth, params:[\att, 2.0.rand])
         );
     }
 };

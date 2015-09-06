@@ -26,10 +26,7 @@ currentScale = ~sequence.scales[3];
 ~sequence.events = (
     0: [
         (message: \action,  params: [\remove, \all],
-            info: "Remove all before start"),
-        (message: \audio,   params: [\surround, ~surround],
-            info: "Initial settings"),
-        (message: \audio,   params: [\depth, ~depth]),
+            info: "Remove all before start\n Apply initial settings"),
         (message: \physics, params: [\gravX, \default]),
         (message: \physics, params: [\gravY, \default]),
         (message: \physics, params: [\gravZ, \default]),
@@ -45,14 +42,14 @@ currentScale = ~sequence.scales[3];
             message: \g_new,
             id: \constant_humm,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
-                ["/s_new", "sr__s__" ++ ~surround, \next_node_id, 1, \group_id, // add spatializer to new group's tail
+                ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
                     \depth, ~depth,
                     \distance, 2.sqrt,
-                    \inbus, 12, // getting signal from synth
+                    \route, 12, // getting signal from synth
                     \outbus, ~mainOutput // to main output
                 ],
                 ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
-                    \outbus, 12, // feeding into spatilizer
+                    \route, 12, // feeding into spatilizer
                     \velocity, 0.5,
                     \att, 40,
                     \bufnum, currentScale.bufnum,
@@ -170,9 +167,8 @@ currentScale = ~sequence.scales[3];
             current = groups[i % groups.size];
             scale = ~sequence.scales.choose.bufnum;
             node = ~groupInit.(
-                bufnum:scale,
-                busnum:13,
                 synth:current[\synth],
+                bufnum:scale,
                 params:[\att, attack[i % groups.size].value()]
             );
             s.sendMsg("/n_set", node, \distance, 2.sqrt * 0.5);
@@ -281,7 +277,7 @@ currentScale = ~sequence.scales[3];
             if (changeOffset) {
                 currentOffset = rrand(24, 60);
             };
-            postf("*current scale %\toffset %\tchange in %\n",
+            postf("* currently applied: %, offset %, change in %\n",
                 scaleName, currentOffset, next.round(0.0001)
             );
             s.sendMsg("/n_set", nil, \bufnum, currentScale.bufnum, \offset, currentOffset);

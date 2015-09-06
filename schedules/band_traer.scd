@@ -76,10 +76,7 @@ guideBuff = Buffer.readChannel(s,
 ~sequence.events = (
     0: [
         (message: \action,  params: [\remove, \all],
-            info: "Remove all before start"),
-        (message: \audio,   params: [\surround, ~surround],
-            info: "Initial settings"),
-        (message: \audio,   params: [\depth, ~depth]),
+            info: "Remove all before start\n Apply initial settings"),
         (message: \physics, params: [\gravX, \default]),
         (message: \physics, params: [\gravY, \default]),
         (message: \physics, params: [\gravZ, \default]),
@@ -98,7 +95,7 @@ guideBuff = Buffer.readChannel(s,
             message: \g_new,
             id: \intro_bundle,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
-                ["/s_new", "sr__s__" ++ ~surround, \next_node_id, 1, \group_id, // add spatializer to new group's tail
+                ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
                     \depth, ~depth,
                     \inbus, 12, // getting signal from synth
                     \outbus, ~mainOutput], // to main output
@@ -149,7 +146,7 @@ guideBuff = Buffer.readChannel(s,
             message: \g_new,
             id: \intro_noisy,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
-                ["/s_new", "sr__s__" ++ ~surround, \next_node_id, 1, \group_id, // add spatializer to new group's tail
+                ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
                     \depth, ~depth,
                     \inbus, 13, // getting signal from synth
                     \outbus, ~mainOutput], // to main output

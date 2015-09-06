@@ -25,7 +25,7 @@
 // GRANULAR SYNTHS
 //
 SynthDef(\sr__g__reg, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
         amp=1, attenuate=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, out, signal;
@@ -43,12 +43,12 @@ SynthDef(\sr__g__reg, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__g__drone, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
         amp=1, attenuate=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, out, signal;
@@ -66,12 +66,12 @@ SynthDef(\sr__g__drone, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__g__gust, { // ~ gusts of wind
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
         amp=1, attenuate=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, out, signal;
@@ -95,12 +95,12 @@ SynthDef(\sr__g__gust, { // ~ gusts of wind
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__g__slic, { // slicing
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
         amp=1, attenuate=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, out, signal;
@@ -118,12 +118,12 @@ SynthDef(\sr__g__slic, { // slicing
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__g__scratch, { // ~ chunks of sound
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
         amp=1, attenuate=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, signal, out;
@@ -139,12 +139,12 @@ SynthDef(\sr__g__scratch, { // ~ chunks of sound
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).send(s);
 
 
 SynthDef(\sr__g__loop, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
         pos=0, amp=1, attenuate=1, master=1, gate=1, rate=1, att=1, rel=1, ca=3, cr= -3;
     var in, signal, out, ds;
@@ -156,12 +156,12 @@ SynthDef(\sr__g__loop, {
     signal = in * amp * attenuate;
     // Envelope.
     out = signal * master * EnvGen.kr(Env.asr(att, 1, rel, [ca, cr]), gate: gate, doneAction:2);
-    Out.ar(outbus, out)
+    Out.ar(route, out)
 }).send(s);
 
 
 SynthDef(\sr__g__loopdel, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
         pos=0, amp=1, master=1, gate=1, rate=1, att=1, rel=1, ca=3, cr= -3;
     var in, signal, out, ds;
@@ -173,12 +173,12 @@ SynthDef(\sr__g__loopdel, {
     signal = DelayL.ar(in, 0.3, ds) * amp;
     // Envelope.
     out = signal * master * EnvGen.kr(Env.asr(att, 1, rel, [ca, cr]), gate: gate, doneAction:2);
-    Out.ar(outbus, out)
+    Out.ar(route, out)
 }).send(s);
 
 
 SynthDef(\sr__g__unst, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
         pos=0, amp=1, attenuate=1, master=1, gate=1, rate=1, att=1, rel=1, ca=3, cr= -3;
     var in, signal, out, ds;
@@ -198,12 +198,12 @@ SynthDef(\sr__g__unst, {
         distance.linlin(0, 2.sqrt, 10000, 1000), 0.5) * amp * attenuate;
     // Envelope.
     out = signal * master * EnvGen.kr(Env.asr(att, 1, rel, [ca, cr]), gate: gate, doneAction:2);
-    Out.ar(outbus, out)
+    Out.ar(route, out)
 }).send(s);
 
 
 SynthDef(\sr__g__chunk, { // ~ chunks of sound
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         ax=0, ay=0, az=0, velocity=10, distance=0.5,
         pos=0, amp=1, attenuate=1, master=1, gate=1, rate=1, att=1, rel=1, ca=3, cr= -3;
     var in, signal, out;
@@ -223,12 +223,12 @@ SynthDef(\sr__g__chunk, { // ~ chunks of sound
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).send(s);
 
 
 SynthDef(\sr__g__grain, { //individual grain through ambisonic
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, master=1, att=1, rel=1, ca=3, cr= -3,
         pos=0.0, rate=1, dur=0.1, lag=0;
     var in, out;
@@ -238,15 +238,15 @@ SynthDef(\sr__g__grain, { //individual grain through ambisonic
         1, BufFrames.ir(bufnum) * pos, 0);
     // Envelope.
     out = in * amp * master * (EnvGen.kr(Env.perc(0.01, dur), doneAction:2) - 0.001);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).send(s);
 
 
 // ELECTRONIC SYNTHS
 //
 SynthDef(\sr__e__silent, {
-	arg outbus=0, gate=1, att=1, rel=1, ca=3, cr= -3;
-	Out.ar(outbus,
+	arg route=0, gate=1, att=1, rel=1, ca=3, cr= -3;
+	Out.ar(route,
         Silent.ar() * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2)
     );
@@ -254,7 +254,7 @@ SynthDef(\sr__e__silent, {
 
 
 SynthDef(\sr__e__lowe, { // the "lowe"st
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -273,12 +273,12 @@ SynthDef(\sr__e__lowe, { // the "lowe"st
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__probe, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -302,12 +302,12 @@ SynthDef(\sr__e__probe, {
     // Envelope.
     out = signal * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__cmb, { // CMB ~ "Cosmic Backgroud Radiation"
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -333,12 +333,12 @@ SynthDef(\sr__e__cmb, { // CMB ~ "Cosmic Backgroud Radiation"
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__melo, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -364,12 +364,12 @@ SynthDef(\sr__e__melo, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__ringz, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.2, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -388,12 +388,12 @@ SynthDef(\sr__e__ringz, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__pulse, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -416,12 +416,12 @@ SynthDef(\sr__e__pulse, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__analog, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0, threshold=0.7, scope=12;
@@ -467,7 +467,7 @@ SynthDef(\sr__e__analog, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
@@ -475,7 +475,7 @@ SynthDef(\sr__e__analog, {
 // - add less obvious elevation based control (az)
 // - more effective compander, possibly multiband! don't allow it to burst!
 SynthDef(\sr__e__neural, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0, threshold=0.7, scope=12;
@@ -520,13 +520,13 @@ SynthDef(\sr__e__neural, {
     //Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 // XXX - make it a descent synth.
 SynthDef(\sr__e__dempad, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
         offset=36, cutoff=0;
@@ -562,12 +562,12 @@ SynthDef(\sr__e__dempad, {
     signal = Mix(in) * (1 / noOfSynths) * Line.kr(0.0, 1.0, 0.3);
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__growl, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.3, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, elevation=0, velocity=0.5,
         gx=0.1, gy=0.1, gz=0.1, gAzimuth=0, gDistance=0.5, gElevation=0.5,
@@ -627,12 +627,12 @@ SynthDef(\sr__e__growl, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__gauss, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.2, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
         offset=36, cutoff=0;
@@ -658,12 +658,12 @@ SynthDef(\sr__e__gauss, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__noisy, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.02, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -683,12 +683,12 @@ SynthDef(\sr__e__noisy, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).send(s);
 
 
 SynthDef(\sr__e__entro, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -713,12 +713,12 @@ SynthDef(\sr__e__entro, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__humm, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -734,12 +734,12 @@ SynthDef(\sr__e__humm, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__radio, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.06, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -770,12 +770,12 @@ SynthDef(\sr__e__radio, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__wasp, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=0.02, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -812,12 +812,12 @@ SynthDef(\sr__e__wasp, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__e__therem, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, attenuate=1.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -837,7 +837,7 @@ SynthDef(\sr__e__therem, {
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
@@ -846,7 +846,7 @@ SynthDef(\sr__e__therem, {
 // (Warning! Different enveloping.)
 //
 SynthDef(\sr__p__kick, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr=3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -857,12 +857,12 @@ SynthDef(\sr__p__kick, {
     signal = Mix(in * master);
     // Envelope.
     out = signal * EnvGen.kr(Env.perc(0.05, 1, 1, -6), doneAction:2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__p__hat, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr=3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -880,12 +880,12 @@ SynthDef(\sr__p__hat, {
     signal = Mix(in * master);
     // Envelope.
     out = signal * EnvGen.kr(Env.perc(0.05, 1, 1, -6), doneAction:2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
 SynthDef(\sr__p__snare, {
-    arg bufnum=0, inbus=30, outbus=20,
+    arg bufnum=0, inbus=30, route=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr=3,
         ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
@@ -898,7 +898,7 @@ SynthDef(\sr__p__snare, {
     signal = Mix(in * master);
     // Envelope.
     out = signal * EnvGen.kr(Env.perc(0.05, 1, 1, -6), doneAction:2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).add;
 
 
@@ -909,7 +909,7 @@ SynthDef(\sr__p__snare, {
 //
 
 SynthDef(\sr__s__ambisonic2, {
-    arg inbus=20, outbus=0, gate=1, rel=1,
+    arg route=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.75pi], speakerElev= #[0, 0], speakerDist= #[2, 2], maxDist=2;
     var w, x, y, z, r, s, t, u, v, scaleFlag=1,
@@ -917,7 +917,7 @@ SynthDef(\sr__s__ambisonic2, {
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);
     mix = distance.linexp(0.01, depth, 0.1, 0.8);
     room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(inbus, 1);
+    in = In.ar(route, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.01, depth, 10000, 1000),
@@ -931,7 +931,7 @@ SynthDef(\sr__s__ambisonic2, {
 
 
 SynthDef(\sr__s__ambisonic3, {
-    arg inbus=20, outbus=0, gate=1, rel=1,
+    arg route=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.17pi, -0.83pi, 0.5pi], speakerElev= #[0, 0, 0],
         speakerDist= #[2, 2, 2], maxDist=2;
@@ -940,7 +940,7 @@ SynthDef(\sr__s__ambisonic3, {
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);
     mix = distance.linexp(0.01, depth, 0.1, 0.8);
     room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(inbus, 1);
+    in = In.ar(route, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.5, depth, 10000, 1000),
@@ -954,7 +954,7 @@ SynthDef(\sr__s__ambisonic3, {
 
 
 SynthDef(\sr__s__ambisonic4, {
-    arg inbus=20, outbus=0, gate=1, rel=1,
+    arg route=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.75pi, 0.75pi, 0.25pi], speakerElev= #[0, 0, 0, 0],
         speakerDist= #[2, 2, 2, 2], maxDist=2;
@@ -963,7 +963,7 @@ SynthDef(\sr__s__ambisonic4, {
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);
     mix = distance.linexp(0.01, depth, 0.1, 0.8);
     room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(inbus, 1);
+    in = In.ar(route, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.5, depth, 10000, 1000),
@@ -977,7 +977,7 @@ SynthDef(\sr__s__ambisonic4, {
 
 
 SynthDef(\sr__s__ambisonic5, {
-    arg inbus=20, outbus=0, gate=1, rel=1,
+    arg route=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 0.75pi, 0.25pi], speakerElev=[0, 0, 0, 0, 0],
         speakerDist= #[2, 2, 2, 2, 2], maxDist=2;
@@ -986,7 +986,7 @@ SynthDef(\sr__s__ambisonic5, {
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);
     mix = distance.linexp(0.01, depth, 0.1, 0.8);
     room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(inbus, 1);
+    in = In.ar(route, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.5, depth, 10000, 1000),
@@ -1000,7 +1000,7 @@ SynthDef(\sr__s__ambisonic5, {
 
 
 SynthDef(\sr__s__ambisonic6, {
-    arg inbus=20, outbus=0, gate=1, rel=1,
+    arg route=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 0.75pi, 0.5pi, 0.25pi], speakerElev=[0, 0, 0, 0, 0, 0],
         speakerDist= #[2, 2, 2, 2, 2, 2], maxDist=2;
@@ -1009,7 +1009,7 @@ SynthDef(\sr__s__ambisonic6, {
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);
     mix = distance.linexp(0.01, depth, 0.1, 0.8);
     room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(inbus, 1);
+    in = In.ar(route, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.5, depth, 10000, 1000),
@@ -1023,7 +1023,7 @@ SynthDef(\sr__s__ambisonic6, {
 
 
 SynthDef(\sr__s__ambisonic7, {
-    arg inbus=20, outbus=0, gate=1, rel=1,
+    arg route=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 1pi, 0.75pi, 0.25pi, 0],
         speakerElev= #[0, 0, 0, 0, 0, 0, 0],
@@ -1033,7 +1033,7 @@ SynthDef(\sr__s__ambisonic7, {
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);
     mix = distance.linexp(0.01, depth, 0.1, 0.8);
     room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(inbus, 1);
+    in = In.ar(route, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.5, depth, 10000, 1000),
@@ -1047,7 +1047,7 @@ SynthDef(\sr__s__ambisonic7, {
 
 
 SynthDef(\sr__s__ambisonic8, {
-    arg inbus=20, outbus=0, gate=1, rel=1,
+    arg route=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 1pi, 0.75pi, 0.5pi, 0.25pi, 0],
         speakerElev= #[0, 0, 0, 0, 0, 0, 0, 0],
@@ -1057,7 +1057,7 @@ SynthDef(\sr__s__ambisonic8, {
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);
     mix = distance.linexp(0.01, depth, 0.1, 0.8);
     room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(inbus, 1);
+    in = In.ar(route, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.5, depth, 10000, 1000),
@@ -1071,7 +1071,7 @@ SynthDef(\sr__s__ambisonic8, {
 
 
 SynthDef(\sr__s__ambisonic9, {
-    arg inbus=20, outbus=0, gate=1, rel=1,
+    arg route=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 1pi, 0.75pi, 0.5pi, 0.25pi, 0.15pi, 0],
         speakerElev= #[0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -1081,7 +1081,7 @@ SynthDef(\sr__s__ambisonic9, {
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);
     mix = distance.linexp(0.01, depth, 0.1, 0.8);
     room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(inbus, 1);
+    in = In.ar(route, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.5, depth, 10000, 1000),
@@ -1095,7 +1095,7 @@ SynthDef(\sr__s__ambisonic9, {
 
 
 SynthDef(\sr__s__ambisonic10, {
-    arg inbus=20, outbus=0, gate=1, rel=1,
+    arg route=20, outbus=0, gate=1, rel=1,
         azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.15, -0.25pi, -0.5pi, -0.75pi, 1pi, 0.75pi, 0.5pi, 0.25pi, 0.15pi, 0],
         speakerElev= #[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -1105,7 +1105,7 @@ SynthDef(\sr__s__ambisonic10, {
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);
     mix = distance.linexp(0.01, depth, 0.1, 0.8);
     room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(inbus, 1);
+    in = In.ar(route, 1);
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.5, depth, 10000, 1000),
@@ -1119,7 +1119,7 @@ SynthDef(\sr__s__ambisonic10, {
 
 
 SynthDef(\sr__s__vbap4, {
-    arg inbus=20, outbus=0, gate=1, rel=1,
+    arg route=20, outbus=0, gate=1, rel=1,
         azimuth=0.25pi, distance=0.5, elevation=0,
         elevClip=0.1pi, depth=5;
     var speakerAzim=[-45, -140, 140, 45], speakerElev=0, speakerBuff, spread=0;
@@ -1134,7 +1134,7 @@ SynthDef(\sr__s__vbap4, {
     azimuth = azimuth.linlin(-1pi, 1pi, -180, 180);
     elevation = elevation.linlin(-0.5pi, 0.5pi, -90, 90);
     spread = [100, 0, 4].asSpec.map(distance); // the closer the signal, the more speakers involved (welch-like)
-    in = In.ar(inbus, 1) * amp;
+    in = In.ar(route, 1) * amp;
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.5, depth, 10000, 1000),
@@ -1146,7 +1146,7 @@ SynthDef(\sr__s__vbap4, {
 
 
 SynthDef(\sr__s__vbap2, {
-    arg inbus=20, outbus=0, gate=1, rel=1,
+    arg route=20, outbus=0, gate=1, rel=1,
         azimuth=0.25pi, distance=0.5, elevation=0,
         elevClip=0.1pi, depth=5;
     var speakerAzim=[-45, 45], speakerElev=0, speakerBuff, spread=0;
@@ -1161,7 +1161,7 @@ SynthDef(\sr__s__vbap2, {
     azimuth = azimuth.linlin(-1pi, 1pi, -180, 180);
     elevation = elevation.linlin(-0.5pi, 0.5pi, -90, 90);
     spread = [100, 0, 4].asSpec.map(distance); // the closer the signal, the more speakers involved (welch-like)
-    in = In.ar(inbus, 1) * amp;
+    in = In.ar(route, 1) * amp;
     in = RLPF.ar(
         FreeVerb.ar(in, mix, room, 0.2),
         distance.linlin(0.5, depth, 10000, 1000),

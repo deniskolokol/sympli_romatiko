@@ -9,6 +9,13 @@ var currentDir;
 var key, subkey, branch, conf, confFile, confKeys;
 var synthNames;
 
+// root IDs for synths
+var ar__ROOT_NODE = s.nextNodeID;
+var kr__ROOT_NODE = s.nextNodeID;
+
+// initial server groups
+s.sendMsg("/g_new", ar__ROOT_NODE, 0, 1);
+s.sendMsg("/g_new", kr__ROOT_NODE, 0, 1);
 
 // ENVIRONMENT
 //
@@ -153,59 +160,85 @@ srEnv = Environment.make {
         )}
     );
 
-    // Increments integers with a limit: resets to `lo` every time
-    // in + step reaches `hi`
     ~clipInc = {
+        // Increments integers with a limit: resets to `lo` every time
+        // in + step reaches `hi`
         arg in=0, step=1, lo=0, hi=inf;
         ((in + step).clip(lo, hi) % hi).clip(lo, hi)
     };
 
-    // Creates new group on Server, inserts synth and spatializer into it.
-    // Assigns internal bus for rounting: each group of synth and its
-    // spatializer should have a separate rounting bus for spatialization to
-    // take place individually.
-    ~groupInit = {
-        arg synth, bufnum, busnum, params;
-        var node, spatial, synthName, l=30, h=53;
-        spatial = format("sr__s__%%", ~surround, ~speakers.items.size);
-        node = s.nextNodeID;
-        if (busnum.isNil) {
-            busnum = ~clipInc.(~route ?? l, lo:l, hi:h);
-            ~route = busnum;
-        };
+    ~sendToSrv = { |messages, time=0.1|
+        s.listSendBundle(time, messages);
+    };
 
-        spatial = [
+    ~groupInit = { |synth, bufnum, inbus, outbus, spatial, params|
+        // Creates new group on Server, inserts synth and spatializer into it.
+        // Assigns internal bus for routing: each group of synth and its
+        // spatializer should have a separate routing bus for spatialization to
+        // take place individually.
+        var node, spatializer, generator, messages, synthPar, l=30, h=53;
+        node = s.nextNodeID;
+        inbus = inbus ? ~mainInput;
+        outbus = outbus ? ~mainOutput;
+        ~route = ~clipInc.(~route ?? l, lo:l, hi:h); // calculate and save for subsequent assignments
+        spatial = spatial ? ~getSpatial.();
+        spatializer = [
             "/s_new", spatial, s.nextNodeID, 1, node, // spatializer goes to a new group's tail
-            \inbus, busnum, // getting signal from synth
-            \outbus, ~mainOutput, // to main output
+            \route, ~route,
+            \outbus, outbus,
             \depth, ~depth
         ] ++ [\maxDist, ~speakers.maxDist]
         ++ [\speakerAzim, $[] ++ ~speakers.collectAzim() ++ [$]]
         ++ [\speakerDist, $[] ++ ~speakers.collectDist() ++ [$]]
         ++ [\speakerElev, $[] ++ ~speakers.collectElev() ++ [$]];
 
-        synthName = synth;
-        synth = ~synths.atFail(synthName, {~synths[\sr__e__silent]});
-        synth = [
-            "/s_new", synthName, s.nextNodeID, 0, node, // synth goes to a new group's head
-            \inbus, ~mainInput, // getting signal from external input
-            \outbus, busnum, // feeding into spatilizer
+        synthPar = ~synths.atFail(synth.asSymbol, {~synths[\sr__e__silent]});
+        generator = [
+            "/s_new", synth, s.nextNodeID, 0, node, // synth goes to a new group's head
+            \inbus, inbus,
+            \route, ~route,
             \bufnum, bufnum,
-            \attenuate, synth[\attenuate]
+            \attenuate, synthPar[\attenuate]
         ] ++ (params ? []);
-
-        s.sendBundle(0.01,
+        messages = [
             ["/error", 0], // turn errors off locally
-            ["/g_new", node],
-            spatial,
-            synth
-        );
+            ["/g_new", node, 0, ar__ROOT_NODE],
+            spatializer,
+            generator
+        ];
+        ~sendToSrv.(messages);
         node // return ID of the Group created
     };
 
-    // Release all synths from group, wait until released, then remove
-    // group node from server.
+    ~modulatorInit = { |synth, bufnum, inbus, outbus, params|
+        // Creates a .kr synth on Server. Doesn't need spatializer.
+        // Returns nil, if outbus is not given (.kr doesn't make
+        // sense without outbus).
+        var messages, node = s.nextNodeID;
+        params = params ? [];
+        if (inbus.isNil.not) {
+            params = params ++ [\inbus, inbus]
+        };
+        if (outbus.isNil.not) {
+            params = params ++ [\outbus, outbus];
+            messages = [
+                ["/s_new", synth, node, 0, kr__ROOT_NODE],
+                ["/n_set", node] ++ (params ? [])
+            ];
+            ~sendToSrv.(messages);
+        } {
+            node = nil
+        };
+        node
+    };
+
+    ~getSpatial = {
+        format("sr__s__%%", ~surround, ~speakers.items.size)
+    };
+
     ~groupFree = { |node, release=2|
+        // Release all synths from group, wait until released, then remove
+        // group node from server.
         Routine({
             [
                 ["/n_set", node, \rel, release ? 2.rand, \gate, 0],
@@ -217,17 +250,17 @@ srEnv = Environment.make {
         }).play;
     };
 
-    // Sends message to the World.
     ~sendMessage = { |msg, params, lag=0.001|
+        // Sends message to the World.
         if (msg.isNil.not) {
             ~receiver.sendBundle(lag, [msg] ++ (params ? []));
         };
     };
 
-    // Sends particle creation message to the World:
-    // [create:1, node, spring:0|1, mass:9, x:470, y:300, z:250, age:inf]
-    // Returns Server node.
     ~sendParticle = { |particle, synth|
+        // Sends particle creation message to the World:
+        // [create:1, node, spring:0|1, mass:9, x:470, y:300, z:250, age:inf]
+        // Returns Server node.
         var x, y, z, node, spring, age, params;
         #x, y, z = [\x, \y, \z].collect({ |k| particle.atFail(k, { ~worldSize.rand }) });
         particle.putAll((x: x, y: y, z: z));
@@ -262,6 +295,11 @@ if (this.executeFile(
 if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
     postf("OK\n\n")
 };
+"Loading control matrix...".postln;
+if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
+    postf("OK\n\n")
+};
+
 
 CmdPeriod.doOnce({
     "Saving environment conf...".postln;

@@ -42,13 +42,13 @@ srEnv = Environment.make {
     ~speakers = (
         items: conf.atFail(\speakers, {
             (items: List[
-                (dist: 13, azim: -0.25pi, elev: 0.2pi),
-                (dist: 9, azim: -0.75pi, elev: 0.2pi),
-                (dist: 10.5, azim: 0.65pi, elev: 0),
-                (dist: 10.5, azim: 0.35pi, elev: 0)
+                (dist: 3, azim: -0.25pi, elev: 0pi),
+                (dist: 3, azim: -0.75pi, elev: 0pi),
+                (dist: 3, azim: 0.65pi, elev: 0),
+                (dist: 3, azim: 0.35pi, elev: 0)
             ])
         })[\items],
-        maxDist: conf.atFail(\speakers, {(maxDist: 15)})[\maxDist],
+        maxDist: conf.atFail(\speakers, {(maxDist: 3)})[\maxDist],
         collectAzim: { |self| all{: sp.azim, sp <- self.items} },
         collectDist: { |self| all{: sp.dist, sp <- self.items} },
         collectElev: { |self| all{: sp.elev, sp <- self.items} },
@@ -60,7 +60,8 @@ srEnv = Environment.make {
             }
         }
     );
-    ~synths = conf.atFail(\synths, {(
+
+    branch = (
         sr__e__wasp: (
             key: 12, // q
             attenuate: 0.02,
@@ -156,13 +157,26 @@ srEnv = Environment.make {
         \sr__e__silent: (
             key: nil,
             attenuate: 1,
-        )
-        )}
+        ),
+        \sr__e__sawy: (
+            key: nil,
+            attenuate: 0.05,
+        ),
+        \sr__e__electro: (
+            key: nil,
+            attenuate: 0.05,
+        ),
+        \sr__e__wind: (
+            key: nil,
+            attenuate: 0.05,
+        ),
+    );
+    ~synths = merge( // update default ~synths settings by those in conf
+        branch, conf.atFail(\synths, {Dictionary.new}), { |a, b| b }
     );
 
     ~clipInc = {
-        // Increments integers with a limit: resets to `lo` every time
-        // in + step reaches `hi`
+        // Increments `in` until `in + step` reaches `hi`, then resets to `lo`.
         arg in=0, step=1, lo=0, hi=inf;
         ((in + step).clip(lo, hi) % hi).clip(lo, hi)
     };
@@ -276,6 +290,17 @@ srEnv = Environment.make {
         ~sendMessage.('/particle', params);
         node
     };
+
+    ~valAsApec = { |param|
+        param.atFail(\spec, {
+            [
+                param.atFail(\minval, {0}), param.atFail(\maxval, {1}),
+                param.atFail(\warp, {\lin}),
+                param.atFail(\step, {0}),
+                param.atFail(\default, {0})
+            ]
+        }).asSpec
+    };
 };
 currentEnvironment = srEnv;
 
@@ -286,15 +311,15 @@ currentEnvironment = srEnv;
 if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
     postf("OK\n\n")
 };
-"Loading scheduler...".postln;
-if (this.executeFile(
-    ~currentDir +/+ "scheduler.scd").isNil.not) {
-    postf("OK\n\n")
-};
-"Loading world...".postln;
-if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
-    postf("OK\n\n")
-};
+// "Loading scheduler...".postln;
+// if (this.executeFile(
+// ~currentDir +/+ "scheduler.scd").isNil.not) {
+//     postf("OK\n\n")
+// };
+// "Loading world...".postln;
+// if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
+//     postf("OK\n\n")
+// };
 "Loading control matrix...".postln;
 if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
     postf("OK\n\n")
@@ -315,7 +340,7 @@ CmdPeriod.doOnce({
         };
         if (envVal.class == Dictionary || envVal.class == Event) {
             envVal.keys.do { |key|
-                if (envVal[key].class == Function) {
+                if (envVal[key].class == Function) { // XXX - use .isFunction (?)
                     conf[envKey].removeAt(key)
                 }
             }

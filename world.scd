@@ -240,7 +240,7 @@ view.drawFunc = { |worldView|
         Pen.addArc([listenerPos.x, listenerPos.y].asPoint,
             i*35+35, 1pi, 1pi-speaker.azim.linlin(-1pi, 1pi, 0, 2pi)
         );
-        Pen.stringAtPoint((speaker.azim * 180 / 1pi).round.asString,
+        Pen.stringAtPoint((speaker.azim * 180 / 1pi).round.asString, // XXX - raddeg?
             [
                 world.width/2-(i*32+32),
                 world.height*0.492+(speaker.azim/(speaker.azim).abs*9)

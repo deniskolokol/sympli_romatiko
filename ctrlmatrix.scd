@@ -1,74 +1,128 @@
-// XXX figure out and inmplement a concept of insert channels!
+// XXX - figure out and inmplement a concept of insert channels!
+//       Ideally use output of one channel as input to the other one
+//       (for output use channel numbers (1..8 + 'main') instead of bus numbers
+//       and make it drag and drop in the GUI).
+//       Problem: how to combine it with a flexible spatial settings that
+//       takes place upon a group creation?
+// XXX - consider: for .ar GUI knobs and sliders control one set of params,
+//       while another set is available for the modulation with .kr
 
 (
 var krN, arN;
 var matrix, matrixPast, initMatrix;
 var synthOnOff, synthSend, synthReRoute, synthInit, synthShortName;
-var paramDefs, synthsAr, synthsKr, paramsAr, paramsKr, defaultParams;
+var paramDefs, scopes, lfoScope, minMax2mulAdd,
+    paramsAr, paramsKr, controlsAr, controlsKr,
+    defaultParams, defaultEnvelope, levelsAr,
+    synthsAr, synthsKr, synthNamesAr, synthNamesKr;
 var outBus=(0..Server.default.options.numAudioBusChannels-1),
     internalBus=(10..Server.default.options.numAudioBusChannels-1),
     krBus = (0..Server.default.options.numControlBusChannels-1);
-var oscResponders;
+var oscSynthVal, krTrigID=60, arTrigID=80;
 
 var win;
 var paneMatrix, paneSettings, paneSynths, paneSynth,
-    paneArSynths, paneConnections,
-    paneKrSynths, paneGrid, pane;
+    paneArSynths, paneKrSynths, paneGrid, pane, matrixButtons;
 var synthType, synthIn, synthOut;
 var btPanic, master, crossfade;
 var paneWidth, paneHeight;
 var button, buttonCheckbox, buttonCheckboxFlow, knob, slider,
     dropdown, compView, compViewFlow, levelInd;
-var valAsApec;
 var colorBtUp=Color.grey(0.6), colorBtDown=Color.blue,
-    colorBtLabel=Color.grey(0.2), colorPane=Color.grey(0.3),
+    colorBtLabel=Color.grey(0.2), colorPane=Color.grey(0.2),
     colorStringBg = Color.grey(alpha:0.1), colorString=Color(0.8, 0.8, 0.8);
+var parmName, parmVal;
+var krSetParam;
+
 var clean;
+var failures, errors, tests, testReport;
 
 // constants
 var s__SYNTHNAME = "sr__(e|g|p|k|r|s){1}__[a-zA-Z0-9]+";
 var f__CURR_DIR = PathName(thisProcess.nowExecutingPath).pathOnly;
 
+// specs in order for changing scopes for \min and \max .kr params
+// should be defined before paramDefs!
+scopes = [
+    \azimuth,
+    \add,
+    \add100,
+    \add500,
+    \add1K,
+    \add10K,
+    \add20K,
+];
 // synths and params
 paramDefs = (
-    azimuth:   ( label: "azi",    minval: -1pi,   maxval: 1pi,    step: 0.01, default: 0  ),
-    distance:  ( label: "dist",   minval: 0,      maxval: 2.sqrt, step: 0.01, default: 0  ),
-    elevation: ( label: "elev",   minval: -0.5pi, maxval: 0.5pi,  step: 0.01, default: 0  ),
-    velocity:  ( label: "vel",    minval: 0,      maxval: 1,      step: 0.01, default: 0  ),
-    depth:     ( label: "depth",  minval: 1,      maxval: 10,     step: 0.1,  default: 5  ),
-    offset:    ( label: "offset", minval: 0,      maxval: 127,    step: 1,    default: 36 ),
-    cutoff:    ( label: "cutoff", minval: 0,      maxval: 10000,  step: 10,   default: 0  ),
-    freq:      ( label: "freq",   minval: 0,      maxval: 10000,  step: 0.1,  default: 0  ),
-    mul:       ( label: "mul",    minval: 0,      maxval: 1,      step: 0.01, default: 0  ),
-    add:       ( label: "mul",    minval: 0,      maxval: 10,     step: 0.01, default: 0  ),
+    azimuth:   ( label: "azi",    minval: -1pi,   maxval: 1pi,    step: 0.01, default: 0   ),
+    distance:  ( label: "dist",   minval: 0,      maxval: 2.sqrt, step: 0.01, default: 0   ),
+    elevation: ( label: "elev",   minval: -0.5pi, maxval: 0.5pi,  step: 0.01, default: 0   ),
+    velocity:  ( label: "vel",    minval: 0,      maxval: 1,      step: 0.01, default: 0   ),
+    depth:     ( label: "depth",  minval: 1,      maxval: 10,     step: 0.1,  default: 5   ),
+    offset:    ( label: "offset", minval: 0,      maxval: 127,    step: 1,    default: 36  ),
+    cutoff:    ( label: "cutoff", minval: 0,      maxval: 10000,  step: 10,   default: 1000),
+    rq:        ( label: "RQ",     minval: 0.01,   maxval: 0.9,    step: 0.01, default: 0.5 ),
+    lfo:       ( label: "lfo",    minval: 0.01,   maxval: 1000,   step: 0.01, default: 0.5 ), // 0.001..1.000 | 1..1000
+    scope:     ( label: "scope",  minval: 0,      maxval: scopes.size-1,  step: 1, default: 0), // scope defines min and max
+    mul:       ( label: "mul",    minval: 0,      maxval: 1,      step: 0.01, default: 1   ),
+    amp:       ( label: "amp",    minval: 0,      maxval: 1,      step: 0.01, default: 1   ),
+    add:       ( label: "add",    minval: 0,      maxval: 10,     step: 0.01, default: 0   ),
+    add100:    ( label: "add100", minval: 0,      maxval: 100,    step: 0.5,  default: 0   ),
+    add500:    ( label: "add500", minval: 10,     maxval: 500,    step: 1,    default: 10  ),
+    add1K:     ( label: "add1K",  minval: 100,    maxval: 1000,   step: 5,    default: 100 ),
+    add10K:    ( label: "add10K", minval: 100,    maxval: 10000,  step: 5,    default: 100 ),
+    add20K:    ( label: "add20K", minval: 1000,   maxval: 20000,  step: 10,   default: 1000),
+    min:       ( label: "min",    minval: 0,      maxval: 10,     step: 0.01, default: 0   ),
+    max:       ( label: "max",    minval: 10,     maxval: 100,    step: 1,    default: 10   ),
 );
-// Warning! Only the first 4 parameters can be controlled via GUI.
-paramsAr = #[\distance, \velocity, \offset, \cutoff];
-paramsKr = #[\freq, \mul, \add, \velocity];
-synthsAr = all {:(name: syn.asString, params: paramsAr), syn <- ~synths.keys};
-synthsKr = all {:(name: syn.asString, params: paramsKr), syn <- #[
-    "sr__k__sin", "sr__k__saw", "sr__k__tri",
-    "sr__k__lfnoise0", "sr__k__lfnoise1", "sr__k__lfnoise2",
-    "sr__k__clipnoise", "sr__k__stepnoise"]
-};
-oscResponders = [
-    "",
-    "l_hand",
-    "r_hand",
+// modulatable
+paramsKr = #[\mul, \add];
+paramsAr = #[\azimuth, \distance, \elevation, \velocity];
+paramsAr = #[\cutoff, \distance, \elevation, \velocity]; // TEST!!
+// controllable via GUI
+// XXX - \amp is controlled by ambisonic or on mixing board. substitute with compression(?)
+controlsAr = #[\offset, \cutoff, \rq, \amp];
+controlsKr = #[\scope, \min, \max, \lfo];
+
+//synthNamesAr = ~synths.keys.asArray;
+synthNamesAr = #[
+    "sr__e__silent", "sr__e__sawy", "sr__e__whistle", "sr__e__wind"
 ];
-synthInit = (all {: syn.name.asSymbol, syn <- synthsAr}).indexOf(\sr__e__silent);
+synthNamesKr = #[
+    "sr__k__sine", "sr__k__saw", "sr__k__tri",
+    "sr__k__lfnoise0", "sr__k__lfnoise1", "sr__k__lfnoise2",
+    "sr__k__clipnoise", "sr__k__stepnoise",
+    "sr__k__sinmod", "sr__k__sawmod"
+];
+synthsAr = all {:
+    (
+        name: syn.asString,
+        params: controlsAr ++ paramsAr
+    ),
+    syn <- synthNamesAr
+};
+synthsKr = all {:
+    (
+        name: syn.asString,
+        params: controlsKr + paramsKr
+    ),
+    syn <- synthNamesKr
+};
+synthInit = "sr__e__silent";
 
 // initialize main matrix container
 #krN, arN = [8, 8];
 
+levelsAr = Array.fill(arN, { nil });
+defaultEnvelope = Env.adsr(0.2, 0.5, 0.5, 1);
 defaultParams = { |synthname|
     // Fills up a dictionary with default params for synth name.
     var params, result, val;
 
     // fill list of param names
     (synthsAr ++ synthsKr).do { |def|
-        if (def.name == synthname) {
-            params = def.params
+        if (def.name.asSymbol == synthname.asSymbol) {
+            params = def.params;
         }
     };
 
@@ -84,34 +138,86 @@ defaultParams = { |synthname|
     result
 };
 
+// initializes matrix with default values
 initMatrix = {
     (
         ar: Array.fill(arN, { |i|
-            var synth = synthsAr[i % synthsAr.size];
             (
-                synthname: "",
+                synthname: synthInit,
                 inbus: ~inbus,
                 outbus: ~outbus,
                 node: 0,
                 active: false,
-                params: []
+                params: defaultParams.(synthInit),
+                envelope: defaultEnvelope,
+                val: 0,
             )}
         ),
         kr: Array.fill(krN, { |i|
-            var synth = synthsKr[i % synthsKr.size];
             (
-                synthname: "",
-                in: oscResponders[0],
+                synthname: synthNamesKr[i],
+                inbus: nil,
                 outbus: krBus[i],
                 node: 0,
-                active: false,
-                params: []
+                active: true, // switch all .kr synths on from start.
+                params: defaultParams.(synthNamesKr[i]),
+                val: 0,
             )}
         ),
     )
 };
 matrix = initMatrix.();
 matrixPast = initMatrix.();
+
+
+// level indicator
+oscSynthVal = OSCFunc({ |msg, time, addr, recvPort|
+    var arKr, ind;
+    if ((msg[2] >= krTrigID) && (msg[2] < (krTrigID + krN))) {
+        arKr = 'kr';
+        ind = msg[2] - krTrigID; // TODO: find it by node number msg[1]
+    };
+    if ((msg[2] >= arTrigID) && (msg[2] < (arTrigID + krN))) {
+        arKr = 'ar';
+        ind = msg[2] - arTrigID; // TODO: find it by node number msg[1]
+    };
+    if (arKr.isNil.not) {
+        matrix[arKr][ind][\val] = if (msg[3].isNaN) {0} {msg[3].asFloat}
+    };
+}, '/tr');
+
+
+// 0.01..1.00 | 1..1000
+lfoScope = { |n|
+    case
+    {n <= 0.5} { n.linexp(0.01, 0.5, 0.01, 5) }
+    {n > 0.5 && n <= 0.75} {n.lincurve(0.5, 0.75, 5, 500, 3)}
+    {n > 0.75} {n.lincurve(0.75, 1, 500, 1000, -3)}
+};
+
+// calculates \mul and \add based on \min and \max
+minMax2mulAdd = { |min, max|
+    var mul, add;
+    mul = max.absdif(min) * 0.5;
+    add = min + mul;
+    [mul, add]
+};
+
+
+// updates .kr param
+// if updated param is \min or \max, updates \mul and \add, too
+krSetParam = { |i, param, val|
+    var mul, add, defPar;
+
+    defPar = matrix.kr[i][\params];
+    defPar[param] = val;
+    if (#[\min, \max].includes(param.asSymbol)) {
+        #mul, add = minMax2mulAdd.(defPar[\min], defPar[\max]);
+        defPar[\mul] = mul;
+        defPar[\add] = add;
+    }
+};
+
 
 // synth functions
 synthShortName = { |name|
@@ -125,21 +231,36 @@ synthShortName = { |name|
 
 
 synthOnOff = { |arKr, pos, params|
-    // Switches synth ON, if its \node in the matrix is 1
-    // (just switched on via GUI), OFF otherwise.
+    // Switches synth ON, if its \active in the matrix, OFF otherwise.
     // Returns Node ID.
-    var def, node=0;
+    var def, parm, node=0;
     def = matrix[arKr][pos];
     if (def.active) {
-        params = params ? def[\params].getPairs;
+        parm = merge( // update default params by params from matrix
+            defaultParams.(def[\synthname]), def[\params] ? Dictionary[], { |a, b| b }
+        );
+        parm = merge( // update parm by `params`
+            parm, params ? Dictionary[], { |a, b| b }
+        );
+        def[\params] = parm; // save updated params to matrix
         if (arKr == 'ar') {
+            parm = merge( // update parm by `trigID`
+                parm, (trigID: arTrigID+pos), { |a, b| b }
+            );
             node = ~groupInit.(def[\synthname],
                 inbus:def[\inbus],
                 outbus:def[\outbus],
-                params:params
+                params:parm.getPairs
             );
         } {
-            node = ~modulatorInit.(outbus:pos, params:params);
+            parm = merge( // update parm by `trigID`
+                parm, (trigID: krTrigID+pos), { |a, b| b }
+            );
+            node = ~modulatorInit.(def[\synthname],
+                inbus:def[\inbus],
+                outbus:pos,
+                params:parm.getPairs
+            );
         };
     } {
         ~groupFree.(def[\node], 0.5)
@@ -148,10 +269,26 @@ synthOnOff = { |arKr, pos, params|
 };
 
 
-synthSend = { |arKr, pos|
-    var def = matrix[arKr][pos];
+synthSend = { |arKr, pos, params|
+    // Sends params to the given node, specified in matrix.
+    // Param's value can either be set directly or "mapped" to a .kr bus.
+    // If param is mapped, its value is String formatted as follows:
+    // "kr_<x>", where "x" is a .kr bus number.
+    var def, paramsSend, paramsMap;
+
+    def = matrix[arKr][pos];
+    params = params ? def.params;
     if (def.active) {
-        ~sendToSrv.([["/n_set", def[\node]] ++ def[\params].getPairs])
+        paramsSend = params.reject { |item| item.asString.beginsWith("kr_") };
+        if (paramsSend.size > 0) {
+            ~sendToSrv.([["/n_set", def[\node]] ++ paramsSend.getPairs]);
+        };
+        paramsMap = params.select { |item| item.asString.beginsWith("kr_") };
+        if (paramsMap.size > 0) {
+            paramsMap = paramsMap.collect { |item| item.asString[3..] };
+            paramsMap = all {: [k, paramsMap[k].asInteger], k <- paramsMap.keys }.flatten;
+            ~sendToSrv.([["/n_map", def[\node]] ++ paramsMap]);
+        };
     };
 };
 
@@ -166,16 +303,6 @@ synthReRoute = { |arKr, pos, route|
 // interface
 win = Window("ctrl matrix", Window.screenBounds.width@Window.screenBounds.height);
 
-// helper functions
-valAsApec = { |spec|
-    [
-        spec.atFail(\minval, {0}),
-        spec.atFail(\maxval, {1}),
-        spec.atFail(\warp, {\lin}),
-        spec.atFail(\step, {0}),
-        spec.atFail(\default, {0})
-    ].asSpec
-};
 paneWidth = { |par, scale=1| (par.bounds.width * scale - 6).floor };
 paneHeight = { |par, scale=1| (par.bounds.height * scale - 6).floor };
 button = { |par, label, action, scaleH=1, scaleW=1, colorLabel, colorBg|
@@ -188,32 +315,43 @@ button = { |par, label, action, scaleH=1, scaleW=1, colorLabel, colorBg|
     .action_({ |bt| action.(bt.value) })
     .canFocus_(false);
 };
-buttonCheckbox = { |par, label, action, value, bounds|
+buttonCheckbox = { |par, label, action, value, bounds, colorUpLb, colorUpBg, colorDwLb, colorDwBg|
+    var labelUp, labelDw;
+
+    colorUpLb = colorUpLb ? colorBtLabel;
+    colorUpBg = colorUpBg ? colorBtUp;
+    colorDwLb = colorDwLb ? colorString;
+    colorDwBg = colorDwBg ? colorBtDown;
+    if (label.class == Array) {
+        #labelUp, labelDw = label;
+    } {
+        #labelUp, labelDw = [label, label];
+    };
     Button(par, bounds).states_([
-        [label, colorBtLabel, colorBtUp],
-        [label, colorString, colorBtDown]
+        [labelUp, colorUpLb, colorUpBg],
+        [labelDw, colorDwLb, colorDwBg]
     ])
     .value_(value)
     .action_({ |bt| action.(bt.value) })
-    .font_(Font("Helvetica", 12))
+    .font_(Font("Helvetica", (bounds.asSize.height*0.5).trunc))
     .canFocus_(false);
 };
-buttonCheckboxFlow = { |par, label, action, value, scaleH=1, scaleW=1|
+buttonCheckboxFlow = { |par, label, action, value, scaleH=1.02, scaleW=1.02, colorUpLb, colorUpBg, colorDwLb, colorDwBg|
     var bounds = paneWidth.(par, scaleW)@paneHeight.(par, scaleH);
-    buttonCheckbox.(par, label, action, value, bounds);
+    buttonCheckbox.(par, label, action, value, bounds, colorUpLb, colorUpBg, colorDwLb, colorDwBg);
 };
 knob = { |par, label, spec, action, default=0, layout='vert', scaleW=1, scaleH=1|
-    var knobWidth=paneWidth.(par, scaleW), knobHeight=paneHeight.(par, scaleH);
-    if (layout != 'vert') {
-        knobWidth = paneWidth.(par, scaleW) - 10;
-        knobHeight = paneHeight.(par, scaleH);
-    };
-    EZKnob(par, knobWidth@knobHeight, label, spec,
+    EZKnob(par,
+        paneWidth.(par, scaleW)@paneHeight.(par, scaleH),
+        label, spec,
         { |ez| action.(ez.value) }, default,
         layout: layout
-    ).font_(Font("Helvetica", 12));
+    )
+    .font_(Font("Helvetica", 10))
+    .setColors(stringColor: Color.white)
+    // .centered_(true) // - check spec to set it correctly!
 };
-slider = { |par, label, spec, action, default=0, layout='horz', scale=1|
+slider = { |par, label, spec, action, default, layout='horz', scale=1|
     var labelWidth=0, numberWidth=45;
     var bounds=paneWidth.(par)@20;
     if (label.isNil.not) { labelWidth = label.size * 5 };
@@ -223,9 +361,10 @@ slider = { |par, label, spec, action, default=0, layout='horz', scale=1|
     } {
         bounds = 30@(paneHeight.(par, scale))
     };
+    if (default.isNil) { default = spec.default };
     EZSlider(par, bounds, label, spec, { |ez| action.(ez.value) }, default,
         labelWidth: labelWidth, numberWidth: numberWidth, layout: layout)
-    .font_(Font("Helvetica", 12))
+    .font_(Font("Helvetica", 10))
     .setColors(stringColor: Color.white)
 };
 dropdown = { |par, label, items, action, initVal=0, scale=1|
@@ -251,7 +390,7 @@ compView = { |par, color, scaleW=1, scaleH=1|
 compViewFlow = { |par, color, scaleW=1, scaleH=1|
     var vw;
     vw = compView.(par, color, scaleW, scaleH);
-    vw.decorator = FlowLayout(vw.bounds);
+    vw.decorator = FlowLayout(vw.bounds, 1@1, 1@1);
     vw
 };
 levelInd = { |par, default=0, scaleW=1, scaleH=1|
@@ -266,38 +405,29 @@ paneMatrix = CompositeView(win,
 ).background_(Color.grey(0.7));
 paneMatrix.decorator = FlowLayout(paneMatrix.bounds);
 
-paneSettings = compViewFlow.(paneMatrix, scaleW: 0.2, scaleH: 0.4);
+paneSettings = compViewFlow.(paneMatrix, scaleW: 0.2, scaleH: 0.6);
 master = slider.(paneSettings, "Master", \db.asSpec,
     { |sl| s.volume.volume = sl.value }, scale:0.75
 );
 crossfade = slider.(paneSettings, "X-Fade",
-    [0.5, 5, \lin, 0.5, 2].asSpec, ControlSpec
-    { |sl| s.volume.volume = sl.value }, scale:0.75
+    [0.5, 5, \lin, 0.1, 2].asSpec, scale:0.75
 );
 btPanic = button.(paneSettings, "PANIC",
     { |val| val.postln},
     0.07, 0.25, Color.white, Color.red
 );
 
-paneArSynths = compViewFlow.(paneMatrix, scaleW: 0.8, scaleH: 0.4);
-paneConnections = compViewFlow.(paneArSynths, scaleH: 0.15, color: Color.grey(0.7));
 // .ar synth panel and controls
-paneSynths = compViewFlow.(paneArSynths, scaleH: 0.85);
-8.do { |i|
-    var paneKnobs, paneSlid;
-    paneSynth = compViewFlow.(paneSynths, scaleW: 0.125);
+paneArSynths = compViewFlow.(paneMatrix, scaleW: 0.8, scaleH: 0.6);
+paneSynths = compViewFlow.(paneArSynths);
+arN.do { |i|
+    var paneKnobs, paneSlid, envelope, level;
+    paneSynth = compViewFlow.(paneSynths, scaleW: (1/arN)+0.004);
+
     // synth
-    pane = compViewFlow.(paneSynth, scaleW: 0.9);
+    pane = compViewFlow.(paneSynth, scaleW: 0.92, scaleH: 0.87);
 
     // .ar synth
-    synthType = dropdown.(pane,
-        items: all {:synthShortName.(n[\name]), n <- synthsAr },
-        initVal: synthInit,
-        action: { |dd|
-            matrix.ar[i][\synthname] = synthsAr[dd.value][\name];
-            matrix.ar[i][\params] = defaultParams.(matrix.ar[i][\synthname]);
-        },
-    );
     synthIn = dropdown.(pane, "In",
         items: internalBus,
         action: { |dd| matrix[\ar][i][\inbus] = dd.value },
@@ -306,67 +436,217 @@ paneSynths = compViewFlow.(paneArSynths, scaleH: 0.85);
         items: outBus,
         action: { |dd| matrix[\ar][i][\outbus] = dd.value },
         scale: 0.5);
-    buttonCheckboxFlow.(pane, "ON",
-        { |btn|
-            matrix[\ar][i][\active] = btn.value.booleanValue;
+    synthType = dropdown.(pane,
+        items: all {:synthShortName.(n[\name]), n <- synthsAr },
+        initVal: synthNamesAr.indexOf(matrix.ar[i][\synthname]),
+        action: { |dd|
+            matrix.ar[i][\synthname] = synthsAr[dd.value][\name];
         },
+    );
+    buttonCheckboxFlow.(pane, (i+1).asString,
+        { |btn| matrix[\ar][i][\active] = btn.value.booleanValue },
         scaleW: 0.5, scaleH: 0.1
     );
-    button.(pane, "RESET", { |val| val.postln }, scaleW: 0.5, scaleH: 0.1);
-    paneKnobs = compViewFlow.(pane, scaleW: 0.6, scaleH: 0.7);
-    [\none, \none, \none].do { |key| // Dummies
-        // XXX dynamic labels depending on the synth type
-        knob.(paneKnobs, action: { |k| k.postln }, scaleH: 0.33);
+    buttonCheckboxFlow.(pane, "REC",
+        { |val| val.postln },
+        scaleW: 0.5, scaleH: 0.1, colorDwLb: Color.white, colorDwBg:Color.red
+    );
+    // inserts
+    4.do { |i|
+        buttonCheckboxFlow.(pane, (i+1).asString,
+            { |bt, nt| bt.postln },
+            scaleW: (1/paramsAr.size)+0.03, scaleH: 0.1,
+            colorUpLb: Color.white, colorUpBg: colorPane,
+            colorDwLb: colorPane, colorDwBg: Color.grey(0.8)
+        );
     };
-    paneSlid = compViewFlow.(pane, scaleW: 0.4, scaleH: 0.7);
-    slider.(paneSlid, "mul", \unipolar.asSpec,
-        { |sl| sl.postln }, 0, \vert);
+    // envelope
+    envelope = EnvelopeView(pane, pane.bounds.width@(pane.bounds.height*0.15))
+        .drawLines_(true)
+        .selectionColor_(Color.red)
+        .drawRects_(true)
+        .resize_(5)
+        .step_(0.05)
+        .strokeColor_(Color.white)
+        .background_(colorPane)
+        .action_({arg b; [b.index, b.value].postln})
+        .thumbSize_(5);
+    envelope.setEnv(defaultEnvelope);
+
+    // params available for manual control
+    paneKnobs = compViewFlow.(pane, scaleW: 0.8, scaleH: 0.4);
+    controlsAr[0..2].do { |key|
+        knob.(paneKnobs, paramDefs[key][\label],
+            spec: ~valAsApec.(paramDefs[key]),
+            action: { |kn| try { matrix.ar[i][\params][key] = kn.value }},
+            layout: \line2, scaleH: 0.33
+        );
+    };
+    paneSlid = compViewFlow.(pane, scaleW: 0.25, scaleH: 0.4);
+    slider.(paneSlid, paramDefs[controlsAr[3]][\label],
+        spec: ~valAsApec.(paramDefs[controlsAr[3]]),
+        action: { |kn| try { matrix.ar[i][\params][controlsAr[3]] = kn.value }},
+        layout: 'vert'
+    );
     // level meter
-    pane = compViewFlow.(paneSynth, scaleW: 0.11);
-    levelInd.(pane, 0.5);
+    pane = compViewFlow.(paneSynth, scaleW: 0.1, scaleH: 0.87);
+    levelsAr[i] = levelInd.(pane, 0);
+
+    // params controllable by matrix
+    paneSynth.decorator.nextLine;
+    pane = compViewFlow.(paneSynth, scaleH: 0.1);
+
+    // replace params controllable by matrix with params for manual control
+    buttonCheckboxFlow.(pane, "==",
+        { |bt, nt| bt.postln }, // XXX - When ON, it affects coresponding [manually controlled param]!
+        scaleH: 0.4,
+        colorUpLb: Color.white, colorUpBg: colorPane,
+        colorDwLb: colorPane, colorDwBg: Color.grey(0.8)
+    );
+
+    // link matrix controllable params with manually controled ones
+    paramsAr.do { |parm, i|
+        buttonCheckboxFlow.(pane, parm.asString[..5],
+            // buttonCheckboxFlow.(pane, parm.asString,
+            { |bt, nt| bt.postln },
+            scaleW: (1/paramsAr.size)+0.03, scaleH: 0.6,
+            colorUpLb: Color.white, colorUpBg: colorPane,
+            colorDwLb: colorPane, colorDwBg: Color.grey(0.8)
+        );
+    };
 };
 
-paneKrSynths = compViewFlow.(paneMatrix, scaleW: 0.2, scaleH: 0.6);
 // .kr synth panel and controls
-8.do { |i|
-    paneSynth = compViewFlow.(paneKrSynths, scaleH: 0.125);
-    pane = compViewFlow.(paneSynth, scaleW: 0.95);
+paneKrSynths = compViewFlow.(paneMatrix, scaleW: 0.2, scaleH: 0.4);
+krN.do { |i|
+    var knobScope, knobMin, knobMax, knobLFO;
+
+    paneSynth = compViewFlow.(paneKrSynths, scaleH: (1/krN)+0.01);
+    pane = compViewFlow.(paneSynth);
 
     // .kr synth
     synthType = dropdown.(pane,
-        items: all {: synthShortName.(n[\name]), n <- synthsKr },
-        initVal: synthsKr.indexOf(matrix.kr[i][\synthname]),
-        action: { |dd| matrix.kr[i][\synthname] = synthsKr[dd.value] },
-        scale: 0.25
+        items: all {:synthShortName.(n[\name]), n <- synthsKr },
+        initVal: synthNamesKr.indexOf(matrix.kr[i][\synthname]),
+        action: { |dd|
+            matrix.kr[i][\synthname] = synthsKr[dd.value][\name];
+        },
+        scale: 0.2
     );
 
-    synthIn = dropdown.(pane, "in", items:oscResponders, scale: 0.3);
-    slider.(pane, "", \unipolar.asSpec,
-        { |sl| sl.postln }, 0, scale: 0.45);
-    [\none, \none, \none].do { |key| // Dummies
-        // XXX dynamic labels depending on the synth type
-        knob.(pane, action: { |k| k.postln }, layout: \line2, scaleW: 0.3, scaleH: 0.5);
-    };
-    buttonCheckboxFlow.(pane, "ON",
-        { |btn| matrix[\kr][i][\active] = btn.value.booleanValue },
-        scaleW:0.11, scaleH:0.5
+    // scope
+    knobScope = knob.(pane, paramDefs[\scope][\label],
+        spec: ~valAsApec.(paramDefs[\scope]),
+        action: { |kn|
+            var scope=paramDefs[scopes[kn.value]];
+            knobMin.controlSpec = ~valAsApec.(scope);
+            knobMax.controlSpec = ~valAsApec.(scope);
+            knobMin.labelView.string = scope[\minval].asString;
+            knobMax.labelView.string = scope[\maxval].asString;
+            knobMin.valueAction_(knobMin.value);
+            knobMax.valueAction_(knobMax.value);
+        },
+        layout: \line2, scaleW: 0.22, scaleH: 0.8
     );
-    button.(pane, "RES", { |val| val.postln }, scaleW:0.11, scaleH:0.5);
-    levelInd.(paneSynth, 0.5, scaleW:0.05);
+
+    // min (default label and param)
+    knobMin = knob.(pane, paramDefs[\min][\default].asString,
+        spec: ~valAsApec.(paramDefs[\min]),
+        initVal: paramDefs[\min][\default],
+        action: { |kn|
+            var scope=paramDefs[scopes[knobScope.value]];
+            knobMax.value = knobMax.value
+                .max(kn.value+scope[\step]) // max > min
+                .min(scope[\maxval]); // max <= maxval
+            krSetParam.(i, \min, kn.value);
+        },
+        layout: \line2, scaleW: 0.22, scaleH: 0.8
+    );
+
+    // max (default label and param)
+    knobMax = knob.(pane, paramDefs[\max][\default].asString,
+        spec: ~valAsApec.(paramDefs[\max]),
+        initVal: paramDefs[\max][\default],
+        action: { |kn|
+            var scope=paramDefs[scopes[knobScope.value]];
+            knobMin.value = knobMin.value
+                .min(kn.value-scope[\step]) // min < max
+                .max(scope[\minval]); // min >= minval
+            krSetParam.(i, \max, kn.value)
+        },
+        layout: \line2, scaleW: 0.22, scaleH: 0.8
+    );
+
+    knobLFO = knob.(pane, paramDefs[\lfo][\label], // lfo
+        // spec: ~valAsApec.(paramDefs[\lfo]),
+        initVal: paramDefs[\lfo][\default],
+        action: { |kn|
+            matrix.kr[i][\params][\lfo] = lfoScope.(kn.value);
+            knobLFO.numberView.value = lfoScope.(kn.value).round(0.001);
+        },
+        layout: \line2, scaleW: 0.22, scaleH: 0.8
+    );
+    paneSynth.decorator.nextLine;
+    pane = UserView(paneSynth, paneSynth.bounds.width@paneSynth.bounds.height);
+    pane.drawFunc = { |view|
+        var half, val, width, left;
+
+        val = matrix.kr[i][\val];
+        half = view.bounds.width * 0.5;
+        width = val.abs.linlin(0, 1, 0, half);
+        left = if (val >=0 ) {half} {half-width};
+        Pen.color = Color.white;
+        Pen.fillRect(Rect(left, 0, width, view.bounds.height));
+    };
+    pane.animate = true;
 };
 
-paneGrid = compViewFlow.(paneMatrix, color: Color.white, scaleW: 0.8, scaleH: 0.6);
-8.do { |x|
-    8.do { |y|
-        pane = compView.(paneGrid, scaleW: 0.126, scaleH: 0.127);
-        4.do { |ctl|
-            buttonCheckbox.(pane, "_",
-                // XXX - re-write to change param in matrix
-                // { |val| synthSet.(y, ctl, "c" ++ x.asString) },
-                bounds:Rect(
-                    (ctl * 25) + (ctl * pane.bounds.width * 0.1) + 6,
-                    (pane.bounds.height * 0.35), 25, 25
-                )
+// matrix
+paneGrid = compViewFlow.(paneMatrix, scaleW: 0.8, scaleH: 0.4);
+matrixButtons = List.new;
+krN.do { |krInd|
+    // launch all .kr synths from start
+    synthOnOff.(\kr, krInd);
+
+    // draw matrix buttorns
+    arN.do { |arInd|
+        pane = compViewFlow.(paneGrid, scaleW: (1/arN)+0.004, scaleH: (1/krN)+0.01);
+        paramsAr.size.do { |arParamInd|
+            matrixButtons.add(
+                buttonCheckboxFlow.(pane, ["-", "|"],
+                    { |bt, nt|
+                        parmName = paramsAr[arParamInd];
+                        if (bt.value.booleanValue) {
+                            // ON
+                            parmVal = "kr_" ++ krInd.asString; // modulate
+
+                            // XXX - Re-factor!
+                            krN.collect { |j| // other .kr modulations of the current .ar synth - OFF
+                                (j * (arN * paramsAr.size)) + (paramsAr.size * arInd + arParamInd)
+                            }.do { |krI|
+                                if (
+                                    matrixButtons[
+                                        (paramsAr.size * arInd + arParamInd) + (krInd * paramsAr.size * arN) // current index
+                                    ] != matrixButtons[krI]
+                                ) {
+                                    matrixButtons[krI].value = 0;
+                                }
+                            };
+                        } {
+                            // OFF
+                            try { // leave it at the current value
+                                parmVal = matrix[\kr][krInd][\val];
+                            } { // any problem - back to default
+                                parmVal = paramDefs[parmName][\default];
+                            }
+                        };
+                        try { // to set value param
+                            matrix.ar[arInd][\params][parmName] = parmVal;
+                        };
+                    },
+                    scaleW: (1/paramsAr.size)+0.03,
+                    // colorUpBg: colorPane, colorDwBg: Color.white, colorDwLb: Color.red,
+                );
             );
         };
     }
@@ -408,7 +688,7 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     var defPast, synthName;
     while { win.isClosed.not } {
         matrix.keys.do { |arKr|
-          matrix[arKr].do { |def, pos|
+            matrix[arKr].do { |def, pos|
                 defPast = matrixPast[arKr][pos];
 
                 if (def.active != defPast.active) {
@@ -422,22 +702,23 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
                     };
                     defPast.synthname = def.synthname;
                 };
-                if (def.params != defPast.params) {
-                    synthSend.(arKr, pos);
-                    defPast.params = def.params;
+                def.params.keysValuesDo { |key, val|
+                    if (defPast.params[key] != val) {
+                        synthSend.(arKr, pos, Dictionary[key -> val]);
+                        defPast.params[key] = val;
+                    }
                 };
                 if (arKr == \ar) {
+                    levelsAr[pos].value = def[\val];
                     [\inbus, \outbus].do { |bus|
                         if (def[bus] != defPast[bus]) {
                             synthReRoute.(arKr, pos, [bus, def[bus].asInteger]);
                             defPast[bus] = def[bus]
                         };
-                    }
+                    };
                 }
             };
         };
-        // matrixPast = Dictionary.newFrom(matrix); // bookmark
-
         0.1.wait;
     }
 }.fork(AppClock);
@@ -452,4 +733,17 @@ clean = {
 CmdPeriod.doOnce({
     clean.();
 });
+
+//
+// "\n=======================================\nTESTING\n".postln;
+UnitTest.new.assertEquals(minMax2mulAdd.(10, 100), [45, 55], "minMax2mulAdd.(15, 100)");
+UnitTest.new.assertEquals(minMax2mulAdd.(-1, 1), [1, 0], "minMax2mulAdd.(-1, 1)");
+UnitTest.new.assertEquals(minMax2mulAdd.(-100, 1), [50.5, -49.5], "minMax2mulAdd.(-100, 1)");
+UnitTest.new.assertEquals(minMax2mulAdd.(-100, 0), [50, -50], "minMax2mulAdd.(-100, 0)");
+UnitTest.new.assertEquals(minMax2mulAdd.(50, 10000), [4975, 5025], "minMax2mulAdd.(50, 10000)");
+UnitTest.new.assertEquals(minMax2mulAdd.(0, 2pi), [1pi, 1pi], "minMax2mulAdd.(0, 2pi)");
+UnitTest.new.assertEquals(minMax2mulAdd.(-0.5pi, 0.5pi), [0.5pi, 0], "minMax2mulAdd.(-0.5pi, 0.5pi)");
+UnitTest.new.assertEquals(minMax2mulAdd.(-1pi, 1pi), [1pi, 0], "minMax2mulAdd.(-1pi, 1pi)");
+UnitTest.new.assertEquals(minMax2mulAdd.(0.1, 0.9), [0.4, 0.5], "minMax2mulAdd.(0.1, 0.9)");
+\
 )

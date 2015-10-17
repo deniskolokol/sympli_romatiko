@@ -22,7 +22,6 @@ var win, seq, elapsed, keyboard, keyboardFunc, updateGui,
     slider, knob, button, buttonCheckbox, dropdown,
     panePar, pane, paneWidth, paneHeight, midiView, miscParams,
     seqPaths, seqPathsFile, seqMenu, openSequence, loadSequence;
-var valAsApec;
 
 // schedule animation
 var shade, count=0, animate=false;
@@ -93,16 +92,6 @@ physics.keys.do { |key|
 };
 miscParams = Dictionary.new;
 dummyParam = (param: "<NONE>", minval: 0, maxval: 1, step: 0.01, default: 0);
-valAsApec = { |param|
-    param.atFail(\spec, {
-        [
-            param.atFail(\minval, {0}), param.atFail(\maxval, {1}),
-            param.atFail(\warp, {\lin}),
-            param.atFail(\step, {0}),
-            param.atFail(\default, {0})
-        ]
-    }).asSpec
-};
 
 // Load sequence paths
 if (~currentDir.isNil) {
@@ -393,22 +382,22 @@ paneHeight = { |par, scale=1| (par.bounds.height * scale - 10).floor };
 slider = { |par, val, layout='horz', scale=1|
     var bounds = paneWidth.(par)@20;
     if (layout != 'horz') { bounds = 40@(paneHeight.(par) * scale) };
-    EZSlider(par, bounds, val.atFail(\label, { val.param }), valAsApec.(val),
+    EZSlider(par, bounds, val.atFail(\label, { val.param }), ~valAsApec.(val),
         { |ez| sendPhysics.((message: \physics, params: [val.param, ez.value])) },
         layout:layout)
-    .font_(Font("Monaco", 12))
+    .font_(Font("Helvetica", 14))
 };
 knob = { |par, val, param|
-    EZKnob(par, paneWidth.(par,1)@100, val.atFail(\label, { param }), valAsApec.(val),
+    EZKnob(par, paneWidth.(par,1)@100, val.atFail(\label, { param }), ~valAsApec.(val),
         { |ez| sendPhysics.((message: \physics, params: [param, ez.value])) })
-    .font_(Font("Monaco", 12))
+    .font_(Font("Helvetica", 14))
 };
 button = { |par, val, param, scaleH=1, scaleW=1|
     Button(par, paneWidth.(par, scaleW)@paneHeight.(par, scaleH)).states_([
         [val.atFail(\label, { param }), Color.black, Color.white]
     ])
     .value_(val.atFail(\default, {0}).asInteger)
-    .font_(Font("Monaco", 10))
+    .font_(Font("Helvetica", 12))
     .canFocus_(false);
 };
 buttonCheckbox = { |par, val, param, scaleH=1, scaleW=1|
@@ -418,7 +407,7 @@ buttonCheckbox = { |par, val, param, scaleH=1, scaleW=1|
     ])
     .value_(val.atFail(\default, {0}).asInteger)
     .action_({ |bt| sendPhysics.((message: \physics, params: [param, bt.value])) })
-    .font_(Font("Monaco", 10))
+    .font_(Font("Helvetica", 12))
     .canFocus_(false);
 };
 dropdown = { |par, label, items, action, initVal=0, initAction=false, scale=1|
@@ -433,7 +422,7 @@ dropdown = { |par, label, items, action, initVal=0, initAction=false, scale=1|
         initAction: initAction,
         labelWidth: labelWidth
     )
-    .font_(Font("Helvetica", 11));
+    .font_(Font("Helvetica", 13));
 };
 
 
@@ -445,26 +434,26 @@ seq = CompositeView(win, (win.bounds.width-10)@165);
 seq.decorator = FlowLayout(seq.bounds);
 
 // current event's number and info
-stCurrNum = StaticText(seq, 70@60).font_(Font("Monaco", 32))
+stCurrNum = StaticText(seq, 70@60).font_(Font("Helvetica", 34))
     .background_(Color.gray(0.8)).stringColor_(Color.gray(0.2));
-stCurrInfo = StaticText(seq, 410@60).font_(Font("Monaco", 12))
+stCurrInfo = StaticText(seq, 410@60).font_(Font("Helvetica", 14))
     .background_(Color.gray(0.8)).stringColor_(Color.gray(0.2));
 
 // open file with sequence
 pane = CompositeView(seq, 103@60);
 pane.decorator = FlowLayout(pane.bounds);
-StaticText(pane, (pane.bounds.width-10)@20).font_(Font("Monaco", 11))
+StaticText(pane, (pane.bounds.width-10)@20).font_(Font("Helvetica", 13))
     .stringColor_(Color.gray(0.2)).string_("Sequence");
 // next (awaiting) event's number and info
-stNextNum = StaticText(seq, 70@90).font_(Font("Monaco", 32))
+stNextNum = StaticText(seq, 70@90).font_(Font("Helvetica", 34))
     .background_(Color.grey(0.4)).stringColor_(Color.white);
-stNextInfo = StaticText(seq, 410@90).font_(Font("Monaco", 14))
+stNextInfo = StaticText(seq, 410@90).font_(Font("Helvetica", 16))
     .background_(Color.grey(0.4)).stringColor_(Color.white);
 // time elapsed since the start
 elapsed = CompositeView(seq, 103@90).background_(Color.grey(0.4));
 elapsed.decorator = FlowLayout(elapsed.bounds);
 timeLabel = StaticText(elapsed, elapsed.bounds.width@elapsed.bounds.height)
-    .font_(Font("Monaco", 20)).stringColor_(Color.white)
+    .font_(Font("Helvetica", 22)).stringColor_(Color.white)
     .string_(convertTime.(0));
 // Warning! Order is important: pane first, then stNextNum and stNextInfo,
 // then dropdown with sequence name (dropdown is placed on a pane,
@@ -661,7 +650,7 @@ trigSynth.do { |key, i|
         StaticText(view, 41@25).string_(
             synthNames[key].asString.replace("sr__e__", "").replace("sr__g__", ""))
         .align_(\topLeft)
-        .font_(Font("Monaco", 12))
+        .font_(Font("Helvetica", 14))
         .stringColor_(Color.white);
     };
 };
@@ -724,7 +713,7 @@ MIDIIn.connectAll;
         MIDIFunc.cc({ |val, ccNum, chan, srcID|
             {
                 element[\gui].valueAction_(
-                    valAsApec.(element).map(\midinote.asSpec.unmap(val))
+                    ~valAsApec.(element).map(\midinote.asSpec.unmap(val))
                 )
             }.defer;
         }, element[\midicc], 0);

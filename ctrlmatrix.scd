@@ -1,12 +1,3 @@
-// XXX - figure out and inmplement a concept of insert channels!
-//       Ideally use output of one channel as input to the other one
-//       (for output use channel numbers (1..8 + 'main') instead of bus numbers
-//       and make it drag and drop in the GUI).
-//       Problem: how to combine it with a flexible spatial settings that
-//       takes place upon a group creation?
-// XXX - consider: for .ar GUI knobs and sliders control one set of params,
-//       while another set is available for the modulation with .kr
-
 (
 var krN, arN;
 var matrix, matrixPast, initMatrix;
@@ -19,6 +10,7 @@ var outBus=(0..Server.default.options.numAudioBusChannels-1),
     internalBus=(10..Server.default.options.numAudioBusChannels-1),
     krBus = (0..Server.default.options.numControlBusChannels-1);
 var oscSynthVal, krTrigID=60, arTrigID=80;
+var midiGui, midiSet, midiNextSynth, arKrMidi;
 
 var win;
 var paneMatrix, paneSettings, paneSynths, paneSynth,
@@ -28,9 +20,14 @@ var btPanic, master, crossfade;
 var paneWidth, paneHeight;
 var button, buttonCheckbox, buttonCheckboxFlow, knob, slider,
     dropdown, compView, compViewFlow, levelInd;
-var colorBtUp=Color.grey(0.6), colorBtDown=Color.blue,
-    colorBtLabel=Color.grey(0.2), colorPane=Color.grey(0.2),
-    colorStringBg = Color.grey(alpha:0.1), colorString=Color(0.8, 0.8, 0.8);
+var colorBtUp=Color.grey(0.6),
+    colorBtDown=Color.blue,
+    colorBtLabel=Color.grey(0.2),
+    colorStringBg=Color.grey(alpha:0.1),
+    colorString=Color(0.8, 0.8, 0.8);
+var color=Color.grey(0.2),
+    highlighted=Color.grey(0.8), // Color.white
+    transparent=Color.grey(alpha:0.01);
 var parmName, parmVal;
 var krSetParam;
 
@@ -169,6 +166,20 @@ initMatrix = {
 matrix = initMatrix.();
 matrixPast = initMatrix.();
 
+// default control stripes for MIDI control
+arKrMidi = (\ar: [0, 1], \kr: [0, 1]);
+midiGui = (
+    ar: Array.fill(arN, { Array.fill(controlsAr.size, { nil }) }),
+    kr: Array.fill(krN, { Array.fill(controlsKr.size, { nil }) }),
+);
+paneSynth = (
+    ar: Array.fill(arN, { nil }),
+    kr: Array.fill(krN, { nil }),
+);
+synthType = (
+    ar: Array.fill(arN, { nil }),
+    kr: Array.fill(krN, { nil }),
+);
 
 // level indicator
 oscSynthVal = OSCFunc({ |msg, time, addr, recvPort|
@@ -300,7 +311,7 @@ synthReRoute = { |arKr, pos, route|
 };
 
 
-// interface
+// GUI
 win = Window("ctrl matrix", Window.screenBounds.width@Window.screenBounds.height);
 
 paneWidth = { |par, scale=1| (par.bounds.width * scale - 6).floor };
@@ -340,18 +351,17 @@ buttonCheckboxFlow = { |par, label, action, value, scaleH=1.02, scaleW=1.02, col
     var bounds = paneWidth.(par, scaleW)@paneHeight.(par, scaleH);
     buttonCheckbox.(par, label, action, value, bounds, colorUpLb, colorUpBg, colorDwLb, colorDwBg);
 };
-knob = { |par, label, spec, action, default=0, layout='vert', scaleW=1, scaleH=1|
+knob = { |par, label, spec, action, initVal=0, layout='vert', scaleW=1, scaleH=1|
     EZKnob(par,
         paneWidth.(par, scaleW)@paneHeight.(par, scaleH),
         label, spec,
-        { |ez| action.(ez.value) }, default,
+        { |ez| action.(ez.value) }, initVal,
         layout: layout
     )
     .font_(Font("Helvetica", 10))
-    .setColors(stringColor: Color.white)
-    // .centered_(true) // - check spec to set it correctly!
+    .setColors(subtract(par.background, par.background.alpha));
 };
-slider = { |par, label, spec, action, default, layout='horz', scale=1|
+slider = { |par, label, spec, action, initVal, layout='horz', scale=1|
     var labelWidth=0, numberWidth=45;
     var bounds=paneWidth.(par)@20;
     if (label.isNil.not) { labelWidth = label.size * 5 };
@@ -361,11 +371,11 @@ slider = { |par, label, spec, action, default, layout='horz', scale=1|
     } {
         bounds = 30@(paneHeight.(par, scale))
     };
-    if (default.isNil) { default = spec.default };
-    EZSlider(par, bounds, label, spec, { |ez| action.(ez.value) }, default,
+    if (initVal.isNil) { initVal = spec.default };
+    EZSlider(par, bounds, label, spec, { |ez| action.(ez.value) }, initVal,
         labelWidth: labelWidth, numberWidth: numberWidth, layout: layout)
     .font_(Font("Helvetica", 10))
-    .setColors(stringColor: Color.white)
+    .setColors(subtract(par.background, par.background.alpha))
 };
 dropdown = { |par, label, items, action, initVal=0, scale=1|
     var labelWidth=0;
@@ -382,7 +392,7 @@ dropdown = { |par, label, items, action, initVal=0, scale=1|
     .setColors(colorStringBg, colorString)
 };
 compView = { |par, color, scaleW=1, scaleH=1|
-    if (color.isNil) { color = colorPane };
+    if (color.isNil) { color = transparent };
     CompositeView(par,
         paneWidth.(par, scaleW)@paneHeight.(par, scaleH)
     ).background_(color);
@@ -402,7 +412,7 @@ levelInd = { |par, default=0, scaleW=1, scaleH=1|
 // panels
 paneMatrix = CompositeView(win,
     win.bounds.width@win.bounds.height
-).background_(Color.grey(0.7));
+).background_(color);
 paneMatrix.decorator = FlowLayout(paneMatrix.bounds);
 
 paneSettings = compViewFlow.(paneMatrix, scaleW: 0.2, scaleH: 0.6);
@@ -422,10 +432,9 @@ paneArSynths = compViewFlow.(paneMatrix, scaleW: 0.8, scaleH: 0.6);
 paneSynths = compViewFlow.(paneArSynths);
 arN.do { |i|
     var paneKnobs, paneSlid, envelope, level;
-    paneSynth = compViewFlow.(paneSynths, scaleW: (1/arN)+0.004);
 
-    // synth
-    pane = compViewFlow.(paneSynth, scaleW: 0.92, scaleH: 0.87);
+    paneSynth[\ar][i] = compViewFlow.(paneSynths, scaleW: (1/arN)+0.004);
+    pane = compViewFlow.(paneSynth[\ar][i], scaleW: 0.92, scaleH: 0.87);
 
     // .ar synth
     synthIn = dropdown.(pane, "In",
@@ -436,7 +445,7 @@ arN.do { |i|
         items: outBus,
         action: { |dd| matrix[\ar][i][\outbus] = dd.value },
         scale: 0.5);
-    synthType = dropdown.(pane,
+    synthType[\ar][i] = dropdown.(pane,
         items: all {:synthShortName.(n[\name]), n <- synthsAr },
         initVal: synthNamesAr.indexOf(matrix.ar[i][\synthname]),
         action: { |dd|
@@ -445,19 +454,15 @@ arN.do { |i|
     );
     buttonCheckboxFlow.(pane, (i+1).asString,
         { |btn| matrix[\ar][i][\active] = btn.value.booleanValue },
-        scaleW: 0.5, scaleH: 0.1
-    );
-    buttonCheckboxFlow.(pane, "REC",
-        { |val| val.postln },
-        scaleW: 0.5, scaleH: 0.1, colorDwLb: Color.white, colorDwBg:Color.red
+        scaleH: 0.1
     );
     // inserts
     4.do { |i|
         buttonCheckboxFlow.(pane, (i+1).asString,
             { |bt, nt| bt.postln },
             scaleW: (1/paramsAr.size)+0.03, scaleH: 0.1,
-            colorUpLb: Color.white, colorUpBg: colorPane,
-            colorDwLb: colorPane, colorDwBg: Color.grey(0.8)
+            colorUpLb: Color.white, colorUpBg: color,
+            colorDwLb: color, colorDwBg: Color.grey(0.8)
         );
     };
     // envelope
@@ -468,40 +473,46 @@ arN.do { |i|
         .resize_(5)
         .step_(0.05)
         .strokeColor_(Color.white)
-        .background_(colorPane)
+        .background_(color)
         .action_({arg b; [b.index, b.value].postln})
         .thumbSize_(5);
     envelope.setEnv(defaultEnvelope);
 
     // params available for manual control
     paneKnobs = compViewFlow.(pane, scaleW: 0.8, scaleH: 0.4);
-    controlsAr[0..2].do { |key|
-        knob.(paneKnobs, paramDefs[key][\label],
+    controlsAr[0..2].do { |key, j|
+        // GUI elements for MIDI-controllable params
+        midiGui[\ar][i][j] = knob.(
+            paneKnobs,
+            paramDefs[key][\label],
             spec: ~valAsApec.(paramDefs[key]),
             action: { |kn| try { matrix.ar[i][\params][key] = kn.value }},
             layout: \line2, scaleH: 0.33
-        );
+        )
     };
     paneSlid = compViewFlow.(pane, scaleW: 0.25, scaleH: 0.4);
-    slider.(paneSlid, paramDefs[controlsAr[3]][\label],
+    // GUI elements for MIDI-controllable params
+    midiGui[\ar][i][3] = slider.(
+        paneSlid,
+        paramDefs[controlsAr[3]][\label],
         spec: ~valAsApec.(paramDefs[controlsAr[3]]),
         action: { |kn| try { matrix.ar[i][\params][controlsAr[3]] = kn.value }},
         layout: 'vert'
     );
     // level meter
-    pane = compViewFlow.(paneSynth, scaleW: 0.1, scaleH: 0.87);
+    pane = compViewFlow.(paneSynth[\ar][i], scaleW: 0.1, scaleH: 0.87);
     levelsAr[i] = levelInd.(pane, 0);
 
     // params controllable by matrix
-    paneSynth.decorator.nextLine;
-    pane = compViewFlow.(paneSynth, scaleH: 0.1);
+    paneSynth[\ar][i].decorator.nextLine;
+    pane = compViewFlow.(paneSynth[\ar][i], scaleH: 0.1);
 
     // replace params controllable by matrix with params for manual control
     buttonCheckboxFlow.(pane, "==",
         { |bt, nt| bt.postln }, // XXX - When ON, it affects coresponding [manually controlled param]!
         scaleH: 0.4,
-        colorUpLb: Color.white, colorUpBg: colorPane,
-        colorDwLb: colorPane, colorDwBg: Color.grey(0.8)
+        colorUpLb: Color.white, colorUpBg: color,
+        colorDwLb: color, colorDwBg: Color.grey(0.8)
     );
 
     // link matrix controllable params with manually controled ones
@@ -510,8 +521,8 @@ arN.do { |i|
             // buttonCheckboxFlow.(pane, parm.asString,
             { |bt, nt| bt.postln },
             scaleW: (1/paramsAr.size)+0.03, scaleH: 0.6,
-            colorUpLb: Color.white, colorUpBg: colorPane,
-            colorDwLb: colorPane, colorDwBg: Color.grey(0.8)
+            colorUpLb: Color.white, colorUpBg: color,
+            colorDwLb: color, colorDwBg: Color.grey(0.8)
         );
     };
 };
@@ -521,11 +532,11 @@ paneKrSynths = compViewFlow.(paneMatrix, scaleW: 0.2, scaleH: 0.4);
 krN.do { |i|
     var knobScope, knobMin, knobMax, knobLFO;
 
-    paneSynth = compViewFlow.(paneKrSynths, scaleH: (1/krN)+0.01);
-    pane = compViewFlow.(paneSynth);
+    paneSynth[\kr][i] = compViewFlow.(paneKrSynths, scaleH: (1/krN)+0.01);
+    pane = compViewFlow.(paneSynth[\kr][i]);
 
     // .kr synth
-    synthType = dropdown.(pane,
+    synthType[\kr][i] = dropdown.(pane,
         items: all {:synthShortName.(n[\name]), n <- synthsKr },
         initVal: synthNamesKr.indexOf(matrix.kr[i][\synthname]),
         action: { |dd|
@@ -586,16 +597,25 @@ krN.do { |i|
         },
         layout: \line2, scaleW: 0.22, scaleH: 0.8
     );
-    paneSynth.decorator.nextLine;
-    pane = UserView(paneSynth, paneSynth.bounds.width@paneSynth.bounds.height);
-    pane.drawFunc = { |view|
-        var half, val, width, left;
 
-        val = matrix.kr[i][\val];
+    // GUI elements for MIDI-controllable params
+    midiGui[\kr][i] = [knobScope, knobMin, knobMax, knobLFO];
+
+    paneSynth[\kr][i].decorator.nextLine;
+    pane = UserView(
+        paneSynth[\kr][i],
+        paneSynth[\kr][i].bounds.width@paneSynth[\kr][i].bounds.height
+    );
+    pane.drawFunc = { |view|
+        var half, val, width, left, scope;
+        scope = paramDefs[scopes[knobScope.value]];
+        // display is calculated on the min-max values of the current scope
+        val = matrix.kr[i][\val].linlin(scope[\maxval].neg, scope[\maxval], -1, 1);
         half = view.bounds.width * 0.5;
         width = val.abs.linlin(0, 1, 0, half);
         left = if (val >=0 ) {half} {half-width};
-        Pen.color = Color.white;
+        // the bigger scope, the redder level appears
+        Pen.color = Color(1, 1-(knobScope.value*(1/scopes.size)), 0);
         Pen.fillRect(Rect(left, 0, width, view.bounds.height));
     };
     pane.animate = true;
@@ -645,7 +665,7 @@ krN.do { |krInd|
                         };
                     },
                     scaleW: (1/paramsAr.size)+0.03,
-                    // colorUpBg: colorPane, colorDwBg: Color.white, colorDwLb: Color.red,
+                    // colorUpBg: color, colorDwBg: Color.white, colorDwLb: Color.red,
                 );
             );
         };
@@ -684,6 +704,76 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     }
 };
 
+
+// MIDI
+MIDIIn.connectAll;
+midiSet = { |arKr, stripeInd, ind, val|
+    var element, stripe;
+    {
+        stripe = arKrMidi[arKr][stripeInd];
+        element = midiGui[arKr][stripe][ind];
+        element.valueAction = element.controlSpec.map(\midinote.asSpec.unmap(val))
+    }.defer
+};
+midiNextSynth = { |arKr, stripeInd|
+    var element, stripe;
+    {
+        stripe = arKrMidi[arKr][stripeInd];
+        element = synthType[arKr][stripe];
+        element.valueAction = ~clipInc.(element.value ? 0, lo:0, hi:element.items.size);
+    }.defer
+};
+MIDIIn.control = { |scr, chan, num, val|
+    // [chan, num, val, \midinote.asSpec.unmap(val)].postln;
+    num.switch(
+        // stripe 1 - .kr 0
+        24, { midiSet.(\kr, 0, 0, val) }, // Knob 1 Left
+        25, { midiSet.(\kr, 0, 1, val) }, // Knob 2 Left
+        26, { midiSet.(\kr, 0, 2, val) }, // Knob 3 Left
+        12, { midiSet.(\kr, 0, 3, val) }, // Pitch fader Left
+
+        // stripe 2 - .kr 1
+        27, { midiSet.(\kr, 1, 0, val) }, // Knob Hi Left
+        28, { midiSet.(\kr, 1, 1, val) }, // Knob Mid Left
+        29, { midiSet.(\kr, 1, 2, val) }, // Knob Low Left
+        11, { midiSet.(\kr, 1, 3, val) }, // vol fader Left
+
+        // stripe 3 - .ar 0
+        34, { midiSet.(\ar, 0, 0, val) }, // Knob Hi Right
+        35, { midiSet.(\ar, 0, 1, val) }, // Knob Mid Right
+        36, { midiSet.(\ar, 0, 2, val) }, // Knob Low Right
+        14, { midiSet.(\ar, 0, 3, val) }, // vol fader Right
+
+        // stripe 4 - .ar 1
+        31, { midiSet.(\ar, 1, 0, val) }, // Knob 1 Right
+        32, { midiSet.(\ar, 1, 1, val) }, // Knob 2 Right
+        33, { midiSet.(\ar, 1, 2, val) }, // Knob 3 Right
+        15, { midiSet.(\ar, 1, 3, val) } // pitch fader Right
+    )
+};
+MIDIIn.noteOn = { |scr, chan, num, val|
+    // [chan, num, val].postln;
+    num.switch(
+        // 70, { nodeL = sNew.(synL, outbus:0) }, // Start/Pause Left
+        // 69, { nodeR = sNew.(synR, outbus:2)  }, // Start/Pause Right
+        // 58, { sOff.(nodeL) }, // Queue Left
+        // 59, { sOff.(nodeR) }, // Queue Right
+        46, { midiNextSynth.(\kr, 0) }, // Prev Left
+        43, { midiNextSynth.(\kr, 1) }, // Next Left
+        56, { midiNextSynth.(\ar, 0) }, // Prev Right
+        57, { midiNextSynth.(\ar, 1) }, // Next Right
+        44, { // Headphones Left
+            arKrMidi[\kr] = arKrMidi[\kr] + 2;
+            if (arKrMidi[\kr][1] >= krN) {arKrMidi[\kr] = [0, 1]}
+        },
+        45, { // Headphones Right
+            arKrMidi[\ar] = arKrMidi[\ar] + 2;
+            if (arKrMidi[\ar][1] >= arN) {arKrMidi[\ar] = [0, 1]}
+        },
+    )
+};
+
+
 { // global app clock with resolution 100 milliseconds (0.1 of a second)
     var defPast, synthName;
     while { win.isClosed.not } {
@@ -698,7 +788,7 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
                 if (def.synthname != defPast.synthname) {
                     if (def.active) {
                         ~groupFree.(def.node, crossfade.value); // switch OFF old synth
-                        synthOnOff.(arKr, pos, [\att, crossfade.value]); // then turn ON a new one
+                        synthOnOff.(arKr, pos, (att: crossfade.value)); // then turn ON a new one
                     };
                     defPast.synthname = def.synthname;
                 };
@@ -716,7 +806,10 @@ win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
                             defPast[bus] = def[bus]
                         };
                     };
-                }
+                };
+
+                // highlight current stripes
+                paneSynth[arKr][pos].background = if (arKrMidi[arKr].includes(pos)) { highlighted } { color }
             };
         };
         0.1.wait;
@@ -728,22 +821,23 @@ win.front;
 // clean everything on exit
 clean = {
     win.close;
+    MIDIIn.disconnect;
 };
 
 CmdPeriod.doOnce({
     clean.();
 });
 
-//
-// "\n=======================================\nTESTING\n".postln;
-UnitTest.new.assertEquals(minMax2mulAdd.(10, 100), [45, 55], "minMax2mulAdd.(15, 100)");
-UnitTest.new.assertEquals(minMax2mulAdd.(-1, 1), [1, 0], "minMax2mulAdd.(-1, 1)");
-UnitTest.new.assertEquals(minMax2mulAdd.(-100, 1), [50.5, -49.5], "minMax2mulAdd.(-100, 1)");
-UnitTest.new.assertEquals(minMax2mulAdd.(-100, 0), [50, -50], "minMax2mulAdd.(-100, 0)");
-UnitTest.new.assertEquals(minMax2mulAdd.(50, 10000), [4975, 5025], "minMax2mulAdd.(50, 10000)");
-UnitTest.new.assertEquals(minMax2mulAdd.(0, 2pi), [1pi, 1pi], "minMax2mulAdd.(0, 2pi)");
-UnitTest.new.assertEquals(minMax2mulAdd.(-0.5pi, 0.5pi), [0.5pi, 0], "minMax2mulAdd.(-0.5pi, 0.5pi)");
-UnitTest.new.assertEquals(minMax2mulAdd.(-1pi, 1pi), [1pi, 0], "minMax2mulAdd.(-1pi, 1pi)");
-UnitTest.new.assertEquals(minMax2mulAdd.(0.1, 0.9), [0.4, 0.5], "minMax2mulAdd.(0.1, 0.9)");
+// //
+// // "\n=======================================\nTESTING\n".postln;
+// UnitTest.new.assertEquals(minMax2mulAdd.(10, 100), [45, 55], "minMax2mulAdd.(15, 100)");
+// UnitTest.new.assertEquals(minMax2mulAdd.(-1, 1), [1, 0], "minMax2mulAdd.(-1, 1)");
+// UnitTest.new.assertEquals(minMax2mulAdd.(-100, 1), [50.5, -49.5], "minMax2mulAdd.(-100, 1)");
+// UnitTest.new.assertEquals(minMax2mulAdd.(-100, 0), [50, -50], "minMax2mulAdd.(-100, 0)");
+// UnitTest.new.assertEquals(minMax2mulAdd.(50, 10000), [4975, 5025], "minMax2mulAdd.(50, 10000)");
+// UnitTest.new.assertEquals(minMax2mulAdd.(0, 2pi), [1pi, 1pi], "minMax2mulAdd.(0, 2pi)");
+// UnitTest.new.assertEquals(minMax2mulAdd.(-0.5pi, 0.5pi), [0.5pi, 0], "minMax2mulAdd.(-0.5pi, 0.5pi)");
+// UnitTest.new.assertEquals(minMax2mulAdd.(-1pi, 1pi), [1pi, 0], "minMax2mulAdd.(-1pi, 1pi)");
+// UnitTest.new.assertEquals(minMax2mulAdd.(0.1, 0.9), [0.4, 0.5], "minMax2mulAdd.(0.1, 0.9)");
 \
 )

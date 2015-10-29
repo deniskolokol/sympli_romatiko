@@ -6,8 +6,7 @@
 (
 var srEnv;
 var currentDir;
-var key, subkey, branch, conf, confFile, confKeys;
-var synthNames;
+var key, subkey, synthNames, conf, confFile, confKeys;
 
 // root IDs for synths
 var ar__ROOT_NODE = s.nextNodeID;
@@ -61,7 +60,21 @@ srEnv = Environment.make {
         }
     );
 
-    branch = (
+    // wavetable buffers start from bufnum 0
+    ~wavetable = 0;
+    24.do { |i| // allocate and fill tables 0 to 23
+        var n, a;
+        // allocate table
+        s.sendMsg(\b_alloc, i, 4096);
+        // generate array of harmonic amplitudes
+        n = (i+1)**2;
+        // a = Array.fill(n, { |j| ((n-j)/n).squared.round(0.001) });
+        a = Array.fill(i, 0) ++ [0.5, 1, 0.5];
+        // fill table
+        s.performList(\sendMsg, \b_gen, i, \sine1, 7, a);
+    };
+
+    synthNames = (
         sr__e__wasp: (
             key: 12, // q
             attenuate: 0.02,
@@ -158,6 +171,10 @@ srEnv = Environment.make {
             key: nil,
             attenuate: 1,
         ),
+        \sr__e__tbl: (
+            key: nil,
+            attenuate: 0.1,
+        ),
         \sr__e__sawy: (
             key: nil,
             attenuate: 0.05,
@@ -172,7 +189,7 @@ srEnv = Environment.make {
         ),
     );
     ~synths = merge( // update default ~synths settings by those in conf
-        branch, conf.atFail(\synths, {Dictionary.new}), { |a, b| b }
+        synthNames, conf.atFail(\synths, {Dictionary.new}), { |a, b| b }
     );
 
     ~clipInc = {
@@ -307,19 +324,20 @@ currentEnvironment = srEnv;
 
 // MODULES
 //
+// XXX - Need some confirmation from server that all are loaded!
 "Loading synth definitions...".postln;
 if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
     postf("OK\n\n")
 };
-// "Loading scheduler...".postln;
-// if (this.executeFile(
-// ~currentDir +/+ "scheduler.scd").isNil.not) {
-//     postf("OK\n\n")
-// };
-// "Loading world...".postln;
-// if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
-//     postf("OK\n\n")
-// };
+"Loading scheduler...".postln;
+if (this.executeFile(
+~currentDir +/+ "scheduler.scd").isNil.not) {
+    postf("OK\n\n")
+};
+"Loading world...".postln;
+if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
+    postf("OK\n\n")
+};
 "Loading control matrix...".postln;
 if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
     postf("OK\n\n")

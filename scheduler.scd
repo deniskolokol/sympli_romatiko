@@ -98,10 +98,11 @@ if (~currentDir.isNil) {
     ~currentDir = PathName(thisProcess.nowExecutingPath).pathOnly
 };
 seqPathsFile = ~currentDir +/+ "conf/sequences.conf";
-seqPaths = List.newFrom(["", "Load..."]);
+seqPaths = ["", "Load..."];
 try { // to load from settings file
     seqPaths = seqPaths ++ File(seqPathsFile, "r").readAllString.interpret;
 };
+seqPaths = seqPaths.asList;
 
 //defaultBuff = Buffer.loadCollection(s, FloatArray[0, 3, 7, 10]);
 defaultBuff = Buffer.loadCollection(s, Scale.ahirbhairav.degrees);
@@ -249,6 +250,7 @@ loadSequence = { |path|
         postf("OK\n\n");
         sequence = ~sequence;
         if (seqPaths.asString.contains(path).not) {
+            "not contain".postln;
             seqPaths.insert(2, path); // to the top, but after ["", "Load.."]
         };
         getIndex.(seqPaths, path)
@@ -426,7 +428,7 @@ dropdown = { |par, label, items, action, initVal=0, initAction=false, scale=1|
 };
 
 
-win = Window("sequencing and scheduling", Rect(700, 800, 610, Window.screenBounds.height))
+win = Window("sequencing and scheduling", Rect(700, 800, 610, 785))
     .acceptsMouseOver_(true);
 win.view.decorator = FlowLayout(win.view.bounds);
 
@@ -593,8 +595,8 @@ miscParams[\record] = (
             };
             filename = filename ++ ".aif";
             s.recChannels = sum(numChannels.());
-            s.recHeaderFormat = "AIFF";
-            s.recSampleFormat = "int16";
+            s.recHeaderFormat = "aiff";
+            s.recSampleFormat = "int24";
             AppClock.sched(0, {
                 fork { s.prepareForRecord(filename); s.sync; s.record }
                 }

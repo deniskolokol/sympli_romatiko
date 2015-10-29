@@ -1,7 +1,7 @@
 (
 var krN, arN;
 var matrix, matrixPast, initMatrix;
-var synthOnOff, synthSend, synthReRoute, synthInit, synthShortName;
+var synthOnOff, synthSend, synthReRoute, synthShortName;
 var paramDefs, scopes, lfoScope, minMax2mulAdd,
     paramsAr, paramsKr, controlsAr, controlsKr,
     defaultParams, defaultEnvelope, levelsAr,
@@ -9,8 +9,9 @@ var paramDefs, scopes, lfoScope, minMax2mulAdd,
 var outBus=(0..Server.default.options.numAudioBusChannels-1),
     internalBus=(10..Server.default.options.numAudioBusChannels-1),
     krBus = (0..Server.default.options.numControlBusChannels-1);
-var oscSynthVal, krTrigID=60, arTrigID=80;
-var midiGui, midiSet, midiNextSynth, arKrMidi;
+var oscSynthVal, trigID;
+var midiGui, midiSet, midiOnOff, midiNextSynth, arKrMidi;
+var doubleClick, clickElement, clickBootSec=Date.getDate.bootSeconds;
 
 var win;
 var paneMatrix, paneSettings, paneSynths, paneSynth,
@@ -43,6 +44,7 @@ var f__CURR_DIR = PathName(thisProcess.nowExecutingPath).pathOnly;
 scopes = [
     \azimuth,
     \add,
+    \add10,
     \add100,
     \add500,
     \add1K,
@@ -51,31 +53,32 @@ scopes = [
 ];
 // synths and params
 paramDefs = (
-    azimuth:   ( label: "azi",    minval: -1pi,   maxval: 1pi,    step: 0.01, default: 0   ),
-    distance:  ( label: "dist",   minval: 0,      maxval: 2.sqrt, step: 0.01, default: 0   ),
-    elevation: ( label: "elev",   minval: -0.5pi, maxval: 0.5pi,  step: 0.01, default: 0   ),
-    velocity:  ( label: "vel",    minval: 0,      maxval: 1,      step: 0.01, default: 0   ),
-    depth:     ( label: "depth",  minval: 1,      maxval: 10,     step: 0.1,  default: 5   ),
-    offset:    ( label: "offset", minval: 0,      maxval: 127,    step: 1,    default: 36  ),
-    cutoff:    ( label: "cutoff", minval: 0,      maxval: 10000,  step: 10,   default: 1000),
-    rq:        ( label: "RQ",     minval: 0.01,   maxval: 0.9,    step: 0.01, default: 0.5 ),
-    lfo:       ( label: "lfo",    minval: 0.01,   maxval: 1000,   step: 0.01, default: 0.5 ), // 0.001..1.000 | 1..1000
+    azimuth:   ( label: "azi",    minval: -1pi,   maxval: 1pi,    step: 0.01,  default: 0   ),
+    distance:  ( label: "dist",   minval: 0,      maxval: 2.sqrt, step: 0.01,  default: 0   ),
+    elevation: ( label: "elev",   minval: -0.5pi, maxval: 0.5pi,  step: 0.01,  default: 0   ),
+    velocity:  ( label: "vel",    minval: 0,      maxval: 1,      step: 0.01,  default: 0   ),
+    depth:     ( label: "depth",  minval: 1,      maxval: 10,     step: 0.1,   default: 5   ),
+    offset:    ( label: "offset", minval: 0,      maxval: 127,    step: 1,     default: 36  ),
+    cutoff:    ( label: "cutoff", minval: 0,      maxval: 10000,  step: 10,    default: 1000),
+    rq:        ( label: "RQ",     minval: 0.01,   maxval: 0.9,    step: 0.01,  default: 0.5 ),
+    lfo:       ( label: "lfo",    minval: 0.01,   maxval: 1000,   step: 0.01,  default: 0.5 ), // 0.001..1.000 | 1..1000
     scope:     ( label: "scope",  minval: 0,      maxval: scopes.size-1,  step: 1, default: 0), // scope defines min and max
-    mul:       ( label: "mul",    minval: 0,      maxval: 1,      step: 0.01, default: 1   ),
-    amp:       ( label: "amp",    minval: 0,      maxval: 1,      step: 0.01, default: 1   ),
-    add:       ( label: "add",    minval: 0,      maxval: 10,     step: 0.01, default: 0   ),
-    add100:    ( label: "add100", minval: 0,      maxval: 100,    step: 0.5,  default: 0   ),
-    add500:    ( label: "add500", minval: 10,     maxval: 500,    step: 1,    default: 10  ),
-    add1K:     ( label: "add1K",  minval: 100,    maxval: 1000,   step: 5,    default: 100 ),
-    add10K:    ( label: "add10K", minval: 100,    maxval: 10000,  step: 5,    default: 100 ),
-    add20K:    ( label: "add20K", minval: 1000,   maxval: 20000,  step: 10,   default: 1000),
-    min:       ( label: "min",    minval: 0,      maxval: 10,     step: 0.01, default: 0   ),
-    max:       ( label: "max",    minval: 10,     maxval: 100,    step: 1,    default: 10   ),
+    mul:       ( label: "mul",    minval: 0,      maxval: 1,      step: 0.01,  default: 1   ),
+    amp:       ( label: "amp",    minval: 0,      maxval: 1,      step: 0.01,  default: 1   ),
+    add:       ( label: "add",    minval: 0,      maxval: 1,      step: 0.001, default: 0   ),
+    add10:     ( label: "add",    minval: 0,      maxval: 10,     step: 0.01,  default: 0   ),
+    add100:    ( label: "add100", minval: 0,      maxval: 100,    step: 0.5,   default: 0   ),
+    add500:    ( label: "add500", minval: 10,     maxval: 500,    step: 1,     default: 10  ),
+    add1K:     ( label: "add1K",  minval: 100,    maxval: 1000,   step: 5,     default: 100 ),
+    add10K:    ( label: "add10K", minval: 100,    maxval: 10000,  step: 5,     default: 100 ),
+    add20K:    ( label: "add20K", minval: 1000,   maxval: 20000,  step: 10,    default: 1000),
+    min:       ( label: "min",    minval: 0,      maxval: 10,     step: 0.01,  default: 0   ),
+    max:       ( label: "max",    minval: 10,     maxval: 100,    step: 1,     default: 10  ),
 );
 // modulatable
 paramsKr = #[\mul, \add];
 paramsAr = #[\azimuth, \distance, \elevation, \velocity];
-paramsAr = #[\cutoff, \distance, \elevation, \velocity]; // TEST!!
+// paramsAr = #[\cutoff, \distance, \elevation, \velocity]; // TEST!!
 // controllable via GUI
 // XXX - \amp is controlled by ambisonic or on mixing board. substitute with compression(?)
 controlsAr = #[\offset, \cutoff, \rq, \amp];
@@ -83,7 +86,7 @@ controlsKr = #[\scope, \min, \max, \lfo];
 
 //synthNamesAr = ~synths.keys.asArray;
 synthNamesAr = #[
-    "sr__e__silent", "sr__e__sawy", "sr__e__whistle", "sr__e__wind"
+    "sr__e__tbl", "sr__e__sawy", "sr__e__electro", "sr__e__wind"
 ];
 synthNamesKr = #[
     "sr__k__sine", "sr__k__saw", "sr__k__tri",
@@ -105,7 +108,6 @@ synthsKr = all {:
     ),
     syn <- synthNamesKr
 };
-synthInit = "sr__e__silent";
 
 // initialize main matrix container
 #krN, arN = [8, 8];
@@ -114,7 +116,7 @@ levelsAr = Array.fill(arN, { nil });
 defaultEnvelope = Env.adsr(0.2, 0.5, 0.5, 1);
 defaultParams = { |synthname|
     // Fills up a dictionary with default params for synth name.
-    var params, result, val;
+    var params, result, val, buff;
 
     // fill list of param names
     (synthsAr ++ synthsKr).do { |def|
@@ -137,15 +139,20 @@ defaultParams = { |synthname|
 
 // initializes matrix with default values
 initMatrix = {
+    var arSynthName = { |ind|
+        // XXX - to do:
+        //       return this for i = 0..3, the rest should be effects
+        synthNamesAr[ind % synthNamesAr.size]
+    };
     (
         ar: Array.fill(arN, { |i|
             (
-                synthname: synthInit,
+                synthname: arSynthName.(i),
                 inbus: ~inbus,
-                outbus: ~outbus,
+                outbus: outBus.select(_.even)[i], // prepared to stereo by default
                 node: 0,
                 active: false,
-                params: defaultParams.(synthInit),
+                params: defaultParams.(arSynthName.(i)),
                 envelope: defaultEnvelope,
                 val: 0,
             )}
@@ -156,7 +163,7 @@ initMatrix = {
                 inbus: nil,
                 outbus: krBus[i],
                 node: 0,
-                active: true, // switch all .kr synths on from start.
+                active: true,
                 params: defaultParams.(synthNamesKr[i]),
                 val: 0,
             )}
@@ -166,10 +173,13 @@ initMatrix = {
 matrix = initMatrix.();
 matrixPast = initMatrix.();
 
+// first trigger ids for .ar and .kr synths
+trigID = (kr: 60, ar: 80);
+
 // default control stripes for MIDI control
 arKrMidi = (\ar: [0, 1], \kr: [0, 1]);
 midiGui = (
-    ar: Array.fill(arN, { Array.fill(controlsAr.size, { nil }) }),
+    ar: Array.fill(arN, { Array.fill(controlsAr.size + 1, { nil }) }), // +1 for synth on/off
     kr: Array.fill(krN, { Array.fill(controlsKr.size, { nil }) }),
 );
 paneSynth = (
@@ -184,15 +194,14 @@ synthType = (
 // level indicator
 oscSynthVal = OSCFunc({ |msg, time, addr, recvPort|
     var arKr, ind;
-    if ((msg[2] >= krTrigID) && (msg[2] < (krTrigID + krN))) {
+    if ((msg[2] >= trigID[\kr]) && (msg[2] < (trigID[\kr] + krN))) {
         arKr = 'kr';
-        ind = msg[2] - krTrigID; // TODO: find it by node number msg[1]
     };
-    if ((msg[2] >= arTrigID) && (msg[2] < (arTrigID + krN))) {
+    if ((msg[2] >= trigID[\ar]) && (msg[2] < (trigID[\ar] + arN))) {
         arKr = 'ar';
-        ind = msg[2] - arTrigID; // TODO: find it by node number msg[1]
     };
     if (arKr.isNil.not) {
+        ind = msg[2] - trigID[arKr];
         matrix[arKr][ind][\val] = if (msg[3].isNaN) {0} {msg[3].asFloat}
     };
 }, '/tr');
@@ -244,29 +253,27 @@ synthShortName = { |name|
 synthOnOff = { |arKr, pos, params|
     // Switches synth ON, if its \active in the matrix, OFF otherwise.
     // Returns Node ID.
-    var def, parm, node=0;
+    var def, parm, rel, node=0;
     def = matrix[arKr][pos];
+    params = params ? Dictionary[];
     if (def.active) {
         parm = merge( // update default params by params from matrix
             defaultParams.(def[\synthname]), def[\params] ? Dictionary[], { |a, b| b }
         );
         parm = merge( // update parm by `params`
-            parm, params ? Dictionary[], { |a, b| b }
+            parm, params, { |a, b| b }
         );
         def[\params] = parm; // save updated params to matrix
+        parm = merge( // update parm by `trigID`
+            parm, (trigID: trigID[arKr]+pos), { |a, b| b }
+        );
         if (arKr == 'ar') {
-            parm = merge( // update parm by `trigID`
-                parm, (trigID: arTrigID+pos), { |a, b| b }
-            );
             node = ~groupInit.(def[\synthname],
                 inbus:def[\inbus],
                 outbus:def[\outbus],
                 params:parm.getPairs
             );
         } {
-            parm = merge( // update parm by `trigID`
-                parm, (trigID: krTrigID+pos), { |a, b| b }
-            );
             node = ~modulatorInit.(def[\synthname],
                 inbus:def[\inbus],
                 outbus:pos,
@@ -274,7 +281,8 @@ synthOnOff = { |arKr, pos, params|
             );
         };
     } {
-        ~groupFree.(def[\node], 0.5)
+        rel = params.atFail(\rel, {crossfade.value});
+        ~groupFree.(def[\node], rel)
     };
     def[\node] = node;
 };
@@ -443,6 +451,7 @@ arN.do { |i|
         scale: 0.5);
     synthOut = dropdown.(pane, "O",
         items: outBus,
+        initVal: matrix[\ar][i][\outbus],
         action: { |dd| matrix[\ar][i][\outbus] = dd.value },
         scale: 0.5);
     synthType[\ar][i] = dropdown.(pane,
@@ -452,7 +461,7 @@ arN.do { |i|
             matrix.ar[i][\synthname] = synthsAr[dd.value][\name];
         },
     );
-    buttonCheckboxFlow.(pane, (i+1).asString,
+    midiGui[\ar][i][4] = buttonCheckboxFlow.(pane, (i+1).asString,
         { |btn| matrix[\ar][i][\active] = btn.value.booleanValue },
         scaleH: 0.1
     );
@@ -672,6 +681,7 @@ krN.do { |krInd|
     }
 };
 
+
 win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     [char, modifiers, unicode, keycode].postln;
     case
@@ -723,53 +733,87 @@ midiNextSynth = { |arKr, stripeInd|
         element.valueAction = ~clipInc.(element.value ? 0, lo:0, hi:element.items.size);
     }.defer
 };
+doubleClick = { |elt|
+    var dblClick=false, dateStamp=Date.getDate.bootSeconds;
+
+    // double-click should stay within 0.3s
+    if ((dateStamp-clickBootSec <= 0.3) && (clickElement == elt)) {
+        dblClick = true;
+    };
+    clickBootSec = dateStamp;
+    clickElement = elt;
+    dblClick
+};
+midiOnOff = { |arKr, stripeInd, ind, switchOn=false|
+    var element, stripe, dbl=false;
+    {
+        stripe = arKrMidi[arKr][stripeInd];
+        element = midiGui[arKr][stripe][ind];
+
+        // measure double click on NoteOff, because it is the last event.
+        if (switchOn.not) { dbl = doubleClick.(element) };
+        if (dbl) {
+            element.valueAction = 1 // always switch on on double click
+        } {
+            element.valueAction = switchOn // single click can switch On or Off
+        };
+    }.defer
+};
+
 MIDIIn.control = { |scr, chan, num, val|
     // [chan, num, val, \midinote.asSpec.unmap(val)].postln;
     num.switch(
         // stripe 1 - .kr 0
-        24, { midiSet.(\kr, 0, 0, val) }, // Knob 1 Left
-        25, { midiSet.(\kr, 0, 1, val) }, // Knob 2 Left
-        26, { midiSet.(\kr, 0, 2, val) }, // Knob 3 Left
-        12, { midiSet.(\kr, 0, 3, val) }, // Pitch fader Left
+        24, { midiSet.(\ar, 0, 0, val) }, // Knob 1 Left
+        25, { midiSet.(\ar, 0, 1, val) }, // Knob 2 Left
+        26, { midiSet.(\ar, 0, 2, val) }, // Knob 3 Left
+        12, { midiSet.(\ar, 0, 3, val) }, // Pitch fader Left
 
         // stripe 2 - .kr 1
-        27, { midiSet.(\kr, 1, 0, val) }, // Knob Hi Left
-        28, { midiSet.(\kr, 1, 1, val) }, // Knob Mid Left
-        29, { midiSet.(\kr, 1, 2, val) }, // Knob Low Left
-        11, { midiSet.(\kr, 1, 3, val) }, // vol fader Left
+        27, { midiSet.(\ar, 1, 0, val) }, // Knob Hi Left
+        28, { midiSet.(\ar, 1, 1, val) }, // Knob Mid Left
+        29, { midiSet.(\ar, 1, 2, val) }, // Knob Low Left
+        11, { midiSet.(\ar, 1, 3, val) }, // vol fader Left
 
         // stripe 3 - .ar 0
-        34, { midiSet.(\ar, 0, 0, val) }, // Knob Hi Right
-        35, { midiSet.(\ar, 0, 1, val) }, // Knob Mid Right
-        36, { midiSet.(\ar, 0, 2, val) }, // Knob Low Right
-        14, { midiSet.(\ar, 0, 3, val) }, // vol fader Right
+        34, { midiSet.(\kr, 0, 0, val) }, // Knob Hi Right
+        35, { midiSet.(\kr, 0, 1, val) }, // Knob Mid Right
+        36, { midiSet.(\kr, 0, 2, val) }, // Knob Low Right
+        14, { midiSet.(\kr, 0, 3, val) }, // vol fader Right
 
         // stripe 4 - .ar 1
-        31, { midiSet.(\ar, 1, 0, val) }, // Knob 1 Right
-        32, { midiSet.(\ar, 1, 1, val) }, // Knob 2 Right
-        33, { midiSet.(\ar, 1, 2, val) }, // Knob 3 Right
-        15, { midiSet.(\ar, 1, 3, val) } // pitch fader Right
+        31, { midiSet.(\kr, 1, 0, val) }, // Knob 1 Right
+        32, { midiSet.(\kr, 1, 1, val) }, // Knob 2 Right
+        33, { midiSet.(\kr, 1, 2, val) }, // Knob 3 Right
+        15, { midiSet.(\kr, 1, 3, val) } // pitch fader Right
     )
 };
 MIDIIn.noteOn = { |scr, chan, num, val|
     // [chan, num, val].postln;
     num.switch(
-        // 70, { nodeL = sNew.(synL, outbus:0) }, // Start/Pause Left
-        // 69, { nodeR = sNew.(synR, outbus:2)  }, // Start/Pause Right
-        // 58, { sOff.(nodeL) }, // Queue Left
-        // 59, { sOff.(nodeR) }, // Queue Right
-        46, { midiNextSynth.(\kr, 0) }, // Prev Left
-        43, { midiNextSynth.(\kr, 1) }, // Next Left
-        56, { midiNextSynth.(\ar, 0) }, // Prev Right
-        57, { midiNextSynth.(\ar, 1) }, // Next Right
+        70, { midiOnOff.(\ar, 0, 4, true) }, // Start/Pause Left
+        // 69, { midiOnOff.(\kr, 0, 4, true) }, // Start/Pause Right
+        58, { midiOnOff.(\ar, 1, 4, true) }, // Queue Left
+        // 59, { midiOnOff.(\kr, 1, 4, true) }, // Queue Right
+        46, { midiNextSynth.(\ar, 0) }, // Prev Left
+        43, { midiNextSynth.(\ar, 1) }, // Next Left
+        56, { midiNextSynth.(\kr, 0) }, // Prev Right
+        57, { midiNextSynth.(\kr, 1) }, // Next Right
         44, { // Headphones Left
-            arKrMidi[\kr] = arKrMidi[\kr] + 2;
-            if (arKrMidi[\kr][1] >= krN) {arKrMidi[\kr] = [0, 1]}
+            arKrMidi[\ar] = arKrMidi[\ar] + 2;
+            if (arKrMidi[\ar][1] >= krN) {arKrMidi[\ar] = [0, 1]}
         },
         45, { // Headphones Right
-            arKrMidi[\ar] = arKrMidi[\ar] + 2;
-            if (arKrMidi[\ar][1] >= arN) {arKrMidi[\ar] = [0, 1]}
+            arKrMidi[\kr] = arKrMidi[\kr] + 2;
+            if (arKrMidi[\kr][1] >= arN) {arKrMidi[\kr] = [0, 1]}
         },
+    )
+};
+MIDIIn.noteOff = { |scr, chan, num, val|
+    // [chan, num, val].postln;
+    num.switch(
+        70, { midiOnOff.(\ar, 0, 4, false) }, // Start/Pause Right
+        58, { midiOnOff.(\ar, 1, 4, false) }, // Queue Right
     )
 };
 
@@ -782,7 +826,7 @@ MIDIIn.noteOn = { |scr, chan, num, val|
                 defPast = matrixPast[arKr][pos];
 
                 if (def.active != defPast.active) {
-                    synthOnOff.(arKr, pos);
+                    synthOnOff.(arKr, pos, (att: 0.2, rel: 0.2));
                     defPast.active = def.active;
                 };
                 if (def.synthname != defPast.synthname) {

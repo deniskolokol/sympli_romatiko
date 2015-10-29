@@ -871,6 +871,39 @@ SynthDef(\sr__e__therem, {
 
 // XXX
 // WARNING! New synths for matrix control!
+
+// XXX - the idea:
+//       VOsc3 can be swept smoothly across wavetables (buffers)
+//       each buffer is a kind of "cloud" in space
+// XXX - advanced: clouds are "stretchy" - if a cloud is being "touched"
+//       with a velocity high enough, it stretches towards ... the center?
+//       or in the direction of an attractor (hand)?
+SynthDef(\sr__e__tbl, {
+    arg bufnum=0, inbus=30, route=20, trigID=80,
+        amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        azimuth=0, distance=0.5, elevation=0, velocity=0.5,
+        offset=36, cutoff=1000, rq=0.5, scope=12;
+    var in, out, signal, freq, detune, stretchFactor, blob;
+    // Conversion & Clip.
+    cutoff = cutoff.clip(10, 20000);
+    offset = offset.clip(1, 127);
+    freq = offset.midicps;
+    blob = distance.linlin(0.0, 1.0, 0, 23); // XXX - finish this
+    // take into consideration growth of the octave distance with pitch
+    stretchFactor = ((offset + 12).midicps - freq).min(3);
+    detune = velocity.linexp(0, 1, 2, stretchFactor);
+    // Synthesis.
+    in = VOsc3.ar(bufnum+blob, freq, freq+detune, freq-detune, velocity.scurve);
+    // filter
+    signal = (amp * attenuate).clip(0, 1) * in;
+    // Envelope.
+    out = signal * master * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
+    Out.ar(route, out);
+}).add;
+
+
 SynthDef(\sr__e__sawy, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
@@ -893,6 +926,7 @@ SynthDef(\sr__e__sawy, {
     SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
     Out.ar(route, out);
 }).add;
+
 
 SynthDef(\sr__e__electro, {
     arg bufnum=0, inbus=30, route=20, trigID=80,

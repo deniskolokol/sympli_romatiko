@@ -169,9 +169,12 @@ currentScale = ~sequence.scales[3];
             node = ~groupInit.(
                 synth:current[\synth],
                 bufnum:scale,
-                params:[\att, attack[i % groups.size].value()]
+                params:[
+                    \att, attack[i % groups.size].value(),
+                    \distance, 2.sqrt * 0.5
+                ]
             );
-            s.sendMsg("/n_set", node, \distance, 2.sqrt * 0.5);
+            // s.sendMsg("/n_set", node, \distance, 2.sqrt * 0.5);
             if (current.keys.includes(\modulators)) {
                 current.modulators.keysValuesDo { |param, modulator|
                     s.sendBundle(0.01,

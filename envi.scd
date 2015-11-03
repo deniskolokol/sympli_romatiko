@@ -7,6 +7,7 @@
 var srEnv;
 var currentDir;
 var key, subkey, synthNames, conf, confFile, confKeys;
+var harmonics, numHarmonics, numWavetables;
 
 // root IDs for synths
 var ar__ROOT_NODE = s.nextNodeID;
@@ -60,18 +61,15 @@ srEnv = Environment.make {
         }
     );
 
-    // wavetable buffers start from bufnum 0
-    ~wavetable = 0;
-    24.do { |i| // allocate and fill tables 0 to 23
-        var n, a;
+    numHarmonics = 16;
+    numWavetables = 8;
+    numWavetables.do { |i| // allocate and fill tables
         // allocate table
-        s.sendMsg(\b_alloc, i, 4096);
-        // generate array of harmonic amplitudes
-        n = (i+1)**2;
-        // a = Array.fill(n, { |j| ((n-j)/n).squared.round(0.001) });
-        a = Array.fill(i, 0) ++ [0.5, 1, 0.5];
-        // fill table
-        s.performList(\sendMsg, \b_gen, i, \sine1, 7, a);
+        s.sendMsg(\b_alloc, i, numHarmonics);
+        harmonics = Harmonics(numHarmonics).formant(3,
+            (i**2).linlin(0, numWavetables**2, 1, numHarmonics).ceil
+        );
+        s.performList(\sendMsg, \b_gen, i, \sine1, n, harmonics);
     };
 
     synthNames = (
@@ -329,15 +327,15 @@ currentEnvironment = srEnv;
 if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
     postf("OK\n\n")
 };
-"Loading scheduler...".postln;
-if (this.executeFile(
-~currentDir +/+ "scheduler.scd").isNil.not) {
-    postf("OK\n\n")
-};
-"Loading world...".postln;
-if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
-    postf("OK\n\n")
-};
+// "Loading scheduler...".postln;
+// if (this.executeFile(
+// ~currentDir +/+ "scheduler.scd").isNil.not) {
+//     postf("OK\n\n")
+// };
+// "Loading world...".postln;
+// if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
+//     postf("OK\n\n")
+// };
 "Loading control matrix...".postln;
 if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
     postf("OK\n\n")
@@ -345,6 +343,8 @@ if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
 
 
 CmdPeriod.doOnce({
+    "Freeing buffers...".postln;
+    ~wavetable.do(_.free);
     "Saving environment conf...".postln;
     confKeys = [ // keys to save to conf file
         'surround', 'depth',

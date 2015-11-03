@@ -2,7 +2,7 @@
 var krN, arN;
 var matrix, matrixPast, initMatrix;
 var synthOnOff, synthSend, synthReRoute, synthShortName;
-var paramDefs, scopes, lfoScope, minMax2mulAdd,
+var paramDefs, lfoScope, minMax2mulAdd,
     paramsAr, paramsKr, controlsAr, controlsKr,
     defaultParams, defaultEnvelope, levelsAr,
     synthsAr, synthsKr, synthNamesAr, synthNamesKr;
@@ -39,18 +39,6 @@ var failures, errors, tests, testReport;
 var s__SYNTHNAME = "sr__(e|g|p|k|r|s){1}__[a-zA-Z0-9]+";
 var f__CURR_DIR = PathName(thisProcess.nowExecutingPath).pathOnly;
 
-// specs in order for changing scopes for \min and \max .kr params
-// should be defined before paramDefs!
-scopes = [
-    \azimuth,
-    \add,
-    \add10,
-    \add100,
-    \add500,
-    \add1K,
-    \add10K,
-    \add20K,
-];
 // synths and params
 paramDefs = (
     azimuth:   ( label: "azi",    minval: -1pi,   maxval: 1pi,    step: 0.01,  default: 0   ),
@@ -61,19 +49,19 @@ paramDefs = (
     offset:    ( label: "offset", minval: 0,      maxval: 127,    step: 1,     default: 36  ),
     cutoff:    ( label: "cutoff", minval: 0,      maxval: 10000,  step: 10,    default: 1000),
     rq:        ( label: "RQ",     minval: 0.01,   maxval: 0.9,    step: 0.01,  default: 0.5 ),
-    lfo:       ( label: "lfo",    minval: 0.01,   maxval: 1000,   step: 0.01,  default: 0.5 ), // 0.001..1.000 | 1..1000
-    scope:     ( label: "scope",  minval: 0,      maxval: scopes.size-1,  step: 1, default: 0), // scope defines min and max
+    lfo:       ( label: "lfo",    minval: 0.01,   maxval: 100,    step: 0.01,  default: 0.5 ), // 0.001..1.000 | 1..100
+    min:       ( label: "min",    minval: -1,     maxval: 0.99,   step: 0.01,  default: -1  ),
+    max:       ( label: "max",    minval: -0.99,  maxval: 1,      step: 0.01,  default: 1   ),
     mul:       ( label: "mul",    minval: 0,      maxval: 1,      step: 0.01,  default: 1   ),
     amp:       ( label: "amp",    minval: 0,      maxval: 1,      step: 0.01,  default: 1   ),
     add:       ( label: "add",    minval: 0,      maxval: 1,      step: 0.001, default: 0   ),
+    // remove it!
     add10:     ( label: "add",    minval: 0,      maxval: 10,     step: 0.01,  default: 0   ),
     add100:    ( label: "add100", minval: 0,      maxval: 100,    step: 0.5,   default: 0   ),
     add500:    ( label: "add500", minval: 10,     maxval: 500,    step: 1,     default: 10  ),
     add1K:     ( label: "add1K",  minval: 100,    maxval: 1000,   step: 5,     default: 100 ),
     add10K:    ( label: "add10K", minval: 100,    maxval: 10000,  step: 5,     default: 100 ),
     add20K:    ( label: "add20K", minval: 1000,   maxval: 20000,  step: 10,    default: 1000),
-    min:       ( label: "min",    minval: 0,      maxval: 10,     step: 0.01,  default: 0   ),
-    max:       ( label: "max",    minval: 10,     maxval: 100,    step: 1,     default: 10  ),
 );
 // modulatable
 paramsKr = #[\mul, \add];
@@ -82,11 +70,11 @@ paramsAr = #[\azimuth, \distance, \elevation, \velocity];
 // controllable via GUI
 // XXX - \amp is controlled by ambisonic or on mixing board. substitute with compression(?)
 controlsAr = #[\offset, \cutoff, \rq, \amp];
-controlsKr = #[\scope, \min, \max, \lfo];
+controlsKr = #[\lfo, \min, \max, \depth];
 
 //synthNamesAr = ~synths.keys.asArray;
 synthNamesAr = #[
-    "sr__e__tbl", "sr__e__sawy", "sr__e__electro", "sr__e__wind"
+    "sr__e__tbl", "sr__e__sawy", "sr__e__dust", "sr__e__wind", "sr__e__dempad"
 ];
 synthNamesKr = #[
     "sr__k__sine", "sr__k__saw", "sr__k__tri",
@@ -210,9 +198,9 @@ oscSynthVal = OSCFunc({ |msg, time, addr, recvPort|
 // 0.01..1.00 | 1..1000
 lfoScope = { |n|
     case
-    {n <= 0.5} { n.linexp(0.01, 0.5, 0.01, 5) }
-    {n > 0.5 && n <= 0.75} {n.lincurve(0.5, 0.75, 5, 500, 3)}
-    {n > 0.75} {n.lincurve(0.75, 1, 500, 1000, -3)}
+    {n <= 0.5} { n.linexp(0.01, 0.5, 0.01, 1) }
+    {n > 0.5 && n <= 0.75} {n.lincurve(0.5, 0.75, 1, 10, 3)}
+    {n > 0.75} {n.lincurve(0.75, 1, 10, 100, -3)}
 };
 
 // calculates \mul and \add based on \min and \max
@@ -220,22 +208,20 @@ minMax2mulAdd = { |min, max|
     var mul, add;
     mul = max.absdif(min) * 0.5;
     add = min + mul;
-    [mul, add]
+    [mul, add];
 };
 
 
 // updates .kr param
 // if updated param is \min or \max, updates \mul and \add, too
-krSetParam = { |i, param, val|
-    var mul, add, defPar;
-
-    defPar = matrix.kr[i][\params];
-    defPar[param] = val;
-    if (#[\min, \max].includes(param.asSymbol)) {
-        #mul, add = minMax2mulAdd.(defPar[\min], defPar[\max]);
-        defPar[\mul] = mul;
-        defPar[\add] = add;
-    }
+krSetParam = { |i, minVal, maxVal|
+    var mul, add;
+    var defPar = matrix.kr[i][\params];
+    #mul, add = minMax2mulAdd.(minVal, maxVal);
+    defPar[\min] = minVal;
+    defPar[\max] = maxVal;
+    defPar[\mul] = mul;
+    defPar[\add] = add;
 };
 
 
@@ -268,6 +254,11 @@ synthOnOff = { |arKr, pos, params|
             parm, (trigID: trigID[arKr]+pos), { |a, b| b }
         );
         if (arKr == 'ar') {
+            parm.keysValuesDo { |k, v|
+                if (v.asString.beginsWith("kr_")) {
+                    parm[k] = v.asString.replace("kr_", "c").asSymbol
+                }
+            };
             node = ~groupInit.(def[\synthname],
                 inbus:def[\inbus],
                 outbus:def[\outbus],
@@ -414,7 +405,9 @@ compViewFlow = { |par, color, scaleW=1, scaleH=1|
 levelInd = { |par, default=0, scaleW=1, scaleH=1|
     LevelIndicator(par, paneWidth.(par, scaleW)@paneHeight.(par, scaleH))
     .background_(Color.clear)
-    .value_(default).warning_(0.7).critical_(0.9)
+    .value_(default)
+    .warning_(0.7)
+    .critical_(0.9)
 };
 
 // panels
@@ -539,7 +532,7 @@ arN.do { |i|
 // .kr synth panel and controls
 paneKrSynths = compViewFlow.(paneMatrix, scaleW: 0.2, scaleH: 0.4);
 krN.do { |i|
-    var knobScope, knobMin, knobMax, knobLFO;
+    var knobVacant, knobMin, knobMax, knobLFO;
 
     paneSynth[\kr][i] = compViewFlow.(paneKrSynths, scaleH: (1/krN)+0.01);
     pane = compViewFlow.(paneSynth[\kr][i]);
@@ -554,51 +547,8 @@ krN.do { |i|
         scale: 0.2
     );
 
-    // scope
-    knobScope = knob.(pane, paramDefs[\scope][\label],
-        spec: ~valAsApec.(paramDefs[\scope]),
-        action: { |kn|
-            var scope=paramDefs[scopes[kn.value]];
-            knobMin.controlSpec = ~valAsApec.(scope);
-            knobMax.controlSpec = ~valAsApec.(scope);
-            knobMin.labelView.string = scope[\minval].asString;
-            knobMax.labelView.string = scope[\maxval].asString;
-            knobMin.valueAction_(knobMin.value);
-            knobMax.valueAction_(knobMax.value);
-        },
-        layout: \line2, scaleW: 0.22, scaleH: 0.8
-    );
-
-    // min (default label and param)
-    knobMin = knob.(pane, paramDefs[\min][\default].asString,
-        spec: ~valAsApec.(paramDefs[\min]),
-        initVal: paramDefs[\min][\default],
-        action: { |kn|
-            var scope=paramDefs[scopes[knobScope.value]];
-            knobMax.value = knobMax.value
-                .max(kn.value+scope[\step]) // max > min
-                .min(scope[\maxval]); // max <= maxval
-            krSetParam.(i, \min, kn.value);
-        },
-        layout: \line2, scaleW: 0.22, scaleH: 0.8
-    );
-
-    // max (default label and param)
-    knobMax = knob.(pane, paramDefs[\max][\default].asString,
-        spec: ~valAsApec.(paramDefs[\max]),
-        initVal: paramDefs[\max][\default],
-        action: { |kn|
-            var scope=paramDefs[scopes[knobScope.value]];
-            knobMin.value = knobMin.value
-                .min(kn.value-scope[\step]) // min < max
-                .max(scope[\minval]); // min >= minval
-            krSetParam.(i, \max, kn.value)
-        },
-        layout: \line2, scaleW: 0.22, scaleH: 0.8
-    );
-
-    knobLFO = knob.(pane, paramDefs[\lfo][\label], // lfo
-        // spec: ~valAsApec.(paramDefs[\lfo]),
+    // lfo
+    knobLFO = knob.(pane, paramDefs[\lfo][\label],
         initVal: paramDefs[\lfo][\default],
         action: { |kn|
             matrix.kr[i][\params][\lfo] = lfoScope.(kn.value);
@@ -607,8 +557,48 @@ krN.do { |i|
         layout: \line2, scaleW: 0.22, scaleH: 0.8
     );
 
+    // min (default label and param)
+    knobMin = knob.(pane, "min",
+        spec: ~valAsApec.(paramDefs[\min]),
+        initVal: paramDefs[\min][\default],
+        action: { |kn|
+            knobMax.value = knobMax.value
+                .max(kn.value+0.01) // max > min
+                .min(\bipolar.asSpec.maxval); // max <= maxval
+            krSetParam.(i, kn.value, knobMax.value)
+        },
+        layout: \line2, scaleW: 0.22, scaleH: 0.8
+    );
+
+    // max (default label and param)
+    knobMax = knob.(pane, "max",
+        spec: ~valAsApec.(paramDefs[\max]),
+        initVal: paramDefs[\max][\default],
+        action: { |kn|
+            knobMin.value = knobMin.value
+                .min(kn.value-0.01) // min < max
+                .max(\bipolar.asSpec.minval); // min >= minval
+            krSetParam.(i, knobMin.value, kn.value)
+        },
+        layout: \line2, scaleW: 0.22, scaleH: 0.8
+    );
+
+    knobVacant = knob.(pane, paramDefs[\scope][\label],
+        spec: ~valAsApec.(paramDefs[\scope]),
+        action: { |kn|
+            // var scope=paramDefs[scopes[kn.value]];
+            // knobMin.controlSpec = ~valAsApec.(scope);
+            // knobMax.controlSpec = ~valAsApec.(scope);
+            // knobMin.labelView.string = scope[\minval].asString;
+            // knobMax.labelView.string = scope[\maxval].asString;
+            // knobMin.valueAction_(knobMin.value);
+            // knobMax.valueAction_(knobMax.value);
+        },
+        layout: \line2, scaleW: 0.22, scaleH: 0.8
+    );
+
     // GUI elements for MIDI-controllable params
-    midiGui[\kr][i] = [knobScope, knobMin, knobMax, knobLFO];
+    midiGui[\kr][i] = [knobLFO, knobMin, knobMax, knobVacant];
 
     paneSynth[\kr][i].decorator.nextLine;
     pane = UserView(
@@ -616,15 +606,18 @@ krN.do { |i|
         paneSynth[\kr][i].bounds.width@paneSynth[\kr][i].bounds.height
     );
     pane.drawFunc = { |view|
-        var half, val, width, left, scope;
-        scope = paramDefs[scopes[knobScope.value]];
+        var half, val, width, left, scope, warning=0.7, critical=0.9;
+        scope = \unipolar.asSpec;
         // display is calculated on the min-max values of the current scope
-        val = matrix.kr[i][\val].linlin(scope[\maxval].neg, scope[\maxval], -1, 1);
+        val = matrix.kr[i][\val];
         half = view.bounds.width * 0.5;
         width = val.abs.linlin(0, 1, 0, half);
-        left = if (val >=0 ) {half} {half-width};
+        left = if (val >=0 ) { half } { half-width };
         // the bigger scope, the redder level appears
-        Pen.color = Color(1, 1-(knobScope.value*(1/scopes.size)), 0);
+        Pen.color = case
+        { (val.abs >= warning) && (val.abs <= critical) } { Color.yellow }
+        { val.abs >= critical } { Color.red }
+        { Color.green };
         Pen.fillRect(Rect(left, 0, width, view.bounds.height));
     };
     pane.animate = true;

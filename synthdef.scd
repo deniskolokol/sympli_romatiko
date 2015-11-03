@@ -546,15 +546,15 @@ SynthDef(\sr__e__neural, {
 SynthDef(\sr__e__dempad, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, elevation=0, azimuth=0, distance=1, velocity=0.5,
         offset=36, cutoff=0;
     var detune=0.2, // XXX - increase detune on extreme velocities (?)
         lag=0.1, // XXX - make it dependent on param
         rate=3, // XXX - make it dependent on param
         tones=50, // XXX - make it dependent on velocity with curve
         noOfSynths=20;
-    var in, out, signal;
-    var freq = offset + #[0, 5, 9]; // XXX - delete after alternative solution is completed
+    var in, out, signal, freq;
+    // var freq = offset + #[0, 4, 6, 7, 11]; // XXX - delete after alternative solution is completed Scale
 
     in = Mix.fill(tones,
         { |index|
@@ -562,8 +562,13 @@ SynthDef(\sr__e__dempad, {
             var pitches = Lag.kr(
                 Select.kr(
                     Demand.kr(trig, 0, Drand([0, 1, 2], inf)),
-                    //freq // original
-                    DegreeToKey.kr(bufnum, index.linlin(0, tones, 0, 6), 12, 1, offset)
+                    // freq // original
+                    DegreeToKey.kr(
+                        [0,3,5,8,10].as(LocalBuf),
+                        elevation.linlin(-0.5pi, 0.5pi, 0, 24),
+                        12, 1, offset
+                    )
+                    // DegreeToKey.kr(bufnum, index.linlin(0, tones, 0, 6), 12, 1, offset)
                 )
                 + TRand.kr(detune.neg, detune, trig),
                 lag * Rand(0.8, 1.2)
@@ -579,7 +584,7 @@ SynthDef(\sr__e__dempad, {
     );
     signal = Mix(in) * (1 / noOfSynths) * Line.kr(0.0, 1.0, 0.3);
     out = signal * master * EnvGen.kr(
-        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 1);
     SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
     Out.ar(route, out);
 }).add;
@@ -881,21 +886,24 @@ SynthDef(\sr__e__therem, {
 SynthDef(\sr__e__tbl, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        azimuth=0, distance=0.5, elevation=0, velocity=0.5,
+        azimuth=0, distance=0.1, elevation=0, velocity=0.5,
         offset=36, cutoff=1000, rq=0.5, scope=12;
     var in, out, signal, freq, detune, stretchFactor, blob;
     // Conversion & Clip.
-    cutoff = cutoff.clip(10, 20000);
+    cutoff = cutoff.linlin(-1, 1, 10, 20000);
     offset = offset.clip(1, 127);
     freq = offset.midicps;
-    blob = distance.linlin(0.0, 1.0, 0, 23); // XXX - finish this
+    // blob = distance.linlin(0.0, 1.0, 0, 8); // XXX - should be
+    blob = elevation.linlin(-1, 1, 0, 7); // XXX - test only
     // take into consideration growth of the octave distance with pitch
-    stretchFactor = ((offset + 12).midicps - freq).min(3);
-    detune = velocity.linexp(0, 1, 2, stretchFactor);
+    stretchFactor = ((offset + 12).midicps - freq).max(3);
+    detune = velocity.linexp(0, 1, 2, stretchFactor); // XXX - distance should also contribute to detune!
     // Synthesis.
-    in = VOsc3.ar(bufnum+blob, freq, freq+detune, freq-detune, velocity.scurve);
+    // amp = amp * velocity.scurve;
+    in = VOsc3.ar(bufnum+blob, freq, freq+detune, freq-detune, amp); // XXX - add when done with VOsc
+    // in = VOsc.ar(bufnum+blob, freq);
     // filter
-    signal = (amp * attenuate).clip(0, 1) * in;
+    signal = Limiter.ar(Mix.ar(attenuate * in));
     // Envelope.
     out = signal * master * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
@@ -908,12 +916,12 @@ SynthDef(\sr__e__sawy, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         azimuth=0, distance=0.5, elevation=0, velocity=0.5,
-        offset=36, cutoff=1000, rq=0.5, scope=12;
+        offset=36, cutoff= -0.9, rq=0.5, scope=12;
     var note, in, out, signal;
     // Conversion.
     note = DegreeToKey.kr(bufnum, elevation.linlin(-0.5pi, 0.5pi, 0, scope), 12, 1, offset);
     // Clip.
-    cutoff = cutoff.clip(10, 20000);
+    cutoff = cutoff.linlin(-1, 1, 10, 20000);
     amp = amp.clip(0, 1);
     note = note.clip(1, 127);
     // Synthesis.
@@ -928,19 +936,25 @@ SynthDef(\sr__e__sawy, {
 }).add;
 
 
-SynthDef(\sr__e__electro, {
+SynthDef(\sr__e__dust, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         azimuth=0, distance=0.5, elevation=0, velocity=0.5,
         offset=36, cutoff=1000, rq=0.5, scope=12;
     var note, in, out, signal;
+
+    // XXX - adapt this!
+    // var z = Decay.ar(Dust.ar(1.dup, 0.1), 0.3, WhiteNoise.ar);
+    // BufCombC.ar(LocalBuf(SampleRate.ir, 2), z, XLine.kr(0.0001, 0.01, 20), 0.2);
+    // }.play
+
     // Conversion.
     note = (
         DegreeToKey.kr(bufnum, elevation.linlin(-0.5pi, 0.5pi, 0, scope), 12, 1, offset)
         + LFNoise1.kr([3, 3], 0.04) // add some low freq stereo detuning
     );
     // Clip.
-    cutoff = cutoff.clip(10, 20000);
+    cutoff = cutoff.linlin(-1, 1, 10, 20000);
     amp = amp.clip(0, 1);
     note = note.clip(1, 127).midicps;
     // Synthesis.
@@ -964,15 +978,17 @@ SynthDef(\sr__e__wind, {
 	var in, out, signal;
     var fbase, shift;
     // Conversion.
-    fbase = distance.linexp(0, 1, 10, 40);
+    fbase = offset.linlin(-1, 1, 10, 40);
     shift = ((velocity * 30) ** 3).lag(0.01);
     // Clip.
-    cutoff = cutoff.clip(10, 20000);
+    cutoff = cutoff.linlin(-1, 1, 10, 20000);
     amp = amp.clip(0, 1);
     // Synthesis.
     in = Formlet.ar(
-        WhiteNoise.ar(SinOsc.ar(fbase, shift, 0.5, 1)).min(1) + SinOsc.ar(fbase, shift),
-        LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(0.5))), 2450, 2550), 0.01, 0.1
+        WhiteNoise.ar(SinOsc.ar(fbase, shift, 0.5, 1)).min(1),
+        // WhiteNoise.ar(SinOsc.ar(fbase, shift, 0.5, 1)).min(1) + SinOsc.ar(fbase, shift),
+        LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(0.5))), 2450, 2550),
+        0.01, 0.1
     ).softclip;
     in = [in, DelayN.ar(in, 0.04, 0.4)];
     in = Mix.fill(4, {AllpassN.ar(in, 0.5, [0.5.rand, 0.5.rand], 4, amp) * attenuate});

@@ -882,7 +882,11 @@ SynthDef(\sr__e__therem, {
 //       each buffer is a kind of "cloud" in space
 // XXX - advanced: clouds are "stretchy" - if a cloud is being "touched"
 //       with a velocity high enough, it stretches towards ... the center?
-//       or in the direction of an attractor (hand)?
+//       or in the direction of an attractor (hand)? use Delay in choosing
+//       the cloud!
+// XXX - the further from the center, the higher the inharmonicity, i.e. clouds
+//       affect signal in a way that they rip apart partials from the multiples
+//       of a fundamental freq.
 SynthDef(\sr__e__tbl, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
@@ -893,8 +897,7 @@ SynthDef(\sr__e__tbl, {
     cutoff = cutoff.linlin(-1, 1, 10, 20000);
     offset = offset.clip(1, 127);
     freq = offset.midicps;
-    // blob = distance.linlin(0.0, 1.0, 0, 8); // XXX - should be
-    blob = elevation.linlin(-1, 1, 0, 7); // XXX - test only
+    blob = distance.linlin(0.0, 1.0, 0, 7);
     // take into consideration growth of the octave distance with pitch
     stretchFactor = ((offset + 12).midicps - freq).max(3);
     detune = velocity.linexp(0, 1, 2, stretchFactor); // XXX - distance should also contribute to detune!

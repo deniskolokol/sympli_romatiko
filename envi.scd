@@ -6,7 +6,9 @@
 (
 var srEnv;
 var currentDir;
-var key, subkey, synthNames, conf, confFile, confKeys;
+var key, subkey, synthNames;
+var conf, confFile, confKeys;
+var seqPathsFile, seqPaths;
 var harmonics, numHarmonics, numWavetables;
 
 // root IDs for synths
@@ -28,8 +30,21 @@ try { // to load from conf file
     postf("OK\n\n");
 };
 
+// SEQUENCES
+//
+"Loading sequences...".postln;
+seqPathsFile = currentDir +/+ "conf/sequences.conf";
+seqPaths = ["", "Load..."];
+try { // to load from settings file
+    seqPaths = seqPaths ++ File(seqPathsFile, "r").readAllString.interpret;
+    postf("OK\n\n");
+};
+seqPaths = seqPaths.asList;
+
+
 srEnv = Environment.make {
     ~currentDir = currentDir;
+    ~seqPaths = seqPaths;
     ~surround = conf.atFail(\surround, {"ambisonic"});
     ~depth = conf.atFail(\depth, {3.5});
     ~inbus = conf.atFail(\inbus, {12});
@@ -316,6 +331,32 @@ srEnv = Environment.make {
             ]
         }).asSpec
     };
+
+    // Converts timecode to readable format.
+    ~convertTime = { |timecode|
+        var sec=0, min=0, minstring="00", secstring="00";
+        if(timecode >= 60) {
+            min = trunc(timecode / 60);
+            sec = round(timecode % 60, 0.1);
+        } {
+            sec = round(timecode,0.1)
+        };
+        if (min < 10) {minstring = "0"++min.asString} {minstring = min.asString};
+        if (sec < 10) {secstring = "0"++sec.asString} {secstring = sec.asString};
+        format("%:%", minstring, secstring);
+    };
+
+    // Obtains index of val in container (list, array, etc.)
+    // WARNING! Quick and dirty, not universal!
+    ~getIndex = { |container, val|
+        var ind;
+        if (val.class == String) {
+            container.do { |el, i| if (el == val) { ind = i } };
+        } {
+            ind = container.indexOf(val)
+        };
+        ind
+    };
 };
 currentEnvironment = srEnv;
 
@@ -327,19 +368,22 @@ currentEnvironment = srEnv;
 if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
     postf("OK\n\n")
 };
+
 // "Loading scheduler...".postln;
 // if (this.executeFile(
 // ~currentDir +/+ "scheduler.scd").isNil.not) {
 //     postf("OK\n\n")
 // };
-// "Loading world...".postln;
-// if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
-//     postf("OK\n\n")
-// };
-"Loading control matrix...".postln;
-if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
+
+"Loading world...".postln;
+if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
     postf("OK\n\n")
 };
+
+// "Loading control matrix...".postln;
+// if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
+//     postf("OK\n\n")
+// };
 
 
 CmdPeriod.doOnce({

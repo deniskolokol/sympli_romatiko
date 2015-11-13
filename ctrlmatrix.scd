@@ -55,13 +55,6 @@ paramDefs = (
     mul:       ( label: "mul",    minval: 0,      maxval: 1,      step: 0.01,  default: 1   ),
     amp:       ( label: "amp",    minval: 0,      maxval: 1,      step: 0.01,  default: 1   ),
     add:       ( label: "add",    minval: 0,      maxval: 1,      step: 0.001, default: 0   ),
-    // remove it!
-    add10:     ( label: "add",    minval: 0,      maxval: 10,     step: 0.01,  default: 0   ),
-    add100:    ( label: "add100", minval: 0,      maxval: 100,    step: 0.5,   default: 0   ),
-    add500:    ( label: "add500", minval: 10,     maxval: 500,    step: 1,     default: 10  ),
-    add1K:     ( label: "add1K",  minval: 100,    maxval: 1000,   step: 5,     default: 100 ),
-    add10K:    ( label: "add10K", minval: 100,    maxval: 10000,  step: 5,     default: 100 ),
-    add20K:    ( label: "add20K", minval: 1000,   maxval: 20000,  step: 10,    default: 1000),
 );
 // modulatable
 paramsKr = #[\mul, \add];
@@ -583,17 +576,9 @@ krN.do { |i|
         layout: \line2, scaleW: 0.22, scaleH: 0.8
     );
 
-    knobVacant = knob.(pane, paramDefs[\scope][\label],
-        spec: ~valAsApec.(paramDefs[\scope]),
-        action: { |kn|
-            // var scope=paramDefs[scopes[kn.value]];
-            // knobMin.controlSpec = ~valAsApec.(scope);
-            // knobMax.controlSpec = ~valAsApec.(scope);
-            // knobMin.labelView.string = scope[\minval].asString;
-            // knobMax.labelView.string = scope[\maxval].asString;
-            // knobMin.valueAction_(knobMin.value);
-            // knobMax.valueAction_(knobMax.value);
-        },
+    knobVacant = knob.(pane, "", // vacant
+        spec: \bipolar.asSpec,
+        action: { |kn| },
         layout: \line2, scaleW: 0.22, scaleH: 0.8
     );
 

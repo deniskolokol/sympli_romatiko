@@ -2,13 +2,13 @@
 // module: World
 // ---------------
 (
-var win, view;
-var paramsChanged;
-var world, worldParams, skel;
+var world, worldTrace, center, skel, sequence;
+var worldParams, miscParams;
+var star, physics, particles, springs, position;
+var synths, sGroupId;
 var oscParticle, oscPhysics, oscAction,
     oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
     oscRemoveFunc, oscGroupTree;
-var star, physics, particles, springs, position;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
@@ -16,9 +16,10 @@ var initParticle, removeParticle, removeAll,
     getSpringForParticle, setSpringProp;
 var resolveSpringEnd, decodeParticle;
 var skeleton, skeletonParticles, skeletonRemove,
-    defineGuide, getGuide, defineSource, chooseSource, jointVisible;
+    defineGuide, getGuide, defineSource, chooseSource,
+    jointVisible, springSrcSkel;
 var getParticlesOnSprings, getParticlesSkelVis, getParticlesHidden;
-var mag3D, sigmoid, xyz, xyz2ade, ade2xyz;
+var mag3D, sigmoid, xyz, xyz2ade, ade2xyz, xyz2plane;
 var ax, ay, az, azimuth, distance, elevation,
     guide, gx, gy, gz,
     gAzimuth, gDistance, gElevation;
@@ -26,70 +27,778 @@ var attractionsPhysical, springsPhysical, springMissed,
     particlesOnSprings, particlesSkelVis, particlesHidden,
     partColor, partSize;
 var listenerPos, currSpeaker, getSynthName;
-
+var win, viewWorld, viewLeft, viewRight, viewBottom,
+    paneWidth, paneHeight, compView, compViewFlow, panel,
+    postListener, sText, dropdown, slider,
+    button, buttonCheckbox, updateButtonLabel;
+var scale, translate, focal;
+var paramsChanged, defaultBuff;
+var stat, clean;
+var trigSynth, synthNames, trigCodes;
+var keyboardFunc, postMsg, fileNames;
+var loadSequence, eventInfo, switchEvent, processEvents, getKey;
+var groupNew, groupRemove, sendPhysics, sendSNew, sendNSet, taskPlay;
+var animateSeq, shade, current, next, count=0, blinked=0;
+var btCurrNum, stCurrInfo, btNextNum, stNextInfo, timeLabel, updateGui;
+var internalInLevels, internalOutLevels,
+    oscInternalInLevels, oscInternalOutLevels;
+var transparent=Color.grey(alpha:0.01),
+    font=Font("Monaco", 14),
+    fontSmall=Font("Monaco", 10),
+    fontLarge=Font("Monaco", 14),
+    fontGiant=Font("Monaco", 24),
+    fontColor=Color.green(0.8);
+var tmp;
 
 // INITIAL
 //
 // XXX - re-factor
-// `world` -> `worldParams`
 // `physics` -> `world`::`EnTraerWorld`(TraerParticleSystem) // EnTraer == Entropia of Traer Physics
 // all functions that work with particles and springs -> methods of `world`
 //
-world = (
-    starMass: 1,
-    particleDefaultMass: 0.5,
-    particleDefaultAge: inf,
-    particleOnSpring: 0.6,
-    mutualAttraction: true,
-    repulsion: 100,
-    gravity: (x: 0, y: 0, z: 0),
-    drag: 0.25,
-    maxVel: 5,
-
-    // springs behavior
-    springRestLen: 2,
-    springStrength: 1,
-    springDamp: 2,
-
-    // to what joints a particle can be attached by spring
-    springSrcSkel: [\r_hand, \l_hand],
-
+//
+worldParams = (
+    drag: (
+        label: "drag",
+        minval: 0.000,
+        maxval: 0.500,
+        step: 0.001,
+        default: 0.001,
+        midicc: 24,
+    ),
+    repulsion: (
+        label: "repulsion",
+        minval: 1,
+        maxval: 100,
+        step: 5,
+        default: 100,
+        midicc: 25,
+    ),
+    maxVel: (
+        label: "max vel",
+        minval: 0.5,
+        maxval: 10,
+        step: 0.1,
+        default: 5,
+    ),
+    starMass: (
+        label: "star mass",
+        minval: 0.1,
+        maxval: 5,
+        step: 0.1,
+        default: 1,
+        midicc: 26,
+    ),
+    gravX: (
+        label: "grav X",
+        minval: -2.1,
+        maxval: 2.0,
+        default: 0,
+        midicc: 27,
+    ),
+    gravY: (
+        label: "grav Y",
+        minval: -2.1,
+        maxval: 2.0,
+        default: 0,
+        midicc: 28,
+    ),
+    gravZ: (
+        label: "grav Z",
+        minval: -2.1,
+        maxval: 2.0,
+        default: 0,
+        midicc: 29,
+    ),
+    // springs
+    springRestLen: (
+        label: "rest len",
+        minval: 1,
+        maxval: 15,
+        step: 1,
+        default: 2,
+        midicc: 31,
+    ),
+    springStrength: (
+        label: "strength",
+        minval: 0.1,
+        maxval: 2,
+        default: 1,
+        midicc: 32,
+    ),
+    springDamp: (
+        label: "damp",
+        minval: 0.1,
+        maxval: 2,
+        default: 2,
+        midicc: 33,
+    ),
     // particles
-    particles:         0, // run particles
-    partSigmoidRatio:  0.7, // steepness of sigmoid function determiming
-                            // probability of particle being born
-    partFreq:          0.8, // generate new particle \partFreq times per second
-    partAgeThresh:     0.84, // maximum particle age in cycles (sec)
-    partInitAccel:     5, // particle initial acceleration
-    partSynth:         \sr__e__pulse
+    particles: (
+        label: "particl",
+        default: false,
+        midinote: 45,
+        hint: "run particles",
+    ),
+    partSigmoidRatio: (
+        label: "sigmoid",
+        minval: 0.3,
+        maxval: 0.9,
+        default: 0.7,
+        midicc: 34,
+        hint: "steepness of sigmoid function determiming probability of particle being born",
+    ),
+    partAgeThresh: (
+        label: "part age",
+        minval: 0.1,
+        maxval: 2,
+        default: 0.84,
+        midicc: 36,
+        hint: "maximum particle age in cycles (sec)",
+    ),
+    partInitAccel: (
+        label: "part accel",
+        minval: 0.5,
+        maxval: 30,
+        default: 5,
+        midicc: 14,
+        hint: "particle initial acceleration",
+    ),
+    partDefaultMass: (
+        label: "part mass",
+        minval: 0.1,
+        maxval: 1,
+        default: 0.5,
+    ),
+    partFreq: (
+        label: "part freq",
+        minval: 0.02,
+        maxval: 0.9,
+        default: 0.8,
+        midicc: 35,
+        hint: "generate new particle \partFreq times per second",
+    ),
+    partSynth: (
+        label: "part synth",
+        default: \sr__e__pulse,
+    ),
+    mutualAttraction: (
+        label: "mutual",
+        default: true,
+        midinote: 44,
+    ),
+    calibration: (
+        label: "calibr",
+        default: true,
+        midinote: 69,
+        hint: "static image if in calibration mode",
+    ),
 );
-try {
-    world.width = ~worldSize;
-    world.height = ~worldSize;
-    world.depth = ~worldSize;
-} {
-    world.width = 700;
-    world.height = 700;
-    world.depth = 700;
-};
-worldParams = Dictionary.newFrom(world); // tracing changes of the world
-skel = (
-    waitBeforeRemove: 5,
-    limit: 1
+
+// The World is a cube.
+world = Dictionary.new;
+world = (
+    width: Window.screenBounds.height*0.85,
+    height: Window.screenBounds.height*0.85,
+    depth: Window.screenBounds.height*0.85
 );
+worldParams.keysValuesDo { |k, v| world[k] = v[\default] }; // set default params
+
+worldTrace = Dictionary.newFrom(world); // tracing changes of the world
+
+// dictionary of the synths symbolic IDs vs. server Nodes
+synths =Dictionary.new;
+sGroupId = s.nextNodeID; // Group for synths not connected to objects.
+s.sendMsg("/g_new", sGroupId);
+
+// skeletons
+skel = (waitBeforeRemove: 5, limit: 1);
 skeleton = Dictionary.new;
-jointVisible = #[\l_hand, \l_elbow, \neck, \r_elbow, \r_hand];
+jointVisible = #[\l_hand, \l_elbow, \neck, \r_elbow, \r_hand]; // visualize only these joints
+springSrcSkel = #[\r_hand, \l_hand]; // joints that springs can be attached to
 listenerPos = ( // as default - center of the world
     x: world.width * 0.5,
     y: world.height * 0.5,
     z: world.depth * 0.5
 );
 
-// INTERFACE
+// Keycodes for triggering obj creation with a synth.
+trigCodes = [
+    12, "q", 13, "w", 14, "e", 15, "r", 17, "t", 16, "y",
+    32, "u", 34, "i", 31, "o", 35, "p", 33, "[", 30, "]",
+    1,  "s", 2,  "d", 3,  "f", 5,  "g", 4,  "h", 38, "j", 40, "k",
+    37, "l", 41, ";", 39, "\"", 42, "\\"
+];
+
+// collect keys and synths in a form of dict, unsorted
+synthNames = Dictionary.newFrom(
+    (all {: [~synths[k][\key], k],
+        k <- ~synths.keys,
+        trigCodes.includes(~synths[k][\key])
+    }).flatten
+);
+
+// sort it according to the order of elements in trigCodes
+trigSynth = (
+    all {: [key, synthNames[key]],
+        key <- all{: k, k <- trigCodes, trigCodes.indexOf(k).even}
+    }
+).flatten;
+
+// convert trigCodes to dictionary for easier access
+trigCodes = Dictionary.newFrom(trigCodes);
+
+// default scale buffer
+defaultBuff = Buffer.loadCollection(s, Scale.ahirbhairav.degrees);
+
+// Get only filenames from sequence paths.
+fileNames = { |paths|
+    paths[..1] ++ paths[2..].collect({|a| PathName(a).fileName })
+};
+
+// Miscelaneous parameters for GUI elements controllable by MIDI.
+miscParams = Dictionary.new;
+
+// Updates value of a GUI element upon sending a message to the world.
+// Sets .value, not .valueAction, because the action is performed already.
+updateGui = { |params|
+    params.pairsDo { |parm, val|
+        try { worldParams[parm][\gui].value_(val) }
+    }
+};
+
+// SEQUENCE
 //
-win = Window("Sympli Romatikó :: WORLD", Rect(0, 500, world.width, world.height), false);
-view = UserView(win, Rect(0, 0, world.width, world.height)).background = Color.black;
-view.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
+// Loads sequence from file.
+loadSequence = { |path|
+    postMsg.(format("Loading schedule %...\n", PathName.new(path).fileName));
+    removeAll.();
+    if (this.executeFile(path).isNil.not) {
+        postMsg.("OK\n\n");
+        sequence = ~sequence;
+        if (~seqPaths.asString.contains(path).not) {
+            ~seqPaths.insert(2, path); // to the top, but after ["", "Load.."]
+        };
+        ~getIndex.(~seqPaths, path)
+    } {
+        postMsg.("Not OK\n\n");
+        try {
+            ~seqPaths.removeAt(~getIndex.(~seqPaths, path));
+        };
+        0 // if unsuccessful, return 1st element ("")
+    };
+};
+
+// Obtain the key next/prev to current.
+getKey = { |curr, next=1|
+    var k, c;
+    k = sequence.events.keys.asArray.asInteger.sort;
+    c = k.indexOf(curr) ? -1;
+    k[c + next] ? k[0]; // Go back to beginning upon reaching the upper threshold.
+};
+
+
+// Converts all event's [\info] keys into info string.
+eventInfo = { |k=nil, lim=50|
+    var infoStr, val, sF;
+    val = sequence.events.atFail(k, {[]});
+    sF = { |l| format(" %\n", if (l.size <= lim) {l} {l[..lim] ++ "..."})};
+    infoStr = all{: sF.(l[\info].asString), l <- val, l.keys.includes(\info)};
+    "".catList(infoStr)
+};
+
+// Sets a label to a button in a current state.
+updateButtonLabel = { |btn, label|
+    var states=btn.states;
+    states[btn.value][0] = label;
+    btn.states = states;
+};
+
+// Switches to the next or prev event in a sequence
+// and updates GUI.
+switchEvent = { |nxt=1|
+    if (sequence.isNil.not) {
+        if (sequence.size > 0) {
+            current = getKey.(current, nxt);
+            updateButtonLabel.(btCurrNum, current);
+            stCurrInfo.string = eventInfo.(current);
+
+            next = getKey.(current, 1);
+            updateButtonLabel.(btNextNum, next);
+            stNextInfo.string = eventInfo.(next);
+
+            // bring it on!
+            blinked = 0; // blinking several times with red, then change to grey.
+            if (animateSeq.not && (nxt > 0)) { animateSeq = true };
+            processEvents.(current);
+        }
+    }
+};
+
+// Send World parameter(s).
+sendPhysics = { |params|
+    params = Dictionary.newFrom(params);
+    params.keysValuesDo { |k, v|
+        if (v == \default) { params[k] = worldParams[k][\default] }
+    };
+    params = params.asKeyValuePairs;
+    ~sendMessage.('/physics', params);
+    updateGui.(params)
+};
+
+// Run or stop task.
+taskPlay = { |task, play=false|
+    try {
+        if (play) {
+            task.play(doReset:true)
+        } {
+            task.stop.reset;
+        }
+    } { |err|
+        postMsg.(format("Error while trying to switch task % on or off:\n%\n", task, err));
+    };
+};
+
+// Send synth to server.
+sendSNew = { |data|
+    var node;
+    node = s.nextNodeID;
+    try { // Ignore the case when doneAction = 2.
+        synths.put(data[\synth][\id], node);
+    };
+    s.listSendMsg(["/s_new", data[\synth][\name], node, 0, sGroupId]
+        ++ data[\synth].atFail(\params, {[]})
+    );
+};
+
+// Send \n_set message to server.
+sendNSet = { |data|
+    s.listSendMsg(["/n_set",
+        synths.at(data[\synth].atFail(\id), {nil})]
+        ++ data[\synth].atFail(\params, {[]})
+    )
+};
+
+// Sends bundle to server, places everything mentioned to the top level group.
+// This is different from ~groupInit by allowing for an arbitrary number of
+// synths and flexible group's structure.
+groupNew = { |data, time=0.1|
+    var node, messages;
+    node = s.nextNodeID;
+    messages = data[\params];
+    messages.do { |l, i|
+        l.do { |m, j| // replace keywords with node ids
+            m.switch(
+                \group_id, { messages[i][j] = node },
+                \next_node_id, { messages[i][j] = s.nextNodeID }
+            )
+        }
+    };
+    messages = [["/g_new", node]] ++ messages; // add group creation
+    s.listSendBundle(time, messages);
+    synths.put(data[\id], node);
+};
+
+// Release all synths from group, wait until released, then remove group node from server.
+groupRemove = { |data|
+    var params=();
+    try { params.putPairs(data.atFail(\params, {[]})) };
+    ~groupFree.(synths[data[\id]], params.atFail(\release, {2}));
+    synths.removeAt(data[\id]);
+};
+
+
+// Process specific key from sequence.
+processEvents = { |key|
+    sequence.events.atFail(key, {[]}).do { |d, l|
+        d[\message].switch(
+            \physics, {
+                sendPhysics.(d[\params])
+            },
+            \audio, {
+                ~sendMessage.('/audio', d[\params])
+            },
+            \particle, {
+                ~sendParticle.(d[\particle], d[\synth])
+            },
+            \task, {
+                taskPlay.(sequence.tasks[d[\name]], d[\act].booleanValue)
+            },
+            \s_new, { sendSNew.(d) },
+            \n_set, { sendNSet.(d) },
+            \g_new, { groupNew.(d) },
+            \g_free, { groupRemove.(d) },
+            { ~sendMessage.(d[\message], d[\params]) }
+        )
+    }
+};
+
+
+// GUI: elements
+//
+paneWidth = { |par, scale=1| (par.bounds.width * scale - 6).floor };
+paneHeight = { |par, scale=1| (par.bounds.height * scale - 6).floor };
+compView = { |par, color, scaleW=1, scaleH=1|
+    CompositeView(par,
+        paneWidth.(par, scaleW)@paneHeight.(par, scaleH)
+    ).background_(color ? transparent);
+};
+compViewFlow = { |par, color, margin, gap, scaleW=1, scaleH=1|
+    var vw;
+    vw = compView.(par, color, scaleW, scaleH);
+    vw.decorator = FlowLayout(vw.bounds, margin ? 1@1, gap ? 1@1);
+    vw
+};
+sText = { |par, string, stringColor, stringFont, scaleH, scaleW=0.5|
+    var st, height;
+    if (scaleH.isNil) {
+        // height = st.sizeHint.height.max(20); // XXX - how to do that before creation of StaticText?
+        height = 20;
+    } {
+        height = paneHeight.(par, scaleH);
+    };
+    st = StaticText(par, paneWidth.(par, scaleW)@height);
+    st.string = string;
+    st.font = stringFont ? font;
+    st.stringColor = stringColor ? fontColor;
+    st
+};
+dropdown = { |par, label, items, action, initVal=0, initAction=false, scale=1|
+    var ezpum, labelWidth=0;
+    if (label.isNil.not) { labelWidth = label.size * 9};
+    ezpum = EZPopUpMenu(par,
+        bounds: paneWidth.(par, scale)@20,
+        label: label,
+        items: items,
+        globalAction: action,
+        initVal: initVal,
+        initAction: initAction,
+        labelWidth: labelWidth
+    )
+    .font_(font);
+    ezpum.setColors(
+        stringBackground:transparent,
+        stringColor:fontColor,
+        menuBackground: transparent,
+        menuStringColor:fontColor,
+        background:transparent
+    );
+    ezpum
+};
+button = { |par, label, labelColor, bgColor, scaleH=1, scaleW=1|
+    Button(par, paneWidth.(par, scaleW)@paneHeight.(par, scaleH))
+    .states_([[label, labelColor ? fontColor, bgColor ? transparent]])
+    .font_(font)
+    .canFocus_(false)
+};
+buttonCheckbox = { |par, label, labelColor, bgColor, scaleH=1, scaleW=1|
+    Button(par, paneWidth.(par, scaleW)@paneHeight.(par, scaleH))
+    .states_([
+        [label, labelColor ? fontColor, bgColor ? transparent],
+        [label, bgColor ? transparent, labelColor ? fontColor]
+    ])
+    .font_(font)
+    .canFocus_(false)
+};
+slider = { |par, name, val, layout='horz', scale=1|
+    var ezs, label, bounds;
+    bounds = paneWidth.(par)@20;
+    label = format(" % ", val.atFail(\label, { name }).asString);
+    if (layout != 'horz') { bounds = 40@(paneHeight.(par) * max(scale, 0.9)) };
+    ezs = EZSlider(par, bounds, label, ~valAsApec.(val),
+        { |ez| ~sendMessage.('/physics', [name, ez.value]) },
+        layout:layout, labelWidth:80, numberWidth:40)
+    .font_(fontSmall);
+
+    ezs.setColors(
+        stringColor:fontColor,
+        sliderBackground:Color.black,
+        numBackground:Color.grey(alpha:0.5),
+        numNormalColor:fontColor,
+        background:transparent
+    );
+};
+
+
+// GUI: Window
+win = Window("world", Window.screenBounds.width@Window.screenBounds.height, false);
+win.view.decorator = FlowLayout(win.view.bounds, 1@1, 1@1);
+win.background = Color.black;
+
+// GUI: Top-level layout
+compViewFlow.(win, scaleH:0.03);
+viewLeft = compViewFlow.(win,
+    scaleW:(0.5*(win.bounds.width-world.width)/win.bounds.width),
+    scaleH:world.height/win.bounds.height
+);
+viewWorld = UserView(win, world.width@world.height);
+viewRight = compViewFlow.(win,
+    scaleW:(0.5*(win.bounds.width-world.width)/win.bounds.width),
+    scaleH:world.height/win.bounds.height
+);
+viewBottom = compViewFlow.(win,
+    scaleH:(win.bounds.height-world.height)/win.bounds.height
+);
+
+// GUI: stat panel
+panel = compViewFlow.(viewLeft, margin:5@5, scaleH:0.15);
+stat = Dictionary.new;
+[
+    (label: "particles", func: { physics.particles.size }),
+    (label: "springs", func: { physics.springs.size }),
+    (label: "attractions", func: { physics.attractions.size }),
+    (label: "entropy", func: {
+        1.38065e-23 * log( // XXX - find and manage a proper formula!
+            physics.particles.size.max(1)*
+            physics.springs.size.max(1)*
+            physics.attractions.size.max(1)
+        )
+    }),
+    (label: "skeletons", func: { format("% %", skeleton.size, skeleton.keys.asArray) }),
+].do { |item|
+    var key;
+    sText.(panel, item.label);
+    item[\gui] = sText.(panel, "0");
+    key = item.label.asString.toLower.replace(" ", "_").asSymbol;
+    stat[key] = item;
+};
+
+// GUI: internal levels (dBFS)
+panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:0.1);
+sText.(panel, "0", stringFont:fontSmall, scaleH:0.15, scaleW:0.8).align_(\right);
+sText.(panel, "", stringFont:fontSmall, scaleH:0.65, scaleW:1); // gap
+sText.(panel, "-80", stringFont:fontSmall, scaleH:0.2, scaleW:0.8).align_(\right);
+
+internalInLevels = Array.fill(s.options.numInputBusChannels, {nil});
+internalOutLevels = Array.fill(s.options.numOutputBusChannels, {nil});
+
+tmp = s.options.numInputBusChannels / (
+    s.options.numInputBusChannels + s.options.numOutputBusChannels
+);
+panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:tmp);
+s.options.numInputBusChannels.do { |j|
+    internalInLevels[j] = LevelIndicator(panel, 19@(panel.bounds.height*0.8))
+    .background_(Color.clear)
+    .warning_(0.7)
+    .critical_(0.9)
+    .numTicks_(11)
+    .numMajorTicks_(3)
+    .drawsPeak_(true)
+};
+sText.(panel, "inputs", stringFont:fontSmall, scaleH:0.15, scaleW:1);
+tmp = 0.85 * s.options.numOutputBusChannels / (
+    s.options.numInputBusChannels + s.options.numOutputBusChannels
+);
+panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:tmp);
+s.options.numOutputBusChannels.do { |j|
+    internalOutLevels[j] = LevelIndicator(panel, 19@(panel.bounds.height*0.8))
+    .background_(Color.clear)
+    .warning_(-6.dbamp)
+    .critical_(-3.dbamp)
+    .numTicks_(11)
+    .numMajorTicks_(3)
+    .drawsPeak_(true)
+};
+sText.(panel, "outputs", stringFont:fontSmall, scaleH:0.15, scaleW:1);
+
+// GUI: post window
+panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.7);
+sText.(panel, "", scaleH:0.1, scaleW:1); // gap
+panel.decorator.nextLine;
+postListener = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.88))
+    .editable_(false)
+    .font_(fontSmall)
+    .stringColor_(fontColor)
+    .background_(transparent)
+    .hasVerticalScroller_(false)
+    .canFocus_(false);
+
+// GUI: scheduler
+panel = compViewFlow.(viewRight, gap:5@5, scaleH:0.15);
+// current event number and info
+btCurrNum = button.(panel, ">>",
+    bgColor:Color.gray(0.15), scaleH:0.5, scaleW:0.2
+).action_({ |bt| switchEvent.(-1)});
+miscParams[\prev] = ( // make it controllable by midi
+    midinote: 46,
+    gui: btCurrNum
+);
+stCurrInfo = sText.(panel, "", scaleH:0.5, scaleW:0.8);
+stCurrInfo.background = Color.gray(0.15);
+// next (awaiting) event number and info
+btNextNum = button.(panel, "<<",
+    bgColor:Color.gray(0.15), scaleH:0.5, scaleW:0.2
+).action_({ |bt|
+    switchEvent.(1)
+});
+miscParams[\next] = ( // make it controllable by midi
+    midinote: 43,
+    gui: btNextNum
+);
+stNextInfo = sText.(panel, "", scaleH:0.5, scaleW:0.8);
+stNextInfo.background = Color.gray(0.15);
+
+// open file with sequence
+panel = compViewFlow.(viewRight, gap:10@10, scaleH:0.05);
+// time elapsed since the start
+timeLabel = sText.(panel, ~convertTime.(0), stringFont:fontGiant, scaleW:0.35);
+dropdown.(panel, "sequence",
+    items: fileNames.(~seqPaths),
+    initVal: if (~seqPaths.size > 2) { 2 } { 0 },
+    action: { |element|
+        var val, states, top=2;
+
+        animateSeq = false;
+        case
+        { element.value == 1 } {
+            postMsg.("element.value == 1");
+            Dialog.openPanel({ |path|
+                val = loadSequence.(path);
+                element.items = fileNames.(~seqPaths);
+                element.value = val;
+            });
+        }
+        { element.value > 1 } {
+            val = loadSequence.(~seqPaths[element.value]); // open from file
+            if (val > top) { // place at the top
+                ~seqPaths.insert(top, ~seqPaths.pop(val));
+                element.items = fileNames.(~seqPaths);
+                element.value = top;
+            };
+        };
+        current = -1;
+        updateButtonLabel.(btNextNum, getKey.(current, 1).asString);
+        stNextInfo.string = eventInfo.(0);
+        timeLabel.string = ~convertTime.(0);
+    },
+    initAction: true,
+    scale:0.65
+);
+
+// slider controllers for physics params
+panel = compViewFlow.(viewRight, scaleH:0.4, margin:10@30);
+[
+    \drag, \repulsion, \maxVel, \starMass,
+    \gravX, \gravY, \gravZ,
+    \springRestLen, \springStrength, \springDamp,
+    \partSigmoidRatio, \partAgeThresh, \partInitAccel,
+    \partDefaultMass, \partFreq
+].do { |key|
+    worldParams[key][\gui] = slider.(panel, key, worldParams[key]);
+};
+
+// slider controllers for misc params
+panel = compViewFlow.(viewRight, scaleH:0.2, margin:10@30);
+miscParams[\serverVolume] = (
+    midicc: 12, spec: \db,
+    gui: slider.(panel, "sVol", (label: "s.vol", spec: \db))
+               .action_({ |sl| s.volume.volume = sl.value })
+               .value_(1)
+);
+miscParams[\maxDist] = (
+    midicc: 12,
+    gui: slider.(panel, "maxDist",
+        (label: "dist", spec: [1, 30, \lin, 0.1, ~speakers.maxDist])
+    )
+    .action_({ |sl| ~speakers.maxDist = sl.value })
+    .value_(~speakers.maxDist)
+);
+miscParams[\depth] = (
+    midicc: 15,
+    gui: slider.(panel, "depth",
+        (label: "depth", minval: 1, maxval: 10, step: 0.1, default: 5)
+    ).action_({ |ez|
+        ~depth = ez.value;
+        ~sendMessage.('/audio', [\depth, ~depth])
+    })
+);
+
+panel = compViewFlow.(viewRight, scaleH:0.2, margin:30@30, gap:10@10);
+// button based physics params
+[\particles, \mutualAttraction, \calibration].do { |key|
+    worldParams[key][\gui] = buttonCheckbox.(
+        panel,
+        worldParams[key][\label],
+        bgColor:Color.black, scaleW:0.267, scaleH:0.2
+    )
+    .value_(worldParams[key][\default])
+    .action_({ |bt| sendPhysics.([key, bt.value]) })
+};
+// button based misc params
+miscParams[\removeall] = (
+    midinote: 70,
+    gui: button.(panel,
+        "X", bgColor:Color.black, scaleW:0.405, scaleH:0.2
+    ).action_({ |bt| removeAll.() })
+);
+miscParams[\reset] = (
+    midinote: 58,
+    gui: button.(panel,
+        "RESET", bgColor:Color.black, scaleW:0.405, scaleH:0.2
+    ).action_({ |bt|
+        worldParams.values.do { |element|
+            if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
+                element[\gui].valueAction_(element[\default])
+            }
+        }
+    })
+);
+
+
+// GUI: trigger objects keyboard)
+keyboardFunc = { |synthName, params, spring=0, mass=1|
+    ~sendParticle.(
+        particle:(spring:spring, mass:mass),
+        synth:(name: synthName, params: params)
+    )
+};
+panel = compViewFlow.(viewBottom, margin:5@10);
+trigSynth.do { |key, i|
+    var vw, buff;
+    if (trigCodes[key].isNil.not) {
+        vw = compViewFlow.(panel, scaleW:synthNames.size.reciprocal);
+        vw.decorator = FlowLayout(vw.bounds);
+        sText.(vw,
+            synthNames[key].asString.replace("sr__e__", "").replace("sr__g__", ""),
+            scaleW:1
+        );
+        button.(vw, trigCodes[key].toUpper, bgColor:Color.black, scaleH:0.3)
+        .action_({ |bt|
+            var buff;
+            if (sequence.size > 0) {
+                if (synthNames[key].asString.beginsWith("sr__e__")) {
+                    buff = sequence.scales[0]
+                };
+                if (synthNames[key].asString.beginsWith("sr__g__")) {
+                    buff = sequence.voices.choose
+                };
+            } {
+                buff = defaultBuff
+            };
+            keyboardFunc.(synthNames[key], params: [\bufnum, buff.bufnum], spring:1)
+        });
+        NumberBox(vw, (vw.bounds.width*0.9)@20)
+        .clipLo_(0.01)
+        .clipHi_(2)
+        .step_(0.01)
+        .align_(\right)
+        .font_(font)
+        .normalColor_(fontColor)
+        .background_(Color.grey(alpha:0.5))
+        .action_({ |nb|
+            ~synths[synthNames[key]][\attenuate] = nb.value;
+        })
+        .value_(
+            ~synths.atFail(
+                synthNames[key],
+                {~synths[\sr__e__silent]}
+            )[\attenuate]
+        )
+    }
+};
+
+
+viewWorld.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
     var speakerPos, speakerSize, speakers2Remove, processed=false;
     case
     { [0, 256].includes(modifiers) } { // no modifiers
@@ -120,13 +829,18 @@ view.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
                 ) {
                     if (clickCount == 2) {
                         ~speakers.removeSpeaker(i);
+                        currSpeaker = nil;
                     } {
-                        #azimuth, distance, elevation = xyz2ade.([x, y].asPoint);
-                        ~speakers.items[i].dist = distance.linlin(0, 1, 0, ~speakers.maxDist);
-                        ~speakers.items[i].azim = azimuth;
                         currSpeaker = i;
-                    }
-                }
+                    };
+                };
+            };
+            #azimuth, distance, elevation = xyz2ade.([x, y].asPoint);
+            try {
+                ~speakers.items[currSpeaker].dist = distance.linlin(0, 1, 0, ~speakers.maxDist);
+                ~speakers.items[currSpeaker].azim = azimuth;
+            } { |err|
+                if (err.class != PrimitiveFailedError ) { err.throw }
             };
         };
     }
@@ -142,13 +856,33 @@ view.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
     { modifiers == 131072 } { // Shift + Mouse
     }
 };
-view.mouseMoveAction = view.mouseDownAction;
-view.mouseUpAction = {
+viewWorld.mouseMoveAction = viewWorld.mouseDownAction;
+viewWorld.mouseUpAction = {
     currSpeaker = nil
 };
 
 win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
     case
+    { keycode == 8 } { // C
+        if (modifiers == 262144) { // Ctrl + C
+            clean.();
+        }
+    }
+    { keycode == 3 } { // F
+        if (modifiers == 262144) { // Ctrl + F
+            if (win.bounds == Window.screenBounds) {
+                win.endFullScreen
+            } {
+                win.fullScreen
+            }
+        }
+    }
+    { keycode == 53 } { // ESC
+        if (win.bounds == Window.screenBounds) {
+            win.endFullScreen
+        }
+    }
+
     // X - remove all particles and synths
     { keycode == 7 && [0, 256].includes(modifiers) } { removeAll.() }
 
@@ -175,7 +909,7 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
         );
         b.sendMsg('/particle', 1, g, 1,
             rrand(0.8, 2.0), 600.rand, 600.rand, 600.rand, inf
-            );
+        );
     }
     { keycode == 24 && [0, 256].includes(modifiers) } { // "+" ("=")
         if (currSpeaker.isNil.not) { // increase speaker elevation
@@ -193,22 +927,47 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
     }
 };
 
-view.drawFunc = { |worldView|
+viewWorld.drawFunc = { |view|
+    // update stat
+    stat.keysValuesDo { |key, unit|
+        unit[\gui].string = unit.func.();
+    };
+
+    if (world.calibration.booleanValue) {
+        Pen.scale(1, 1);
+        Pen.translate(0, 0);
+        center = [world.width/2, world.height/2].asPoint;
+        scale = star.position.z.linlin(0, world.depth, 0.2, 1);
+        translate = scale.linlin(0.2, 1, world.height/2, 0);
+        focal = star.position.x.linlin(0, world.width, 0, 100);
+        // Pen.scale(scale, scale);
+        // Pen.translate(translate, translate);
+    } {
+        center = xyz2plane.(
+            [world.width/2, world.height/2],
+            world, scale, focal
+        ).asPoint;
+    };
+
+    // draw floor
+    Pen.color = Color.white;
+    Pen.strokeRect(Rect.aboutPoint(center, world.width, world.height));
+
     // maxDist
-    Pen.color = Color.new255(48, 45, 92, 150);
-    Pen.fillOval(Rect.aboutPoint(
-        Point(world.width * 0.5, world.height * 0.5),
-        world.width * 0.5, world.height * 0.5));
+    // Pen.color = Color.new255(48, 45, 92, 150);
+    Pen.color = Color.new255(110, 45, 48, 100);
+    Pen.fillOval(Rect.aboutPoint(center, world.width/2, world.height/2));
 
     // depth
-    Pen.color = Color.new255(108, 107, 152, 50);
+    // Pen.color = Color.new255(108, 107, 152, 50);
+    Pen.color = Color.new255(182, 107, 108, 50);
     Pen.fillOval(Rect.aboutPoint(
-        Point(world.width * 0.5, world.height * 0.5),
-        ~depth.linlin(1, 10, 20, world.height * 0.5),
-        ~depth.linlin(1, 10, 20, world.height * 0.5)));
+        center,
+        ~depth.linlin(1, 10, 20, world.height*0.5),
+        ~depth.linlin(1, 10, 20, world.height*0.5)));
 
-    // calibration marks
-    Pen.color = Color.grey(0.7);
+    // calibration marks & lines
+    Pen.color = fontColor;
     Pen.stringAtPoint("-0.25", [5, 5].asPoint);
     Pen.stringAtPoint("0", [5, (world.height - 15) * 0.5].asPoint);
     Pen.stringAtPoint("0.25", [5, world.height - 20].asPoint);
@@ -217,8 +976,12 @@ view.drawFunc = { |worldView|
     Pen.stringAtPoint("1", [world.width - 15, (world.height - 15) * 0.5].asPoint);
     Pen.stringAtPoint("-0.75", [world.width - 45, 5].asPoint);
     Pen.stringAtPoint("-0.5", [(world.width - 35) * 0.5, 5].asPoint);
-    Pen.line([world.width * 0.5, 25].asPoint, [world.width * 0.5, world.height - 25].asPoint);
-    Pen.line([25, world.height * 0.5].asPoint, [world.width - 25, world.height * 0.5].asPoint);
+    Pen.line([world.width * 0.5, 25].asPoint, [world.width*0.5, world.height-25].asPoint);
+    Pen.line([25, world.height * 0.5].asPoint, [world.width-25, world.height*0.5].asPoint);
+    Pen.line([25, 25].asPoint, [world.width*0.14, world.height*0.14].asPoint);
+    Pen.line([world.width*0.86, world.height*0.86].asPoint, [world.width-25, world.height-25].asPoint);
+    Pen.line([world.width-25, 25].asPoint, [world.width*0.86, world.height*0.14].asPoint);
+    Pen.line([world.width*0.14, world.height*0.86].asPoint, [25, world.height-25].asPoint);
     Pen.stroke;
 
     // speakers
@@ -261,12 +1024,12 @@ view.drawFunc = { |worldView|
     };
 
     paramsChanged = false;
-    if (worldParams != world) {
+    if (worldTrace != world) {
         paramsChanged = true;
-        worldParams = Dictionary.newFrom(world);
+        worldTrace = Dictionary.newFrom(world);
         // some should be updated directly
         star.mass = world.starMass;
-        physics.setGravity(world.gravity.x, world.gravity.y, world.gravity.z);
+        physics.setGravity(world.gravX, world.gravY, world.gravZ);
         physics.setDrag(world.drag);
     };
 
@@ -282,7 +1045,7 @@ view.drawFunc = { |worldView|
 
     // Particle system.
     if (world.particles.booleanValue) {
-        if (worldView.frame % (worldView.frameRate * world.partFreq).round == 0) {
+        if (view.frame % (view.frameRate * world.partFreq).round == 0) {
             particleSystem.(defineGuide.())
         }
     };
@@ -374,8 +1137,8 @@ view.drawFunc = { |worldView|
         if (particlesHidden.includes(particle).not) {
             case
             {particle == star} {
-                partColor = Color.red;
-                partSize = 15
+                partColor = Color.red(alpha:star.position.z.linlin(0, world.depth, 0.7, 0.3));
+                partSize = 40
             }
             { particlesSkelVis.includes(particle) } {
                 partColor = Color.white;
@@ -463,7 +1226,7 @@ decodeParticle = { |particle|
         result = "Star"
     } {
         skeleton.keysValuesDo { |skel, joints|
-            world.springSrcSkel.do { |jt|
+            springSrcSkel.do { |jt|
                 if (joints[jt] == particle) {
                     result = format("% - %", skel, jt)
                 };
@@ -481,7 +1244,7 @@ registerSpring = { |spring|
     if (spring.isNil.not) {
         #endA, endB = [spring.a, spring.b];
         skeleton.keysValuesDo { |skel, joints|
-            world.springSrcSkel.do { |jt|
+            springSrcSkel.do { |jt|
                 if (joints[jt] == endA) { endA = jt };
                 if (joints[jt] == endB) { endB = jt };
             };
@@ -525,7 +1288,7 @@ registerSprings = { |springsList|
 
 // Translates spring end from joint name to particle.
 resolveSpringEnd = { |end|
-    if (world.springSrcSkel.includes(end)) {
+    if (springSrcSkel.includes(end)) {
         try {
             end = skeleton[skeleton.keys.asArray[0]][end]
         } {
@@ -611,11 +1374,11 @@ applyAttractions = { |particle, mutual=false|
     };
     // Gather lists of skeleton joints, that should /should not attract particles.
     skeleton.values.do { |skel|
-        // exclude skeleton's particles that are not in world.springSrcSkel
+        // exclude skeleton's particles that are not in springSrcSkel
         excludeParticles = all {: skel[joint], joint <- skel.keys,
-            world.springSrcSkel.includes(joint).not
+            springSrcSkel.includes(joint).not
         } ? [];
-        world.springSrcSkel.do { |joint|
+        springSrcSkel.do { |joint|
             skeletonParticles.add(skel[joint])
         }
     };
@@ -652,7 +1415,7 @@ applyAttractions = { |particle, mutual=false|
 chooseSource = {
     var mass, sources = IdentityDictionary.new;
     skeleton.keysValuesDo { |num, skel|
-        world.springSrcSkel.do { |joint|
+        springSrcSkel.do { |joint|
             mass = 0;
             physics.springs.do { |spring|
                 // joint is always a source
@@ -667,7 +1430,7 @@ chooseSource = {
     sources.findKeyForValue(sources.values.minItem)
     ??
     // if there are none, the probabilities of picking any of them are equal
-    skeleton.choose[world.springSrcSkel.choose]
+    skeleton.choose[springSrcSkel.choose]
 };
 
 
@@ -685,7 +1448,7 @@ defineSource = { |starAllowed=false|
 defineGuide = {
     var guides = IdentityDictionary[star -> mag3D.(star.velocity)];
     skeleton.keysValuesDo { |skel, joints|
-        world.springSrcSkel.do { |jt|
+        springSrcSkel.do { |jt|
             // WARNING! Skeleton joints do not possess velocity,
             // the following doesn't work:
             //guides[joints[jt]] = mag3D.(joints[jt].velocity);
@@ -718,7 +1481,7 @@ initParticle = { |mass, x, y, z, age, vel|
     } {
         #x, y, z = [x ? world.width.rand, y ? world.height.rand, z ? world.depth.rand]
     };
-    particle = physics.makeParticle(mass ? world.particleDefaultMass, x, y, z);
+    particle = physics.makeParticle(mass ? world.partDefaultMass, x, y, z);
     try {
         particle.velocity.set(vel[0], vel[1], vel[2])
     };
@@ -899,6 +1662,21 @@ mag3D = { |vec|
 sigmoid = { |ratio, value| 1 / (1 + exp((ratio * value).neg))};
 
 
+// Project 3D coordinates on the plane.
+// pos = Dictionary[x, y, z]
+// space = Dictionary[width, height, depth]
+xyz2plane = { arg pos, space, scale=1, focal=0.5;
+    var x, y, z, ox, oy;
+    z = space.depth - pos.z / (space.depth * scale);
+    z = z.linlin(0, space.depth, focal, 1);
+    x = pos.x * z;
+    y = pos.y * z;
+    ox = 1 - z * (space.width * 0.5) + x;
+    oy = 1 - z * (space.height * 0.5) + y;
+    [ox, oy]
+};
+
+
 // Returns azimuth, distance and elevation for a position defined as [x, y, z]
 xyz2ade = { |position|
     var pos, elev;
@@ -906,14 +1684,16 @@ xyz2ade = { |position|
         position.x.linlin(0, world.width, 1, -1), // y
         position.y.linlin(0, world.height, -1, 1) // x
     );
-    elev = position.z.linlin(0, world.depth, 0.5pi, -0.5pi);
+    elev = position.z.linlin(0, world.depth, 0.5pi, -0.5pi); // inverse
     [
         pos.theta, // azimuth
         pos.rho, // distance from center
-        elev // elevation (inverse)
+        elev // elevation
     ]
 };
 
+
+// Converts (azimuth, distance, elevation) to (x, y, z)
 ade2xyz = { |position, maxDist|
     var pos, distAdj;
     var mC = 2.sqrt; // max in Cartesian plane (from center to wall)
@@ -927,7 +1707,7 @@ ade2xyz = { |position, maxDist|
 };
 
 
-// Reurns x, y and z in required format.
+// Returns x, y and z in required format.
 xyz = { |position|
     [
         position.x / world.width,
@@ -937,12 +1717,31 @@ xyz = { |position|
 };
 
 
+// XXX - change this with re-directing all POST messages
+// post message to local listener
+postMsg = { |msg|
+    var buffersize=1e+5;
+    msg = msg.asString;
+    if (msg.endsWith("\n").not) { msg = msg ++ "\n" };
+    {
+        if (postListener.string.size > buffersize) { // do not grow too long
+            postListener.string = postListener.string[(postListener.string.size-buffersize)..]
+        };
+        postListener.string = postListener.string ++ msg;
+        postListener.stringColor_(fontColor);
+        postListener.select(postListener.string.size, 1); // autoscroll
+    }.defer;
+    msg.post;
+};
+
+
 // OSC
 //
 // Catch messages related to particles.
 oscParticle = OSCFunc({ |msg, time, addr, recvPort|
     var particle, node, age, mass, x, y, z, spring, registered;
-    postf("from % received %\n", addr, msg);
+    // postf("from % received %\n", addr, msg);
+    postMsg.(format("from % received %\n", addr, msg));
     node = msg[2];
     msg[1].switch(
         1, { // create particle
@@ -975,31 +1774,22 @@ oscParticle = OSCFunc({ |msg, time, addr, recvPort|
 // Catch messages related to physics.
 oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
     var x, y, z;
-    postf("from % received %\n", addr, msg);
+    // postf("from % received %\n", addr, msg);
+    postMsg.(format("from % received %\n", addr, msg));
     msg[1].switch(
         \gravity, {
-            try {
-                #x, y, z = msg[2..].asFloat
-            } {
-                #x, y, z = world.gravity.atAll([\x, \y, \z])
-            };
-            world.gravity = (x: x, y: y, z: z)
+            #x, y, z = msg[2..].asFloat;
+            world.gravX = x;
+            world.gravY = y;
+            world.gravZ = z;
         },
-        \gravX, {
-            world.gravity = (x: msg[2].asFloat, y: world.gravity.y, z: world.gravity.z)
-        },
-        \gravY, {
-            world.gravity = (x: world.gravity.x, y: msg[2].asFloat, z: world.gravity.z)
-        },
-        \gravZ, {
-            world.gravity = (x: world.gravity.x, y: world.gravity.y, z: msg[2].asFloat)
-        },
-        \drag, {
-            world.drag = msg[2].asFloat
-        },
-        \repulsion, {
-            world.repulsion = msg[2].asFloat
-        },
+        \gravX, { world.gravX = msg[2].asFloat },
+        \gravY, { world.gravY = msg[2].asFloat },
+        \gravZ, { world.gravZ = msg[2].asFloat },
+        \drag, { world.drag = msg[2].asFloat },
+        \repulsion, { world.repulsion = msg[2].asFloat },
+        \mutualAttraction, { world.mutualAttraction = msg[2].asInteger },
+        \particles, { world.particles = msg[2].asInteger },
         \star, {
             msg[2].switch(
                 \fixed, { star.makeFixed },
@@ -1028,7 +1818,8 @@ oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
 
 // Catch action messages.
 oscAction = OSCFunc({ |msg, time, addr, recvPort|
-    postf("from % received %\n", addr, msg);
+    // postf("from % received %\n", addr, msg);
+    postMsg.(format("from % received %\n", addr, msg));
     msg[1].switch(
         \remove, {
             if (msg[2] == \all) {
@@ -1046,13 +1837,15 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
 
 // Catch messages related to skeleton.
 oscSkeletonLost = OSCFunc({ |msg, time, addr, recvPort|
-    postf("from % received %\n", addr, msg);
+    // postf("from % received %\n", addr, msg);
+    postMsg.(format("from % received %\n", addr, msg));
     skeletonRemove.(msg[1]);
 }, '/lost_skel');
 
 
 oscSkeletonNew = OSCFunc({ |msg, time, addr, recvPort|
-    postf("from % received %\n", addr, msg);
+    // postf("from % received %\n", addr, msg);
+    postMsg.(format("from % received %\n", addr, msg));
     skeletonParticles.(msg[1]);
 }, '/new_skel');
 
@@ -1087,6 +1880,30 @@ oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
     };
 }, '/g_queryTree.reply');
 
+// 0 - 3, 4
+// 1 - 5, 6
+// 2 - 7, 8
+// 3 - 9, 10
+//
+// (0..3).collect { |j| (3+[j*2, j*2+1]).postln}
+//
+oscInternalInLevels = OSCFunc({ |msg, time, addr, recvPort|
+    {
+        internalInLevels.do { |elem, j|
+            elem.peakLevel = msg[3+(j*2)].ampdb.linlin(-80, 0, 0, 1);
+            elem.value = msg[3+(j*2+1)].ampdb.linlin(-80, 0, 0, 1);
+        }
+    }.defer;
+}, '/internalInLevels');
+
+oscInternalOutLevels = OSCFunc({ |msg, time, addr, recvPort|
+    {
+        internalOutLevels.do { |elem, j|
+            elem.peakLevel = msg[3+(j*2)].ampdb.linlin(-80, 0, 0, 1);
+            elem.value = msg[3+(j*2+1)].ampdb.linlin(-80, 0, 0, 1);
+        }
+    }.defer;
+}, '/internalOutLevels');
 
 // Remove all OSC functions.
 oscRemoveFunc = {
@@ -1095,6 +1912,8 @@ oscRemoveFunc = {
     oscSkeletonLost.free;
     oscSkeletonJoint.free;
     oscGroupTree.free;
+    oscInternalInLevels.free;
+    oscInternalOutLevels.free;
 };
 
 
@@ -1109,11 +1928,63 @@ star = initParticle.(world.starMass, world.width/2, world.height/2, world.depth/
 applyAttractions.(star, world.mutualAttraction);
 
 // Animate!
-view.animate = true;
-win.front;
+viewWorld.animate = true;
 
-CmdPeriod.doOnce({
+{ // GLOBAL APP CLOCK. Resolution: 100 milliseconds (0.1 of a second)
+    while {win.isClosed.not} {
+        if (animateSeq) {
+            count = count + 1;
+
+            // blinking "next event" info.
+            shade = (count % 8) * 0.1;
+            if (blinked < 40) { // = 8 * 5times
+                stCurrInfo.stringColor = Color.red(shade);
+                blinked = blinked + 1;
+            } {
+                stCurrInfo.stringColor = fontColor;
+            };
+            stNextInfo.stringColor = Color.green(shade);
+            timeLabel.string = ~convertTime.(count / 10);
+
+            if (count % 10 == 0) {
+                // TODO: process timemarks
+            };
+        };
+        0.1.wait;
+    }
+}.fork(AppClock);
+
+// physics and miscellaneous parameters controlled by MIDI
+MIDIIn.connectAll;
+(worldParams.values ++ miscParams.values).do { |element|
+    if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
+        MIDIFunc.cc({ |val, ccNum, chan, srcID|
+            {
+                element[\gui].valueAction_(
+                    ~valAsApec.(element).map(\midinote.asSpec.unmap(val))
+                )
+            }.defer;
+        }, element[\midicc], 0);
+    };
+    if (element.keys.includes(\midinote) && element[\gui].isNil.not) {
+        MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
+            {
+                element[\gui].valueAction_(1 - element[\gui].value)
+            }.defer;
+        }, element[\midinote], 0);
+    }
+};
+
+// clean everything on exit
+clean = {
     oscRemoveFunc.();
     win.close;
+    // MIDIIn.disconnect; // XXX - add midi and bring it back!
+};
+
+CmdPeriod.doOnce({
+    clean.();
 });
+
+win.front;
 )

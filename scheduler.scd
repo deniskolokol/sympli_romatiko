@@ -85,7 +85,8 @@ physics = (
     springStrength:   ( label: "strength",  minval: 0.1,   maxval: 2,                  default: 1,     midicc: 32   ),
     springDamp:       ( label: "damp",      minval: 0.1,   maxval: 2,                  default: 2,     midicc: 33   ),
     mutualAttraction: ( label: "mutual",                                               default: true,  midinote: 44 ),
-    particles:        ( label: "particl",                                              default: false, midinote: 45 )
+    particles:        ( label: "particl",                                              default: false, midinote: 45 ),
+    calibration:      ( label: "calibr",                                               default: true,  midinote: 69 )
 );
 physics.keys.do { |key|
     physics[key][\gui] = nil; // GUI element that controls the parameter
@@ -574,7 +575,10 @@ miscParams[\depth] = (
 // RIGHT PANE BOTTOM
 pane = CompositeView(panePar, paneWidth.(panePar, 0.8)@paneHeight.(panePar, 0.17));
 pane.decorator = FlowLayout(pane.bounds);
-3.do { button.(pane, dummyParam, "<NONE>", 0.6, 0.5) };
+2.do { button.(pane, dummyParam, "<NONE>", 0.6, 0.5) };
+physics[\calibration][\gui] = buttonCheckbox.(
+    pane, physics[\calibration], \calibration, 0.6, 0.5
+);
 miscParams[\record] = (
     midinote: 59,
     gui: buttonCheckbox.(pane, dummyParam, "REC", 0.6, 0.5).action_({ |bt|

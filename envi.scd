@@ -363,7 +363,7 @@ currentEnvironment = srEnv;
 
 // MODULES
 //
-// XXX - Need some confirmation from server that all are loaded!
+// XXX - wait until confirmation from server that all are loaded!
 "Loading synth definitions...".postln;
 if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
     postf("OK\n\n")

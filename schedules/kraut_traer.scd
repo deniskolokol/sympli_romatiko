@@ -2,7 +2,10 @@
 var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
+var skelData;
 
+postf("Reading skeleton simulation data\n");
+skelData = File(~currentDir +/+ "_joints.csv", "r").readAllString.interpret;
 
 //GLOBAL
 ~sequence = (
@@ -90,6 +93,12 @@ guideBuff = Buffer.readChannel(s,
     ],
     5: [
         (
+            info: "Skeleton simulation",
+            message: \task, name: \skelSimulation, act: 1
+        ),
+    ],
+    10: [
+        (
             info: "heavy __growls - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__growl,
@@ -97,7 +106,7 @@ guideBuff = Buffer.readChannel(s,
             particle: (mass: 1, spring: 1)
         ),
     ],
-    6: [
+    15: [
         (
             info: "heavy growl 2",
             message: \particle,
@@ -106,22 +115,26 @@ guideBuff = Buffer.readChannel(s,
             particle: (mass: 1, spring: 1)
         ),
     ],
-    10: [
+    20: [
         (
             info: "random particles",
             message: \task, name: \randomParticles, act: 1
         ),
     ],
-    20: [
+    30: [
         (
             info: "storm",
             message: \task, name: \storm, act: 1
         ),
     ],
-    30: [
+    40: [
         (
             info: "stop storm",
             message: \task, name: \randomParticles, act: 0
+        ),
+        (
+            info: "stop skeleton simulation",
+            message: \task, name: \skelSimulation, act: 0
         ),
         (
             info: "stop random particles",
@@ -142,6 +155,19 @@ guideBuff = Buffer.readChannel(s,
 // Tasks dictionary.
 //
 ~sequence.tasks = (
+    skelSimulation: Task({
+        var msg;
+        inf.do { |j|
+            // process
+            if (skelData[j].isNil) {
+                ~sequence.tasks.skelSimulation.stop;
+                ~sequence.tasks.skelSimulation.reset;
+            };
+            msg = [skelData[j][0], 1] ++ skelData[j][1..];
+            ~sendMessage.(\joint, msg);
+            0.005.wait;
+        }
+    }),
     randomParticles: Task({
         var key, next;
         var particleParams = [ // list of acceptable configurations
@@ -165,47 +191,6 @@ guideBuff = Buffer.readChannel(s,
         }
     }),
 
-    // INTRO:
-    // Picks up a key and the number of iterations randomly (average
-    // sequences are the most probable, long are the least probable).
-    //
-    // A new particle's age spans over to the next object birth (no gaps).
-    // The lighter the object the faster it dies, but demography is denser.
-    //
-    intro: Task({
-        var key, next, synth, x, y, z, mass, age, node;
-        loop {
-            key = msetObjSeq.dict.keys.asArray.sort.wchoose([0.1, 10, 1].normalizeSum);
-            dictObjSeq[key.asInteger][0].choose.do{ |i|
-                next = msetObjSeq.next(key);
-                age = next * (1 + (1/(next.pow(0.33))));
-                mass = next.sqrt.clip(0.1, 0.3);
-                synth = (
-                    name: [\sr__e__humm, \sr__e__radio][i % 2], // alternate
-                    params:[
-                        \att, rrand(1, 2),
-                        \bufnum, ~sequence.scales[4].bufnum
-                    ]
-                );
-                ~sendParticle.(
-                    synth: synth,
-                    particle: (mass:mass, age:age)
-                );
-
-                if (0.7.coin) {
-                    synth = (
-                        name: [\sr__e__lowe, \sr__e__radio, \sr__e__humm].wchoose([0.6, 0.2, 0.2])
-                    );
-                    ~sendParticle.(
-                        synth: synth,
-                        particle: (mass:mass, age:age + ((age * 0.25).rand2))
-                    );
-                };
-                next.wait;
-            };
-            0.01.wait;
-        }
-    }),
     storm: Task({
         var buff, synth, age, x, y, z, prob=0.2;
         inf.do { |j|

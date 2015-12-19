@@ -214,7 +214,7 @@ s.sendMsg("/g_new", sGroupId);
 // skeletons
 skel = (waitBeforeRemove: 5, limit: 1);
 skeleton = Dictionary.new;
-jointVisible = #[\l_hand, \l_elbow, \neck, \r_elbow, \r_hand]; // visualize only these joints
+jointVisible = [\l_hand, \l_elbow, \neck, \r_elbow, \r_hand]; // visualize only these joints
 springSrcSkel = #[\r_hand, \l_hand]; // joints that springs can be attached to
 listenerPos = ( // as default - center of the world
     x: world.width * 0.5,
@@ -676,19 +676,20 @@ dropdown.(panel, "sequence",
 );
 
 // slider controllers for physics params
-panel = compViewFlow.(viewRight, scaleH:0.4, margin:10@30);
+panel = compViewFlow.(viewRight, scaleH:0.5, margin:10@30);
 [
-    \drag, \repulsion, \maxVel, \starMass,
+    \drag, \repulsion, \starMass,
     \gravX, \gravY, \gravZ,
     \springRestLen, \springStrength, \springDamp,
-    \partSigmoidRatio, \partAgeThresh, \partInitAccel,
-    \partDefaultMass, \partFreq
-].do { |key|
+    \maxVel, \partInitAccel, \partFreq,
+    \partDefaultMass, \partAgeThresh, \partSigmoidRatio,
+].do { |key, n|
     worldParams[key][\gui] = slider.(panel, key, worldParams[key]);
+    if ((n+1) % 3 == 0) { compViewFlow.(panel, scaleH:0.05)} // gap after every 3rd slider
 };
 
 // slider controllers for misc params
-panel = compViewFlow.(viewRight, scaleH:0.2, margin:10@30);
+panel = compViewFlow.(viewRight, scaleH:0.15, margin:10@30);
 miscParams[\serverVolume] = (
     midicc: 12, spec: \db,
     gui: slider.(panel, "sVol", (label: "s.vol", spec: \db))
@@ -698,7 +699,7 @@ miscParams[\serverVolume] = (
 miscParams[\maxDist] = (
     midicc: 12,
     gui: slider.(panel, "maxDist",
-        (label: "dist", spec: [1, 30, \lin, 0.1, ~speakers.maxDist])
+        (label: "max dist", spec: [1, 30, \lin, 0.1, ~speakers.maxDist])
     )
     .action_({ |sl| ~speakers.maxDist = sl.value })
     .value_(~speakers.maxDist)
@@ -1194,7 +1195,34 @@ viewWorld.drawFunc = { |view|
                 Pen.lineTo(Point(sk[jointVisible[j+1]].position.x, sk[jointVisible[j+1]].position.y));
                 Pen.stroke;
             }
-        }
+        };
+
+        // XXX
+        //
+        // var curve;
+        // var drawCurve = { |crv, j|
+        //     try {
+        //         Pen.moveTo(Point(sk[crv[j]].position.x, sk[crv[j]].position.y));
+        //         Pen.lineTo(Point(sk[crv[j+1]].position.x, sk[crv[j+1]].position.y));
+        //         Pen.stroke;
+        //     }
+        // };
+        // if (world.calibration.booleanValue) {
+        //     curve = ['head', 'neck', 'torso'];
+        //     curve.do { |joint, j| drawCurve.(curve, j) };
+        //     curve = ['l_hand', 'l_elbow', 'l_shoulder', 'neck', 'r_shoulder', 'r_elbow', 'r_hand'];
+        //     curve.do { |joint, j| drawCurve.(curve, j) };
+        //     curve = ['l_foot', 'l_knee', 'l_hip', 'torso', 'r_hip', 'r_knee', 'r_foot'];
+        //     curve.do { |joint, j| drawCurve.(curve, j) };
+        // } {
+        //     jointVisible.size.do { |j|
+        //         try {
+        //             Pen.moveTo(Point(sk[jointVisible[j]].position.x, sk[jointVisible[j]].position.y));
+        //             Pen.lineTo(Point(sk[jointVisible[j+1]].position.x, sk[jointVisible[j+1]].position.y));
+        //             Pen.stroke;
+        //         }
+        //     }
+        // };
     };
 
     physics.tick;
@@ -1849,7 +1877,6 @@ oscSkeletonNew = OSCFunc({ |msg, time, addr, recvPort|
     skeletonParticles.(msg[1]);
 }, '/new_skel');
 
-
 oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
     var id, joint, x, y, z;
     // postf("from % received %\n", addr, msg);
@@ -1860,6 +1887,20 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
         msg[5].linlin(0.3, 3.4, 0, world.height),
         msg[4].linlin(-0.15, 0.99, 0, world.depth)
     ];
+    // XXX
+    // if (world.calibration.booleanValue) {
+    //     #x, y, z = [
+    //         msg[3].linlin(-0.1, 1.1, 0, world.width),
+    //         msg[4].linlin(-0.15, 0.99, 0, world.depth),
+    //         msg[5].linlin(0.3, 3.4, 0, world.height)
+    //     ];
+    // } {
+    //     #x, y, z = [
+    //         msg[3].linlin(-0.1, 1.1, 0, world.width),
+    //         msg[5].linlin(0.3, 3.4, 0, world.height),
+    //         msg[4].linlin(-0.15, 0.99, 0, world.depth)
+    //     ];
+    // };
     skeletonParticles.(id, joint, x, y, z);
 }, '/joint');
 
@@ -1880,13 +1921,6 @@ oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
     };
 }, '/g_queryTree.reply');
 
-// 0 - 3, 4
-// 1 - 5, 6
-// 2 - 7, 8
-// 3 - 9, 10
-//
-// (0..3).collect { |j| (3+[j*2, j*2+1]).postln}
-//
 oscInternalInLevels = OSCFunc({ |msg, time, addr, recvPort|
     {
         internalInLevels.do { |elem, j|
@@ -1979,7 +2013,7 @@ MIDIIn.connectAll;
 clean = {
     oscRemoveFunc.();
     win.close;
-    // MIDIIn.disconnect; // XXX - add midi and bring it back!
+    MIDIIn.disconnect;
 };
 
 CmdPeriod.doOnce({

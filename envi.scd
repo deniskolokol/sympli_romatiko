@@ -76,12 +76,12 @@ srEnv = Environment.make {
         }
     );
 
-    numHarmonics = 16;
+    numHarmonics = 1024;
     numWavetables = 8;
     numWavetables.do { |i| // allocate and fill tables
         // allocate table
         s.sendMsg(\b_alloc, i, numHarmonics);
-        harmonics = Harmonics(numHarmonics).formant(3,
+        harmonics = Harmonics(numHarmonics).formant(12,
             (i**2).linlin(0, numWavetables**2, 1, numHarmonics).ceil
         );
         s.performList(\sendMsg, \b_gen, i, \sine1, n, harmonics);
@@ -339,10 +339,11 @@ srEnv = Environment.make {
             min = trunc(timecode / 60);
             sec = round(timecode % 60, 0.1);
         } {
-            sec = round(timecode,0.1)
+            sec = round(timecode, 0.1)
         };
         if (min < 10) {minstring = "0"++min.asString} {minstring = min.asString};
         if (sec < 10) {secstring = "0"++sec.asString} {secstring = sec.asString};
+        if (sec == sec.round) {secstring = secstring++".0"};
         format("%:%", minstring, secstring);
     };
 
@@ -369,6 +370,8 @@ if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
     postf("OK\n\n")
 };
 
+// XXX - DEPRECATED
+//
 // "Loading scheduler...".postln;
 // if (this.executeFile(
 // ~currentDir +/+ "scheduler.scd").isNil.not) {
@@ -385,10 +388,10 @@ if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
 //     postf("OK\n\n")
 // };
 
-
 CmdPeriod.doOnce({
     "Freeing buffers...".postln;
     ~wavetable.do(_.free);
+
     "Saving environment conf...".postln;
     confKeys = [ // keys to save to conf file
         'surround', 'depth',
@@ -411,6 +414,12 @@ CmdPeriod.doOnce({
     confFile = File.new(confFile, "w");
     confFile.write(conf.asCompileString);
     confFile.close;
+
+    "Saving sequences...".postln;
+    seqPathsFile = File.new(seqPathsFile, "w");
+    seqPathsFile.write(seqPaths[2..].asCompileString); // drop ["", "Load.."]
+    seqPathsFile.close;
+
     postf("OK\n\n");
 });
 )

@@ -27,10 +27,11 @@ var attractionsPhysical, springsPhysical, springMissed,
     particlesOnSprings, particlesSkelVis, particlesHidden,
     partColor, partSize;
 var listenerPos, currSpeaker, getSynthName;
-var win, viewWorld, viewLeft, viewRight, viewBottom,
+var win, viewTop, viewTopLeft, viewTopCenter, viewTopRight,
+    viewWorld, viewLeft, viewRight, viewBottom,
     paneWidth, paneHeight, compView, compViewFlow, panel,
-    postListener, sText, dropdown, slider,
-    button, buttonCheckbox, updateButtonLabel;
+    sText, dropdown, slider, button, buttonCheckbox, updateButtonLabel;
+var postListener, postMaxSize=1e+5;
 var scale, translate, focal;
 var paramsChanged, defaultBuff;
 var stat, clean;
@@ -46,8 +47,9 @@ var transparent=Color.grey(alpha:0.01),
     font=Font("Monaco", 14),
     fontSmall=Font("Monaco", 10),
     fontLarge=Font("Monaco", 14),
+    fontLarge1=Font("Monaco", 18),
     fontGiant=Font("Monaco", 24),
-    fontColor=Color.green(0.8);
+    fontColor=Color.gray(0.8);
 var tmp;
 
 // INITIAL
@@ -198,9 +200,9 @@ worldParams = (
 // The World is a cube.
 world = Dictionary.new;
 world = (
-    width: Window.screenBounds.height*0.85,
-    height: Window.screenBounds.height*0.85,
-    depth: Window.screenBounds.height*0.85
+    width: Window.screenBounds.height*0.82,
+    height: Window.screenBounds.height*0.82,
+    depth: Window.screenBounds.height*0.82
 );
 worldParams.keysValuesDo { |k, v| world[k] = v[\default] }; // set default params
 
@@ -304,7 +306,8 @@ eventInfo = { |k=nil, lim=50|
     val = sequence.events.atFail(k, {[]});
     sF = { |l| format(" %\n", if (l.size <= lim) {l} {l[..lim] ++ "..."})};
     infoStr = all{: sF.(l[\info].asString), l <- val, l.keys.includes(\info)};
-    "".catList(infoStr)
+    infoStr = "".catList(infoStr);
+    infoStr[..(infoStr.size-2)]; // cut last \n
 };
 
 // Sets a label to a button in a current state.
@@ -526,7 +529,7 @@ win.view.decorator = FlowLayout(win.view.bounds, 1@1, 1@1);
 win.background = Color.black;
 
 // GUI: Top-level layout
-compViewFlow.(win, scaleH:0.03);
+viewTop = compViewFlow.(win, scaleH:0.07);
 viewLeft = compViewFlow.(win,
     scaleW:(0.5*(win.bounds.width-world.width)/win.bounds.width),
     scaleH:world.height/win.bounds.height
@@ -537,26 +540,27 @@ viewRight = compViewFlow.(win,
     scaleH:world.height/win.bounds.height
 );
 viewBottom = compViewFlow.(win,
-    scaleH:(win.bounds.height-world.height)/win.bounds.height
+    scaleH:(win.bounds.height-(viewWorld.bounds.height+viewTop.bounds.height))/win.bounds.height
 );
 
 // GUI: stat panel
-panel = compViewFlow.(viewLeft, margin:5@5, scaleH:0.15);
 stat = Dictionary.new;
+panel = compViewFlow.(viewLeft, margin:5@5, scaleH:0.15);
 [
     (label: "particles", func: { physics.particles.size }),
     (label: "springs", func: { physics.springs.size }),
     (label: "attractions", func: { physics.attractions.size }),
-    (label: "entropy", func: {
-        1.38065e-23 * log( // XXX - find and manage a proper formula!
-            physics.particles.size.max(1)*
-            physics.springs.size.max(1)*
-            physics.attractions.size.max(1)
-        )
-    }),
+    // (label: "entropy", func: {
+    //     1.38065e-23 * log( // XXX - find and manage a proper formula!
+    //         physics.particles.size.max(1)*
+    //         physics.springs.size.max(1)*
+    //         physics.attractions.size.max(1)
+    //     )
+    // }),
     (label: "skeletons", func: { format("% %", skeleton.size, skeleton.keys.asArray) }),
 ].do { |item|
     var key;
+    item.postln;
     sText.(panel, item.label);
     item[\gui] = sText.(panel, "0");
     key = item.label.asString.toLower.replace(" ", "_").asSymbol;
@@ -605,29 +609,32 @@ sText.(panel, "outputs", stringFont:fontSmall, scaleH:0.15, scaleW:1);
 panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.7);
 sText.(panel, "", scaleH:0.1, scaleW:1); // gap
 panel.decorator.nextLine;
-postListener = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.88))
-    .editable_(false)
-    .font_(fontSmall)
-    .stringColor_(fontColor)
-    .background_(transparent)
-    .hasVerticalScroller_(false)
-    .canFocus_(false);
+postListener = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.889))
+   .editable_(false)
+   .font_(fontSmall)
+   .stringColor_(fontColor)
+   .background_(transparent)
+   .hasVerticalScroller_(false)
+   .canFocus_(false);
 
 // GUI: scheduler
-panel = compViewFlow.(viewRight, gap:5@5, scaleH:0.15);
+viewTopLeft = compViewFlow.(viewTop, scaleW:0.16);
+viewTopCenter = compViewFlow.(viewTop, gap:8@4, scaleW:0.7);
+viewTopRight = compViewFlow.(viewTop, scaleW:0.14);
+
 // current event number and info
-btCurrNum = button.(panel, ">>",
-    bgColor:Color.gray(0.15), scaleH:0.5, scaleW:0.2
-).action_({ |bt| switchEvent.(-1)});
 miscParams[\prev] = ( // make it controllable by midi
     midinote: 46,
     gui: btCurrNum
 );
-stCurrInfo = sText.(panel, "", scaleH:0.5, scaleW:0.8);
-stCurrInfo.background = Color.gray(0.15);
+stCurrInfo = sText.(viewTopCenter, "...", stringFont:fontLarge1, scaleW:0.44, scaleH:1);
+stCurrInfo.align = \right;
+btCurrNum = button.(viewTopCenter, ">>",
+    bgColor:Color.gray(0.15), scaleW:0.05
+).action_({ |bt| switchEvent.(-1)});
 // next (awaiting) event number and info
-btNextNum = button.(panel, "<<",
-    bgColor:Color.gray(0.15), scaleH:0.5, scaleW:0.2
+btNextNum = button.(viewTopCenter, "<<",
+    bgColor:Color.gray(0.15), scaleW:0.05
 ).action_({ |bt|
     switchEvent.(1)
 });
@@ -635,14 +642,14 @@ miscParams[\next] = ( // make it controllable by midi
     midinote: 43,
     gui: btNextNum
 );
-stNextInfo = sText.(panel, "", scaleH:0.5, scaleW:0.8);
-stNextInfo.background = Color.gray(0.15);
+stNextInfo = sText.(viewTopCenter, "", stringFont:fontLarge1, scaleW:0.44, scaleH:1);
+
+// time elapsed since the start
+timeLabel = sText.(viewTopRight, ~convertTime.(0), stringFont:fontGiant, scaleW:1);
+timeLabel.align = \right;
 
 // open file with sequence
-panel = compViewFlow.(viewRight, gap:10@10, scaleH:0.05);
-// time elapsed since the start
-timeLabel = sText.(panel, ~convertTime.(0), stringFont:fontGiant, scaleW:0.35);
-dropdown.(panel, "sequence",
+dropdown.(viewTopLeft, "sequence",
     items: fileNames.(~seqPaths),
     initVal: if (~seqPaths.size > 2) { 2 } { 0 },
     action: { |element|
@@ -669,10 +676,10 @@ dropdown.(panel, "sequence",
         current = -1;
         updateButtonLabel.(btNextNum, getKey.(current, 1).asString);
         stNextInfo.string = eventInfo.(0);
-        timeLabel.string = ~convertTime.(0);
+        // // -- profile
+        // timeLabel.string = ~convertTime.(0);
     },
-    initAction: true,
-    scale:0.65
+    initAction: true
 );
 
 // slider controllers for physics params
@@ -693,8 +700,8 @@ panel = compViewFlow.(viewRight, scaleH:0.15, margin:10@30);
 miscParams[\serverVolume] = (
     midicc: 12, spec: \db,
     gui: slider.(panel, "sVol", (label: "s.vol", spec: \db))
-               .action_({ |sl| s.volume.volume = sl.value })
-               .value_(1)
+    .action_({ |sl| s.volume.volume = sl.value })
+    .value_(1)
 );
 miscParams[\maxDist] = (
     midicc: 12,
@@ -707,7 +714,7 @@ miscParams[\maxDist] = (
 miscParams[\depth] = (
     midicc: 15,
     gui: slider.(panel, "depth",
-        (label: "depth", minval: 1, maxval: 10, step: 0.1, default: 5)
+        (label: "depth", minval: 1, maxval: 10, step: 0.1, default: ~depth)
     ).action_({ |ez|
         ~depth = ez.value;
         ~sendMessage.('/audio', [\depth, ~depth])
@@ -745,7 +752,6 @@ miscParams[\reset] = (
     })
 );
 
-
 // GUI: trigger objects keyboard)
 keyboardFunc = { |synthName, params, spring=0, mass=1|
     ~sendParticle.(
@@ -763,7 +769,7 @@ trigSynth.do { |key, i|
             synthNames[key].asString.replace("sr__e__", "").replace("sr__g__", ""),
             scaleW:1
         );
-        button.(vw, trigCodes[key].toUpper, bgColor:Color.black, scaleH:0.3)
+        button.(vw, trigCodes[key].toUpper, bgColor:Color.black, scaleH:0.4)
         .action_({ |bt|
             var buff;
             if (sequence.size > 0) {
@@ -779,22 +785,22 @@ trigSynth.do { |key, i|
             keyboardFunc.(synthNames[key], params: [\bufnum, buff.bufnum], spring:1)
         });
         NumberBox(vw, (vw.bounds.width*0.9)@20)
-        .clipLo_(0.01)
-        .clipHi_(2)
-        .step_(0.01)
-        .align_(\right)
-        .font_(font)
-        .normalColor_(fontColor)
-        .background_(Color.grey(alpha:0.5))
-        .action_({ |nb|
-            ~synths[synthNames[key]][\attenuate] = nb.value;
-        })
-        .value_(
-            ~synths.atFail(
-                synthNames[key],
-                {~synths[\sr__e__silent]}
-            )[\attenuate]
-        )
+            .clipLo_(0.01)
+            .clipHi_(2)
+            .step_(0.01)
+            .align_(\right)
+            .font_(font)
+            .normalColor_(fontColor)
+            .background_(Color.grey(alpha:0.5))
+            .action_({ |nb|
+                ~synths[synthNames[key]][\attenuate] = nb.value;
+            })
+            .value_(
+                ~synths.atFail(
+                        synthNames[key],
+                        {~synths[\sr__e__silent]}
+                )[\attenuate]
+            )
     }
 };
 
@@ -1748,14 +1754,13 @@ xyz = { |position|
 // XXX - change this with re-directing all POST messages
 // post message to local listener
 postMsg = { |msg|
-    var buffersize=1e+5;
     msg = msg.asString;
     if (msg.endsWith("\n").not) { msg = msg ++ "\n" };
     {
-        if (postListener.string.size > buffersize) { // do not grow too long
-            postListener.string = postListener.string[(postListener.string.size-buffersize)..]
+        if (postListener.string.size > postMaxSize) { // do not grow too long
+            postListener.string = postListener.string[(postListener.string.size-postMaxSize)..]
         };
-        postListener.string = postListener.string ++ msg;
+        postListener.string = postListener.string ++ msg ++ "\n";
         postListener.stringColor_(fontColor);
         postListener.select(postListener.string.size, 1); // autoscroll
     }.defer;
@@ -1973,11 +1978,12 @@ viewWorld.animate = true;
             shade = (count % 8) * 0.1;
             if (blinked < 40) { // = 8 * 5times
                 stCurrInfo.stringColor = Color.red(shade);
+                stNextInfo.stringColor = Color.green(shade);
                 blinked = blinked + 1;
             } {
                 stCurrInfo.stringColor = fontColor;
+                stNextInfo.stringColor = fontColor;
             };
-            stNextInfo.stringColor = Color.green(shade);
             timeLabel.string = ~convertTime.(count / 10);
 
             if (count % 10 == 0) {

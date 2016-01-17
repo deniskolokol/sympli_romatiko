@@ -4,8 +4,9 @@ var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 var skelData;
 
+// XXX - test and remove this and skelSimulation task
 postf("Reading skeleton simulation data\n");
-skelData = File(~currentDir +/+ "_joints.csv", "r").readAllString.interpret;
+skelData = File(~currentDir +/+ "joints.log", "r").readAllString.interpret;
 
 //GLOBAL
 ~sequence = (

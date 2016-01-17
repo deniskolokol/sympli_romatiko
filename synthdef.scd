@@ -6,10 +6,12 @@
 //     <t> - type of the synth, where:
 //         g - granular (\bufnum points to a buffer with a sound file loaded)
 //         e - electronic (if there is a \bufnum it can point to a buffer with a scale)
+//         i - insert (effects)
 //         p - percussion
 //         s - spatialization
 //         r - recording
 //         u - utilities
+//         k - control
 //     <name> - something meaninful
 //
 // Generators.
@@ -266,7 +268,7 @@ SynthDef(\sr__e__silent, {
 SynthDef(\sr__e__lowe, { // the "lowe"st
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
     var q=0.1, a=2pi, b=400, c=0, dir=[1, 0], frate=1, freq=400, xx=(1..5)*20;
@@ -291,7 +293,7 @@ SynthDef(\sr__e__lowe, { // the "lowe"st
 SynthDef(\sr__e__probe, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
     var rate=1, dtl=0.01, dtr=0.05;
@@ -321,7 +323,7 @@ SynthDef(\sr__e__probe, {
 SynthDef(\sr__e__cmb, { // CMB ~ "Cosmic Backgroud Radiation"
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
     var rate=1, delayL, delayR, pos=0.0, pulse, mix, n=8;
@@ -353,7 +355,7 @@ SynthDef(\sr__e__cmb, { // CMB ~ "Cosmic Backgroud Radiation"
 SynthDef(\sr__e__melo, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
     // Conversion.
@@ -385,7 +387,7 @@ SynthDef(\sr__e__melo, {
 SynthDef(\sr__e__ringz, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.2, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var in, out, signal;
     var fbase, shift;
@@ -410,7 +412,7 @@ SynthDef(\sr__e__ringz, {
 SynthDef(\sr__e__pulse, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
     var cutOff, rq, azThresh=0.7;
@@ -439,7 +441,7 @@ SynthDef(\sr__e__pulse, {
 SynthDef(\sr__e__analog, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0, threshold=0.7, scope=12;
     var note, in, out, signal;
     var rq;
@@ -494,7 +496,7 @@ SynthDef(\sr__e__analog, {
 SynthDef(\sr__e__neural, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0, threshold=0.7, scope=12;
     var in, out, signal;
     var rq;
@@ -546,8 +548,8 @@ SynthDef(\sr__e__neural, {
 SynthDef(\sr__e__dempad, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, elevation=0, azimuth=0, distance=1, velocity=0.5,
-        offset=36, cutoff=0;
+        ax=0.1, ay=0.1, az=0.1, elevation=0, azimuth= -0.5pi, distance=1, velocity=0.5,
+        offset=24, cutoff=0;
     var detune=0.2, // XXX - increase detune on extreme velocities (?)
         lag=0.1, // XXX - make it dependent on param
         rate=3, // XXX - make it dependent on param
@@ -584,7 +586,7 @@ SynthDef(\sr__e__dempad, {
     );
     signal = Mix(in) * (1 / noOfSynths) * Line.kr(0.0, 1.0, 0.3);
     out = signal * master * EnvGen.kr(
-        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 1);
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
     Out.ar(route, out);
 }).add;
@@ -593,8 +595,8 @@ SynthDef(\sr__e__dempad, {
 SynthDef(\sr__e__growl, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.3, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, elevation=0, velocity=0.5,
-        gx=0.1, gy=0.1, gz=0.1, gAzimuth=0, gDistance=0.5, gElevation=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, elevation=0, velocity=0.5,
+        gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
         offset=6, cutoff=0;
     var in, out, signal;
     var cutOff, rq, rate, pitches, trig, freq, mul, add, detune, lag,
@@ -660,7 +662,7 @@ SynthDef(\sr__e__growl, {
 SynthDef(\sr__e__gauss, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.2, master=1, gate=1, att=1, rel=1, ca= -3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=1, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=1, velocity=0.5,
         offset=36, cutoff=0;
     var note, scale, in, out, signal;
     var cutOff, rq, dur, width;
@@ -692,7 +694,7 @@ SynthDef(\sr__e__gauss, {
 SynthDef(\sr__e__noisy, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.02, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
 	var in, out, signal;
     var fbase, shift;
@@ -718,7 +720,7 @@ SynthDef(\sr__e__noisy, {
 SynthDef(\sr__e__entro, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var freq, shift, rq, in, out, signal;
     var options, trig, timer;
@@ -749,7 +751,7 @@ SynthDef(\sr__e__entro, {
 SynthDef(\sr__e__humm, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, in, out, signal;
     // Conversion.
@@ -771,7 +773,7 @@ SynthDef(\sr__e__humm, {
 SynthDef(\sr__e__radio, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.06, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var freq, in, out, signal;
     var trig, timer;
@@ -808,7 +810,7 @@ SynthDef(\sr__e__radio, {
 SynthDef(\sr__e__wasp, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.02, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var note, scale, in, out, signal;
     var cutOff, rq, azThresh=0.7;
@@ -851,7 +853,7 @@ SynthDef(\sr__e__wasp, {
 SynthDef(\sr__e__therem, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=1.5, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var in, out, signal;
     var fbase=50000, shift=5000, freq;
@@ -890,7 +892,7 @@ SynthDef(\sr__e__therem, {
 SynthDef(\sr__e__tbl, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        azimuth=0, distance=0.1, elevation=0, velocity=0.5,
+        azimuth= -0.5pi, distance=0.1, elevation=0, velocity=0.5,
         offset=36, cutoff=1000, rq=0.5, scope=12;
     var in, out, signal, freq, detune, stretchFactor, blob;
     // Conversion & Clip.
@@ -902,9 +904,9 @@ SynthDef(\sr__e__tbl, {
     stretchFactor = ((offset + 12).midicps - freq).max(3);
     detune = velocity.linexp(0, 1, 2, stretchFactor); // XXX - distance should also contribute to detune!
     // Synthesis.
-    // amp = amp * velocity.scurve;
+    amp = amp * velocity.scurve;
     in = VOsc3.ar(bufnum+blob, freq, freq+detune, freq-detune, amp); // XXX - add when done with VOsc
-    // in = VOsc.ar(bufnum+blob, freq);
+    // in = VOsc.ar(bufnum+blob, freq, mul:amp);
     // filter
     signal = Limiter.ar(Mix.ar(attenuate * in));
     // Envelope.
@@ -918,13 +920,13 @@ SynthDef(\sr__e__tbl, {
 SynthDef(\sr__e__sawy, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        azimuth=0, distance=0.5, elevation=0, velocity=0.5,
+        azimuth= -0.5pi, distance=0.5, elevation=0, velocity=0.5,
         offset=36, cutoff= -0.9, rq=0.5, scope=12;
     var note, in, out, signal;
     // Conversion.
     note = DegreeToKey.kr(bufnum, elevation.linlin(-0.5pi, 0.5pi, 0, scope), 12, 1, offset);
     // Clip.
-    cutoff = cutoff.linlin(-1, 1, 10, 20000);
+    // cutoff = cutoff.linlin(-1, 1, 10, 20000);
     amp = amp.clip(0, 1);
     note = note.clip(1, 127);
     // Synthesis.
@@ -942,7 +944,7 @@ SynthDef(\sr__e__sawy, {
 SynthDef(\sr__e__dust, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        azimuth=0, distance=0.5, elevation=0, velocity=0.5,
+        azimuth= -0.5pi, distance=0.5, elevation=0, velocity=0.5,
         offset=36, cutoff=1000, rq=0.5, scope=12;
     var note, in, out, signal;
 
@@ -976,7 +978,7 @@ SynthDef(\sr__e__dust, {
 SynthDef(\sr__e__wind, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        azimuth=0, distance=0.5, elevation=0, velocity=0.5,
+        azimuth= -0.5pi, distance=0.5, elevation=0, velocity=0.5,
         offset=36, cutoff=1000, rq=0.5, scope=12;
 	var in, out, signal;
     var fbase, shift;
@@ -1005,13 +1007,28 @@ SynthDef(\sr__e__wind, {
 }).send(s);
 
 
+SynthDef(\sr__i__delay, {
+    arg bufnum=0, inbus=30, route=20, trigID=80,
+        amp=0, attenuate=0.05, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        azimuth= -0.5pi, distance=0.5, elevation=0, velocity=0.5,
+        param1=0, param2=0;
+    var in, out, signal;
+    // Pass through.
+    in = InFeedback.ar(inbus, 1);
+    signal = AllpassC.ar(in, param1, param1*1.2, 3, amp);
+    // Envelope.
+    out = signal * EnvGen.kr(Env.adsr(att, 0.1, master, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(route, out);
+}).send(s);
+
+
 // DRUMS AND PERCUSSION
 // (Warning! Different enveloping.)
 //
 SynthDef(\sr__p__kick, {
     arg bufnum=0, inbus=30, route=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr=3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var in, out, signal;
     // Synthesis.
@@ -1027,7 +1044,7 @@ SynthDef(\sr__p__kick, {
 SynthDef(\sr__p__hat, {
     arg bufnum=0, inbus=30, route=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr=3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var in, out, signal;
     var trig=0.5;
@@ -1050,7 +1067,7 @@ SynthDef(\sr__p__hat, {
 SynthDef(\sr__p__snare, {
     arg bufnum=0, inbus=30, route=20,
         amp=1, master=1, gate=1, att=1, rel=1, ca= -3, cr=3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var in, out, signal;
     // Synthesis.
@@ -1073,7 +1090,7 @@ SynthDef(\sr__p__snare, {
 
 SynthDef(\sr__s__ambisonic2, {
     arg route=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
+        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.75pi], speakerElev= #[0, 0], speakerDist= #[2, 2], maxDist=2;
     var w, x, y, z, r, s, t, u, v, scaleFlag=1,
         in, signal, out, room, mix;
@@ -1095,7 +1112,7 @@ SynthDef(\sr__s__ambisonic2, {
 
 SynthDef(\sr__s__ambisonic3, {
     arg route=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
+        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.17pi, -0.83pi, 0.5pi], speakerElev= #[0, 0, 0],
         speakerDist= #[2, 2, 2], maxDist=2;
     var w, x, y, z, r, s, t, u, v, scaleFlag=1,
@@ -1118,7 +1135,7 @@ SynthDef(\sr__s__ambisonic3, {
 
 SynthDef(\sr__s__ambisonic4, {
     arg route=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
+        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.75pi, 0.75pi, 0.25pi], speakerElev= #[0, 0, 0, 0],
         speakerDist= #[2, 2, 2, 2], maxDist=2;
     var w, x, y, z, r, s, t, u, v, scaleFlag=1,
@@ -1141,7 +1158,7 @@ SynthDef(\sr__s__ambisonic4, {
 
 SynthDef(\sr__s__ambisonic5, {
     arg route=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
+        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 0.75pi, 0.25pi], speakerElev=[0, 0, 0, 0, 0],
         speakerDist= #[2, 2, 2, 2, 2], maxDist=2;
     var w, x, y, z, r, s, t, u, v, scaleFlag=1,
@@ -1164,7 +1181,7 @@ SynthDef(\sr__s__ambisonic5, {
 
 SynthDef(\sr__s__ambisonic6, {
     arg route=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
+        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 0.75pi, 0.5pi, 0.25pi], speakerElev=[0, 0, 0, 0, 0, 0],
         speakerDist= #[2, 2, 2, 2, 2, 2], maxDist=2;
     var w, x, y, z, r, s, t, u, v, scaleFlag=1,
@@ -1187,7 +1204,7 @@ SynthDef(\sr__s__ambisonic6, {
 
 SynthDef(\sr__s__ambisonic7, {
     arg route=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
+        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 1pi, 0.75pi, 0.25pi, 0],
         speakerElev= #[0, 0, 0, 0, 0, 0, 0],
         speakerDist= #[2, 2, 2, 2, 2, 2, 2], maxDist=2;
@@ -1211,7 +1228,7 @@ SynthDef(\sr__s__ambisonic7, {
 
 SynthDef(\sr__s__ambisonic8, {
     arg route=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
+        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 1pi, 0.75pi, 0.5pi, 0.25pi, 0],
         speakerElev= #[0, 0, 0, 0, 0, 0, 0, 0],
         speakerDist= #[2, 2, 2, 2, 2, 2, 2, 2], maxDist=2;
@@ -1235,7 +1252,7 @@ SynthDef(\sr__s__ambisonic8, {
 
 SynthDef(\sr__s__ambisonic9, {
     arg route=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
+        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 1pi, 0.75pi, 0.5pi, 0.25pi, 0.15pi, 0],
         speakerElev= #[0, 0, 0, 0, 0, 0, 0, 0, 0],
         speakerDist= #[2, 2, 2, 2, 2, 2, 2, 2, 2], maxDist=2;
@@ -1259,7 +1276,7 @@ SynthDef(\sr__s__ambisonic9, {
 
 SynthDef(\sr__s__ambisonic10, {
     arg route=20, outbus=0, gate=1, rel=1,
-        azimuth=0, elevation=0, elevClip=0.01pi, distance=0, depth=5,
+        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.15, -0.25pi, -0.5pi, -0.75pi, 1pi, 0.75pi, 0.5pi, 0.25pi, 0.15pi, 0],
         speakerElev= #[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         speakerDist= #[2, 2, 2, 2, 2, 2, 2, 2, 2, 2], maxDist=2;
@@ -1365,7 +1382,7 @@ SynthDef(\sr__r__buffloop, { // continuous recording into buffer
 SynthDef(\sr__r__authro, { // audio-through
     arg bufnum=0, inbus=0, outbus=0,
         amp=1, master=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, velocity=0.5;
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5;
     var in, out, signal, ds;
     // Conversion.
     ds = distance/3.44;
@@ -1402,7 +1419,7 @@ SynthDef(\sr__k__tri, {
     arg outbus=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
     var out = env * LFTri.kr(lfo, phase, mul, add);
-    SendTrig.kr(Impulse.kr(30), trigID, out).poll;
+    SendTrig.kr(Impulse.kr(30), trigID, out);
     Out.kr(outbus, out);
 }).add;
 

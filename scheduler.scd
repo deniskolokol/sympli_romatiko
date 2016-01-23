@@ -106,7 +106,7 @@ try { // to load from settings file
 seqPaths = seqPaths.asList;
 
 //defaultBuff = Buffer.loadCollection(s, FloatArray[0, 3, 7, 10]);
-defaultBuff = Buffer.loadCollection(s, Scale.ahirbhairav.degrees);
+defaultBuff = Buffer.sendCollection(s, Scale.ahirbhairav.degrees);
 
 // Send synth to server.
 sendSNew = { |data|

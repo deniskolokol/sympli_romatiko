@@ -10,10 +10,11 @@ var key, subkey, synthNames;
 var conf, confFile, confKeys;
 var seqPathsFile, seqPaths;
 var harmonics, numHarmonics, numWavetables;
+var audioServer;
+var ar__ROOT_NODE, kr__ROOT_NODE; // root IDs for synths
 
-// root IDs for synths
-var ar__ROOT_NODE = s.nextNodeID;
-var kr__ROOT_NODE = s.nextNodeID;
+ar__ROOT_NODE = s.nextNodeID;
+kr__ROOT_NODE = s.nextNodeID;
 
 // initial server groups
 s.sendMsg("/g_new", ar__ROOT_NODE, 0, 1);
@@ -40,7 +41,6 @@ try { // to load from settings file
     postf("OK\n\n");
 };
 seqPaths = seqPaths.asList;
-
 
 srEnv = Environment.make {
     ~currentDir = currentDir;

@@ -251,7 +251,7 @@ trigSynth = (
 trigCodes = Dictionary.newFrom(trigCodes);
 
 // default scale buffer
-defaultBuff = Buffer.loadCollection(s, Scale.ahirbhairav.degrees);
+defaultBuff = Buffer.sendCollection(s, Scale.ahirbhairav.degrees, 1, 0.2);
 
 // Get only filenames from sequence paths.
 fileNames = { |paths|
@@ -560,7 +560,6 @@ panel = compViewFlow.(viewLeft, margin:5@5, scaleH:0.15);
     (label: "skeletons", func: { format("% %", skeleton.size, skeleton.keys.asArray) }),
 ].do { |item|
     var key;
-    item.postln;
     sText.(panel, item.label);
     item[\gui] = sText.(panel, "0");
     key = item.label.asString.toLower.replace(" ", "_").asSymbol;
@@ -898,7 +897,7 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
         // WARNING - TEST ONLY!
         b = NetAddr.new("127.0.0.1", 57120);
         k.free;
-        k = Buffer.loadCollection(s, FloatArray[0, 3, 7, 10]); // default scale
+        k = Buffer.sendCollection(s, FloatArray[0, 3, 7, 10], 1, 0.2); // default scale
         g = s.nextNodeID;
 
         s.sendBundle(0.001,
@@ -1926,6 +1925,7 @@ oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
     };
 }, '/g_queryTree.reply');
 
+// XXX - GET msgs from remote server!
 oscInternalInLevels = OSCFunc({ |msg, time, addr, recvPort|
     {
         internalInLevels.do { |elem, j|

@@ -17,7 +17,7 @@ var validScales=all{: c, c <- ScaleInfo.scales, c.pitchesPerOctave == 12};
     FloatArray[0, 3, 7, 10],
     FloatArray[0, 3, 5, 7, 10],
 ].do { |c, i|
-    ~sequence.scales.add(Buffer.loadCollection(s, c));
+    ~sequence.scales.add(Buffer.sendCollection(~scsynth, c));
 };
 
 currentScale = ~sequence.scales[3];
@@ -46,7 +46,7 @@ currentScale = ~sequence.scales[3];
                     \depth, ~depth,
                     \distance, 2.sqrt,
                     \route, 12, // getting signal from synth
-                    \outbus, ~mainOutput // to main output
+                    \outbus, ~outbus // to main output
                 ],
                 ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
                     \route, 12, // feeding into spatilizer
@@ -275,7 +275,7 @@ currentScale = ~sequence.scales[3];
             if (changeScale) {
                 currentScale.free;
                 scaleName = validScales.choose;
-                currentScale = Buffer.loadCollection(s, scaleName);
+                currentScale = Buffer.sendCollection(~scsynth, scaleName);
             };
             if (changeOffset) {
                 currentOffset = rrand(24, 60);
@@ -290,8 +290,4 @@ currentScale = ~sequence.scales[3];
     }),
 
 );
-
-CmdPeriod.doOnce({
-    ~sequence.scales.do  { |buff| buff.free };
-});
 )

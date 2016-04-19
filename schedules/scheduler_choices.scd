@@ -43,7 +43,7 @@ msetObjSeq = MarkovSetN([], 2);
 dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 
 // fill buff with sample connected to guide object
-guideBuff = Buffer.readChannel(s,
+guideBuff = Buffer.readChannel(~scsynth,
     PathName("~/Music/Sympli_Romatiko/solo/Audio/DRLATPOL.WAV").fullPath,
     channels: [0]);
 
@@ -55,14 +55,14 @@ samples = List.new; // fill samples
     "~/Music/Sympli_Romatiko/solo/Audio/BBOX90.WAV",
     "~/Music/Sympli_Romatiko/solo/Audio/loop_clean.wav"
 ].do { |f|
-    samples.add(Buffer.readChannel(s, PathName(f).fullPath, channels: [0]));
+    samples.add(Buffer.readChannel(~scsynth, PathName(f).fullPath, channels: [0]));
 };
 
 scales = List.new; // fill scales
 [
     FloatArray[0, 2, 3, 7, 9], // scales[0] is the main scale
     FloatArray[0, 1, 5, 6, 10] // the rest are specific to parts
-].do { |a| scales.add(Buffer.loadCollection(s, a)) };
+].do { |a| scales.add(Buffer.sendCollection(~scsynth, a)) };
 
 thePiece = (
     0: [

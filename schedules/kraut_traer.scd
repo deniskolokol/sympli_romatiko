@@ -2,11 +2,11 @@
 var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
-var skelData;
 
-// XXX - test and remove this and skelSimulation task
-postf("Reading skeleton simulation data\n");
-skelData = File(~currentDir +/+ "joints.log", "r").readAllString.interpret;
+// // XXX - test and remove this and skelSimulation task
+// var skelData;
+// postf("Reading skeleton simulation data\n");
+// skelData = File(~currentDir +/+ "joints.log", "r").readAllString.interpret;
 
 //GLOBAL
 ~sequence = (
@@ -71,7 +71,7 @@ guideBuff = Buffer.readChannel(s,
     FloatArray[0, 3],
     FloatArray[1, 3],
 ].do { |c, i|
-    ~sequence.scales.add(Buffer.loadCollection(s, c));
+    ~sequence.scales.add(Buffer.sendCollection(~scsynth, c));
 };
 
 ~sequence.events = (
@@ -92,12 +92,15 @@ guideBuff = Buffer.readChannel(s,
         (message: \physics, params: [\mutualAttraction, \default]),
         (message: \physics, params: [\audioIn, true])
     ],
-    5: [
-        (
-            info: "Skeleton simulation",
-            message: \task, name: \skelSimulation, act: 1
-        ),
-    ],
+
+    // // XXX - test and remove this and skelSimulation task
+    // 5: [
+    //     (
+    //         info: "Skeleton simulation",
+    //         message: \task, name: \skelSimulation, act: 1
+    //     ),
+    // ],
+
     10: [
         (
             info: "heavy __growls - TAP twice for 2!",
@@ -133,10 +136,12 @@ guideBuff = Buffer.readChannel(s,
             info: "stop storm",
             message: \task, name: \randomParticles, act: 0
         ),
-        (
-            info: "stop skeleton simulation",
-            message: \task, name: \skelSimulation, act: 0
-        ),
+
+        // // XXX - test and remove this and skelSimulation task
+        // (
+        //     info: "stop skeleton simulation",
+        //     message: \task, name: \skelSimulation, act: 0
+        // ),
         (
             info: "stop random particles",
             message: \task, name: \storm, act: 0
@@ -156,19 +161,21 @@ guideBuff = Buffer.readChannel(s,
 // Tasks dictionary.
 //
 ~sequence.tasks = (
-    skelSimulation: Task({
-        var msg;
-        inf.do { |j|
-            // process
-            if (skelData[j].isNil) {
-                ~sequence.tasks.skelSimulation.stop;
-                ~sequence.tasks.skelSimulation.reset;
-            };
-            msg = [skelData[j][0], 1] ++ skelData[j][1..];
-            ~sendMessage.(\joint, msg);
-            0.005.wait;
-        }
-    }),
+
+    // // TEST ONLY
+    // skelSimulation: Task({
+    //     var msg;
+    //     inf.do { |j|
+    //         // process
+    //         if (skelData[j].isNil) {
+    //             ~sequence.tasks.skelSimulation.stop;
+    //             ~sequence.tasks.skelSimulation.reset;
+    //         };
+    //         msg = [skelData[j][0], 1] ++ skelData[j][1..];
+    //         ~sendMessage.(\joint, msg);
+    //         0.005.wait;
+    //     }
+    // }),
     randomParticles: Task({
         var key, next;
         var particleParams = [ // list of acceptable configurations
@@ -240,9 +247,6 @@ guideBuff = Buffer.readChannel(s,
 );
 
 CmdPeriod.doOnce({
-    // Free buffers.
     guideBuff.free;
-    ~sequence.samples.do { |buff| buff.free};
-    ~sequence.scales.do  { |buff| buff.free};
 });
 )

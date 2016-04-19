@@ -40,7 +40,7 @@ msetObjSeq = MarkovSetN([], 2);
 dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 
 // fill buff with sample connected to guide object
-guideBuff = Buffer.readChannel(s,
+guideBuff = Buffer.readChannel(~scsynth,
     PathName("~/Music/Sympli_Romatiko/samples/drumguide.wav").fullPath,
     channels: [0]);
 
@@ -52,7 +52,7 @@ samples = List.new; // fill samples
     "~/Music/Sympli_Romatiko/samples/drumloop03.wav",
     "~/Music/Sympli_Romatiko/samples/drumloop04.wav"
 ].do { |f|
-    samples.add(Buffer.readChannel(s, PathName(f).fullPath, channels: [0]));
+    samples.add(Buffer.readChannel(~scsynth, PathName(f).fullPath, channels: [0]));
 };
 
 voices = List.new; // fill samples
@@ -75,7 +75,7 @@ voices = List.new; // fill samples
     "~/Music/Sympli_Romatiko/samples/narration15.wav",
     "~/Music/Sympli_Romatiko/samples/marcin00.wav",
 ].do { |f|
-    voices.add(Buffer.readChannel(s, PathName(f).fullPath, channels: [0]));
+    voices.add(Buffer.readChannel(~scsynth, PathName(f).fullPath, channels: [0]));
 };
 
 scales = List.new; // fill scales
@@ -85,7 +85,7 @@ scales = List.new; // fill scales
     FloatArray[0, 2, 4, 6, 9],
     FloatArray[0, 3, 6, 9, 11],
     FloatArray[0, 1, 3, 7, 10],
-].do { |a| scales.add(Buffer.loadCollection(s, a)) };
+].do { |a| scales.add(Buffer.sendCollection(~scsynth, a)) };
 
 thePiece = (
     0: [
@@ -1004,8 +1004,6 @@ midiClean = MIDIFunc.noteOn({ |val, noteNum, chan, srcID|
 CmdPeriod.doOnce({
     // Free buffers.
     guideBuff.free;
-    samples.do { |buff| buff.free};
-    voices.do { |buff| buff.free};
     midiServerVolume.free;
     midiNext.free;
     midiPrev.free;

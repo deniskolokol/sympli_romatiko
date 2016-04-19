@@ -1,3 +1,5 @@
+// solo concert @ Division of Labor, TheLAB, SF 2013.06.22
+
 (
 var playRout, quant= 0.01, current;
 var w, lbKey, lbSteps, lbWait, liWait; // main window

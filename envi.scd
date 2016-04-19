@@ -1,7 +1,7 @@
 // Sympli Romatikó
 // module: Environment
 // -------------------
-// connecting together World, Sceduler and SynthDefs
+// connecting together World, Scheduler and SynthDefs
 //
 (
 var srEnv;
@@ -10,15 +10,8 @@ var key, subkey, synthNames;
 var conf, confFile, confKeys;
 var seqPathsFile, seqPaths;
 var harmonics, numHarmonics, numWavetables;
-var audioServer;
+var scsynthOnBoot;
 var ar__ROOT_NODE, kr__ROOT_NODE; // root IDs for synths
-
-ar__ROOT_NODE = s.nextNodeID;
-kr__ROOT_NODE = s.nextNodeID;
-
-// initial server groups
-s.sendMsg("/g_new", ar__ROOT_NODE, 0, 1);
-s.sendMsg("/g_new", kr__ROOT_NODE, 0, 1);
 
 // ENVIRONMENT
 //
@@ -45,15 +38,15 @@ seqPaths = seqPaths.asList;
 srEnv = Environment.make {
     ~currentDir = currentDir;
     ~seqPaths = seqPaths;
+    // ~scsynth = Server("scsynth", NetAddr.new("192.168.1.106", 57110));
+    ~scsynth = Server.internal;
     ~surround = conf.atFail(\surround, {"ambisonic"});
     ~depth = conf.atFail(\depth, {3.5});
-    ~inbus = conf.atFail(\inbus, {12});
+    ~inbus = conf.atFail(\inbus, {20});
     ~outbus = conf.atFail(\outbus, {0});
     ~audioThruBus = conf.atFail(\audioThruBus, {[21, 22]});
-    ~mainInput = conf.atFail(\mainInput, {20});
-    ~mainOutput = conf.atFail(\mainOutput, {0});
     ~worldSize = conf.atFail(\worldSize, {700}); // assume the World is a cube
-    ~receiver = conf.atFail(\receiver, {NetAddr.new("127.0.0.1", 57120)});
+    ~receiver = conf.atFail(\receiver, {NetAddr.new("127.0.0.1", 57120)}); // World
     ~speakers = (
         items: conf.atFail(\speakers, {
             (items: List[
@@ -75,17 +68,6 @@ srEnv = Environment.make {
             }
         }
     );
-
-    numHarmonics = 1024;
-    numWavetables = 8;
-    numWavetables.do { |i| // allocate and fill tables
-        // allocate table
-        s.sendMsg(\b_alloc, i, numHarmonics);
-        harmonics = Harmonics(numHarmonics).formant(12,
-            (i**2).linlin(0, numWavetables**2, 1, numHarmonics).ceil
-        );
-        s.performList(\sendMsg, \b_gen, i, \sine1, n, harmonics);
-    };
 
     synthNames = (
         sr__e__wasp: (
@@ -114,7 +96,7 @@ srEnv = Environment.make {
         ),
         sr__e__probe: (
             key: 32, // u
-            attenuate: 0.5,
+            attenuate: 0.8,
         ),
         sr__e__cmb: (
             key: 34, // i
@@ -200,6 +182,10 @@ srEnv = Environment.make {
             key: nil,
             attenuate: 0.05,
         ),
+        sr__e__orbit: (
+            key: 122, // z
+            attenuate: 0.1,
+        ),
     );
     ~synths = merge( // update default ~synths settings by those in conf
         synthNames, conf.atFail(\synths, {Dictionary.new}), { |a, b| b }
@@ -212,7 +198,7 @@ srEnv = Environment.make {
     };
 
     ~sendToSrv = { |messages, time=0.1|
-        s.listSendBundle(time, messages);
+        ~scsynth.listSendBundle(time, messages);
     };
 
     ~groupInit = { |synth, bufnum, inbus, outbus, spatial, params|
@@ -221,9 +207,10 @@ srEnv = Environment.make {
         // spatializer should have a separate routing bus for spatialization to
         // take place individually.
         var node, spatializer, generator, messages, synthPar, l=30, h=53;
+
         node = s.nextNodeID;
-        inbus = inbus ? ~mainInput;
-        outbus = outbus ? ~mainOutput;
+        inbus = inbus ? ~inbus;
+        outbus = outbus ? ~outbus;
         ~route = ~clipInc.(~route ?? l, lo:l, hi:h); // calculate and save for subsequent assignments
         spatial = spatial ? ~getSpatial.();
         spatializer = [
@@ -237,6 +224,9 @@ srEnv = Environment.make {
         ++ [\speakerElev, $[] ++ ~speakers.collectElev() ++ [$]];
 
         synthPar = ~synths.atFail(synth.asSymbol, {~synths[\sr__e__silent]});
+        if (bufnum.isNil) {
+            bufnum = ~getDefaultBuffer.(synth).bufnum;
+        };
         generator = [
             "/s_new", synth, s.nextNodeID, 0, node, // synth goes to a new group's head
             \inbus, inbus,
@@ -276,6 +266,26 @@ srEnv = Environment.make {
         node
     };
 
+    ~groupInitCustom = { |data, time=0.1|
+        // Sends bundle to server, places everything mentioned to the top level group.
+        // This is different from ~groupInit by allowing for an arbitrary number of
+        // synths and flexible group's structure.
+        var node, messages;
+        node = ~scsynth.nextNodeID;
+        messages = data[\params];
+        messages.do { |l, i|
+            l.do { |m, j| // replace keywords with node ids
+                m.switch(
+                    \group_id, { messages[i][j] = node },
+                    \next_node_id, { messages[i][j] = ~scsynth.nextNodeID }
+                )
+            }
+        };
+        messages = [["/g_new", node, 0, ar__ROOT_NODE]] ++ messages; // add group creation
+        ~sendToSrv.(messages, time);
+        node // return node for registration purposes
+    };
+
     ~getSpatial = {
         format("sr__s__%%", ~surround, ~speakers.items.size)
     };
@@ -288,7 +298,7 @@ srEnv = Environment.make {
                 ["/n_set", node, \rel, release ? 2.rand, \gate, 0],
                 ["/n_free", node]
             ].do { |msg|
-                s.listSendMsg(msg);
+                ~scsynth.listSendMsg(msg);
                 release.wait;
             }
         }).play;
@@ -332,6 +342,20 @@ srEnv = Environment.make {
         }).asSpec
     };
 
+    ~getDefaultBuffer = { |synthName|
+        var buff;
+        if (synthName.asString.beginsWith("sr__e__")) {
+            buff = ~sequence.scales[0]
+        };
+        if (synthName.asString.beginsWith("sr__g__")) {
+            buff = ~sequence.voices.choose
+        };
+        if (buff.isNil) {
+            buff = ~defaultBuff
+        };
+        buff
+    };
+
     // Converts timecode to readable format.
     ~convertTime = { |timecode|
         var sec=0, min=0, minstring="00", secstring="00";
@@ -358,44 +382,143 @@ srEnv = Environment.make {
         };
         ind
     };
+
+    ~stopSequence = {
+        // Stops sequence and all its events.
+        // Warning! Order matters!
+        fork {
+            "[...] STOPPING SEQUENCE: stopping / resetting tasks.".postln;
+            ~sequence.tasks.keys.do { |taskName|
+                ~sequence.tasks[taskName].stop;
+            };
+            0.5.wait;
+            "[...] STOPPING SEQUENCE: removing objects.".postln;
+            ~sendMessage.(\action, [\remove, \all]);
+            0.5.wait;
+            // clean up everything including "custom" synths
+            // Warning! "Custom" synths should be placed under
+            // designated ..._ROOT_NODE in order to be cleaned.
+            postf("[...] STOPPING SEQUENCE: cleaning root nodes %, %\n", ar__ROOT_NODE, kr__ROOT_NODE);
+            ~scsynth.listSendMsg(["/n_set", ar__ROOT_NODE, \rel, 0.2, \gate, 0]);
+            ~scsynth.listSendMsg(["/n_set", kr__ROOT_NODE, \rel, 0.2, \gate, 0]);
+            0.5.wait;
+            ~scsynth.listSendMsg(["/g_deepFree", ar__ROOT_NODE]);
+            ~scsynth.listSendMsg(["/g_deepFree", kr__ROOT_NODE]);
+            0.5.wait;
+            ~scsynth.listSendMsg(["/g_freeAll", ar__ROOT_NODE]);
+            ~scsynth.listSendMsg(["/g_freeAll", kr__ROOT_NODE]);
+            0.5.wait;
+            "[...] STOPPING SEQUENCE: done".postln;
+        };
+    };
+
+    // Loads sequence from file.
+    ~loadSequence = { |path|
+        if (path.isNil) { path = ~seqPaths[2] };
+        postf("Loading sequence %...\n", PathName.new(path).fileName);
+        if (this.executeFile(path).isNil.not) {
+            "OK...".postln;
+            if (~seqPaths.asString.contains(path).not) {
+                ~seqPaths.insert(2, path); // to the top, but after ["", "Load.."]
+            };
+            ~getIndex.(~seqPaths, path)
+        } {
+            "Loading sequence has failed!".postln;
+            try {
+                ~seqPaths.removeAt(~getIndex.(~seqPaths, path));
+            };
+            0 // if unsuccessful, return 1st element ("")
+        };
+    };
 };
 currentEnvironment = srEnv;
 
 
 // MODULES
 //
-// XXX - wait until confirmation from server that all are loaded!
-"Loading synth definitions...".postln;
-if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
-    postf("OK\n\n")
+
+scsynthOnBoot = {
+    // initial server groups
+    ar__ROOT_NODE = ~scsynth.nextNodeID;
+    kr__ROOT_NODE = ~scsynth.nextNodeID;
+    ~scsynth.sendMsg("/g_new", ar__ROOT_NODE, 0, 1);
+    ~scsynth.sendMsg("/g_new", kr__ROOT_NODE, 0, 1);
+
+    "Loading wavetables...".postln;
+    numHarmonics = 1024;
+    numWavetables = 8;
+    numWavetables.do { |i| // allocate and fill tables
+        ~scsynth.sendMsg(\b_alloc, i, numHarmonics);
+        harmonics = Harmonics(numHarmonics).formant(12,
+            (i**2).linlin(0, numWavetables**2, 1, numHarmonics).ceil
+        );
+        ~scsynth.performList(\sendMsg, \b_gen, i, \sine1, n, harmonics);
+    };
+
+    // default scale buffer
+    ~defaultBuff = Buffer.sendCollection(~scsynth, Scale.ahirbhairav.degrees, 1, 0.2);
+
+    "Loading synth definitions...".postln;
+    if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
+        postf("OK\n\n")
+    };
+
+    // "Loading world...".postln;
+    if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
+        postf("OK\n\n")
+    };
+
+    // // XXX - in progress
+    // "Loading control matrix...".postln;
+    // if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
+    //     postf("OK\n\n")
+    // };
 };
 
-// XXX - DEPRECATED
-//
-// "Loading scheduler...".postln;
-// if (this.executeFile(
-// ~currentDir +/+ "scheduler.scd").isNil.not) {
-//     postf("OK\n\n")
-// };
+if (~scsynth == Server.internal) {
+    s = ~scsynth; // default server
 
-"Loading world...".postln;
-if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
-    postf("OK\n\n")
+    s.options.numInputBusChannels = 4;
+    s.options.numOutputBusChannels = 10;
+    s.options.memSize = 262144;
+    s.options.blockSize = 512;
+
+    s.boot;
+    ~scsynth.waitForBoot(scsynthOnBoot);
+} {
+    {
+        try {
+            ~scsynth.addr.connect;
+            s = ~scsynth; // default server
+
+            postf("Connected to Server % at %...\n", ~scsynth.name, ~scsynth.addr.ip);
+            ~scsynth.notify;
+            ~scsynth.initTree;
+            ~scsynth.meter;
+            ~scsynth.queryAllNodes;
+
+            scsynthOnBoot.()
+        } { |error|
+            postf("Server % at % is not running!\n", ~scsynth.name, ~scsynth.addr.ip);
+            error.postln;
+        }
+    }.defer(1);
 };
-
-// "Loading control matrix...".postln;
-// if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
-//     postf("OK\n\n")
-// };
 
 CmdPeriod.doOnce({
     "Freeing buffers...".postln;
     ~wavetable.do(_.free);
+    ~sequence.samples.do { |buff| buff.free};
+    ~sequence.scales.do { |buff| buff.free};
+    ~sequence.voices.do { |buff| buff.free};
+
+    "Disconnecting from synth server...".postln;
+    ~scsynth.addr.disconnect;
 
     "Saving environment conf...".postln;
     confKeys = [ // keys to save to conf file
         'surround', 'depth',
-        'inbus', 'outbus', 'audioThruBus', 'mainInput', 'mainOutput',
+        'inbus', 'outbus', 'audioThruBus', 'inbus', 'outbus',
         'worldSize', 'receiver', 'speakers', 'synths'
     ];
     conf = Dictionary.newFrom(currentEnvironment);
@@ -405,7 +528,7 @@ CmdPeriod.doOnce({
         };
         if (envVal.class == Dictionary || envVal.class == Event) {
             envVal.keys.do { |key|
-                if (envVal[key].class == Function) { // XXX - use .isFunction (?)
+                if (envVal[key].isFunction) {
                     conf[envKey].removeAt(key)
                 }
             }

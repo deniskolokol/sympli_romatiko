@@ -2,7 +2,7 @@
 // module: World
 // ---------------
 (
-var world, worldTrace, center, skel, sequence;
+var world, worldTrace, center, skel;
 var worldParams, miscParams;
 var star, physics, particles, springs, position;
 var synths, sGroupId;
@@ -33,14 +33,14 @@ var win, viewTop, viewTopLeft, viewTopCenter, viewTopRight,
     sText, dropdown, slider, button, buttonCheckbox, updateButtonLabel;
 var postListener, postMaxSize=1e+5;
 var scale, translate, focal;
-var paramsChanged, defaultBuff;
+var paramsChanged;
 var stat, clean;
 var trigSynth, synthNames, trigCodes;
 var keyboardFunc, postMsg, fileNames;
-var loadSequence, eventInfo, switchEvent, processEvents, getKey;
+var eventInfo, switchEvent, processEvents, getKey;
 var groupNew, groupRemove, sendPhysics, sendSNew, sendNSet, taskPlay;
 var animateSeq, shade, current, next, count=0, blinked=0;
-var btCurrNum, stCurrInfo, btNextNum, stNextInfo, timeLabel, updateGui;
+var ddSequence, btCurrNum, stCurrInfo, btNextNum, stNextInfo, timeLabel, updateGui;
 var internalInLevels, internalOutLevels,
     oscInternalInLevels, oscInternalOutLevels;
 var transparent=Color.grey(alpha:0.01),
@@ -250,9 +250,6 @@ trigSynth = (
 // convert trigCodes to dictionary for easier access
 trigCodes = Dictionary.newFrom(trigCodes);
 
-// default scale buffer
-defaultBuff = Buffer.sendCollection(s, Scale.ahirbhairav.degrees, 1, 0.2);
-
 // Get only filenames from sequence paths.
 fileNames = { |paths|
     paths[..1] ++ paths[2..].collect({|a| PathName(a).fileName })
@@ -271,30 +268,10 @@ updateGui = { |params|
 
 // SEQUENCE
 //
-// Loads sequence from file.
-loadSequence = { |path|
-    postMsg.(format("Loading schedule %...\n", PathName.new(path).fileName));
-    removeAll.();
-    if (this.executeFile(path).isNil.not) {
-        postMsg.("OK\n\n");
-        sequence = ~sequence;
-        if (~seqPaths.asString.contains(path).not) {
-            ~seqPaths.insert(2, path); // to the top, but after ["", "Load.."]
-        };
-        ~getIndex.(~seqPaths, path)
-    } {
-        postMsg.("Not OK\n\n");
-        try {
-            ~seqPaths.removeAt(~getIndex.(~seqPaths, path));
-        };
-        0 // if unsuccessful, return 1st element ("")
-    };
-};
-
 // Obtain the key next/prev to current.
 getKey = { |curr, next=1|
     var k, c;
-    k = sequence.events.keys.asArray.asInteger.sort;
+    k = ~sequence.events.keys.asArray.asInteger.sort;
     c = k.indexOf(curr) ? -1;
     k[c + next] ? k[0]; // Go back to beginning upon reaching the upper threshold.
 };
@@ -303,7 +280,7 @@ getKey = { |curr, next=1|
 // Converts all event's [\info] keys into info string.
 eventInfo = { |k=nil, lim=50|
     var infoStr, val, sF;
-    val = sequence.events.atFail(k, {[]});
+    val = ~sequence.events.atFail(k, {[]});
     sF = { |l| format(" %\n", if (l.size <= lim) {l} {l[..lim] ++ "..."})};
     infoStr = all{: sF.(l[\info].asString), l <- val, l.keys.includes(\info)};
     infoStr = "".catList(infoStr);
@@ -320,8 +297,8 @@ updateButtonLabel = { |btn, label|
 // Switches to the next or prev event in a sequence
 // and updates GUI.
 switchEvent = { |nxt=1|
-    if (sequence.isNil.not) {
-        if (sequence.size > 0) {
+    if (~sequence.isNil.not) {
+        if (~sequence.size > 0) {
             current = getKey.(current, nxt);
             updateButtonLabel.(btCurrNum, current);
             stCurrInfo.string = eventInfo.(current);
@@ -362,6 +339,7 @@ taskPlay = { |task, play=false|
     };
 };
 
+// XXX - move this to envi.scd
 // Send synth to server.
 sendSNew = { |data|
     var node;
@@ -382,24 +360,8 @@ sendNSet = { |data|
     )
 };
 
-// Sends bundle to server, places everything mentioned to the top level group.
-// This is different from ~groupInit by allowing for an arbitrary number of
-// synths and flexible group's structure.
 groupNew = { |data, time=0.1|
-    var node, messages;
-    node = s.nextNodeID;
-    messages = data[\params];
-    messages.do { |l, i|
-        l.do { |m, j| // replace keywords with node ids
-            m.switch(
-                \group_id, { messages[i][j] = node },
-                \next_node_id, { messages[i][j] = s.nextNodeID }
-            )
-        }
-    };
-    messages = [["/g_new", node]] ++ messages; // add group creation
-    s.listSendBundle(time, messages);
-    synths.put(data[\id], node);
+    synths.put(data[\id], ~groupInitCustom.(data, time));
 };
 
 // Release all synths from group, wait until released, then remove group node from server.
@@ -413,7 +375,7 @@ groupRemove = { |data|
 
 // Process specific key from sequence.
 processEvents = { |key|
-    sequence.events.atFail(key, {[]}).do { |d, l|
+    ~sequence.events.atFail(key, {[]}).do { |d, l|
         d[\message].switch(
             \physics, {
                 sendPhysics.(d[\params])
@@ -425,7 +387,7 @@ processEvents = { |key|
                 ~sendParticle.(d[\particle], d[\synth])
             },
             \task, {
-                taskPlay.(sequence.tasks[d[\name]], d[\act].booleanValue)
+                taskPlay.(~sequence.tasks[d[\name]], d[\act].booleanValue)
             },
             \s_new, { sendSNew.(d) },
             \n_set, { sendNSet.(d) },
@@ -543,28 +505,80 @@ viewBottom = compViewFlow.(win,
     scaleH:(win.bounds.height-(viewWorld.bounds.height+viewTop.bounds.height))/win.bounds.height
 );
 
-// GUI: stat panel
-stat = Dictionary.new;
-panel = compViewFlow.(viewLeft, margin:5@5, scaleH:0.15);
-[
-    (label: "particles", func: { physics.particles.size }),
-    (label: "springs", func: { physics.springs.size }),
-    (label: "attractions", func: { physics.attractions.size }),
-    // (label: "entropy", func: {
-    //     1.38065e-23 * log( // XXX - find and manage a proper formula!
-    //         physics.particles.size.max(1)*
-    //         physics.springs.size.max(1)*
-    //         physics.attractions.size.max(1)
-    //     )
-    // }),
-    (label: "skeletons", func: { format("% %", skeleton.size, skeleton.keys.asArray) }),
-].do { |item|
-    var key;
-    sText.(panel, item.label);
-    item[\gui] = sText.(panel, "0");
-    key = item.label.asString.toLower.replace(" ", "_").asSymbol;
-    stat[key] = item;
-};
+// GUI: scheduler
+viewTopLeft = compViewFlow.(viewTop, scaleW:0.16);
+viewTopCenter = compViewFlow.(viewTop, gap:8@4, scaleW:0.7);
+viewTopRight = compViewFlow.(viewTop, scaleW:0.14);
+
+// current event number and info
+miscParams[\prev] = ( // make it controllable by midi
+    midinote: 46,
+    gui: btCurrNum
+);
+stCurrInfo = sText.(viewTopCenter, "...", stringFont:fontLarge1, scaleW:0.44, scaleH:1);
+stCurrInfo.align = \right;
+btCurrNum = button.(viewTopCenter, ">>",
+    bgColor:Color.gray(0.15), scaleW:0.05
+).action_({ |bt| switchEvent.(-1)});
+// next (awaiting) event number and info
+btNextNum = button.(viewTopCenter, "<<",
+    bgColor:Color.gray(0.15), scaleW:0.05
+).action_({ |bt|
+    switchEvent.(1)
+});
+miscParams[\next] = ( // make it controllable by midi
+    midinote: 43,
+    gui: btNextNum
+);
+stNextInfo = sText.(viewTopCenter, "", stringFont:fontLarge1, scaleW:0.44, scaleH:1);
+
+// time elapsed since the start
+timeLabel = sText.(viewTopRight, ~convertTime.(0), stringFont:fontGiant, scaleW:1);
+timeLabel.align = \right;
+
+// open file with sequence
+ddSequence = dropdown.(viewTopLeft, "sequence",
+    items: fileNames.(~seqPaths),
+    initVal: if (~seqPaths.size > 2) { 2 } { 0 },
+    action: { |element|
+        var val, states, top=2;
+
+        animateSeq = false;
+        case
+        { element.value == 1 } {
+            Dialog.openPanel({ |path|
+                removeAll.();
+                val = ~loadSequence.(path);
+                element.items = fileNames.(~seqPaths);
+                element.value = val;
+            });
+        }
+        { element.value > 1 } {
+            removeAll.();
+            postMsg.(format("Loading sequence %...\n",
+                PathName.new(~seqPaths[element.value]).fileName
+            ));
+            val = ~loadSequence.(~seqPaths[element.value]); // open from file
+            if (val > top) { // place at the top
+                ~seqPaths.insert(top, ~seqPaths.pop(val));
+                element.items = fileNames.(~seqPaths);
+                element.value = top;
+            };
+        };
+        current = -1;
+        updateButtonLabel.(btNextNum, getKey.(current, 1).asString);
+        stNextInfo.string = eventInfo.(0);
+    },
+    initAction: true
+);
+button.(viewTopLeft,
+    "stop", bgColor:Color.grey(0.2), scaleW:0.41, scaleH:0.5
+).action_({ |bt| ~stopSequence.() });
+button.(viewTopLeft,
+    "reload", bgColor:Color.grey(0.2), scaleW:0.6, scaleH:0.5
+).action_({ |bt|
+    ddSequence.valueAction_(ddSequence.value);
+});
 
 // GUI: internal levels (dBFS)
 panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:0.1);
@@ -616,70 +630,28 @@ postListener = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.88
    .hasVerticalScroller_(false)
    .canFocus_(false);
 
-// GUI: scheduler
-viewTopLeft = compViewFlow.(viewTop, scaleW:0.16);
-viewTopCenter = compViewFlow.(viewTop, gap:8@4, scaleW:0.7);
-viewTopRight = compViewFlow.(viewTop, scaleW:0.14);
-
-// current event number and info
-miscParams[\prev] = ( // make it controllable by midi
-    midinote: 46,
-    gui: btCurrNum
-);
-stCurrInfo = sText.(viewTopCenter, "...", stringFont:fontLarge1, scaleW:0.44, scaleH:1);
-stCurrInfo.align = \right;
-btCurrNum = button.(viewTopCenter, ">>",
-    bgColor:Color.gray(0.15), scaleW:0.05
-).action_({ |bt| switchEvent.(-1)});
-// next (awaiting) event number and info
-btNextNum = button.(viewTopCenter, "<<",
-    bgColor:Color.gray(0.15), scaleW:0.05
-).action_({ |bt|
-    switchEvent.(1)
-});
-miscParams[\next] = ( // make it controllable by midi
-    midinote: 43,
-    gui: btNextNum
-);
-stNextInfo = sText.(viewTopCenter, "", stringFont:fontLarge1, scaleW:0.44, scaleH:1);
-
-// time elapsed since the start
-timeLabel = sText.(viewTopRight, ~convertTime.(0), stringFont:fontGiant, scaleW:1);
-timeLabel.align = \right;
-
-// open file with sequence
-dropdown.(viewTopLeft, "sequence",
-    items: fileNames.(~seqPaths),
-    initVal: if (~seqPaths.size > 2) { 2 } { 0 },
-    action: { |element|
-        var val, states, top=2;
-
-        animateSeq = false;
-        case
-        { element.value == 1 } {
-            postMsg.("element.value == 1");
-            Dialog.openPanel({ |path|
-                val = loadSequence.(path);
-                element.items = fileNames.(~seqPaths);
-                element.value = val;
-            });
-        }
-        { element.value > 1 } {
-            val = loadSequence.(~seqPaths[element.value]); // open from file
-            if (val > top) { // place at the top
-                ~seqPaths.insert(top, ~seqPaths.pop(val));
-                element.items = fileNames.(~seqPaths);
-                element.value = top;
-            };
-        };
-        current = -1;
-        updateButtonLabel.(btNextNum, getKey.(current, 1).asString);
-        stNextInfo.string = eventInfo.(0);
-        // // -- profile
-        // timeLabel.string = ~convertTime.(0);
-    },
-    initAction: true
-);
+// GUI: stat panel
+stat = Dictionary.new;
+panel = compViewFlow.(viewRight, margin:5@5, scaleH:0.15);
+[
+    (label: "particles", func: { physics.particles.size }),
+    (label: "springs", func: { physics.springs.size }),
+    (label: "attractions", func: { physics.attractions.size }),
+    // (label: "entropy", func: {
+    //     1.38065e-23 * log( // XXX - find and manage a proper formula!
+    //         physics.particles.size.max(1)*
+    //         physics.springs.size.max(1)*
+    //         physics.attractions.size.max(1)
+    //     )
+    // }),
+    (label: "skeletons", func: { format("% %", skeleton.size, skeleton.keys.asArray) }),
+].do { |item|
+    var key;
+    sText.(panel, format("\t%", item.label), scaleW:0.7);
+    item[\gui] = sText.(panel, "0", scaleW:0.3);
+    key = item.label.asString.toLower.replace(" ", "_").asSymbol;
+    stat[key] = item;
+};
 
 // slider controllers for physics params
 panel = compViewFlow.(viewRight, scaleH:0.5, margin:10@30);
@@ -760,7 +732,7 @@ keyboardFunc = { |synthName, params, spring=0, mass=1|
 };
 panel = compViewFlow.(viewBottom, margin:5@10);
 trigSynth.do { |key, i|
-    var vw, buff;
+    var vw;
     if (trigCodes[key].isNil.not) {
         vw = compViewFlow.(panel, scaleW:synthNames.size.reciprocal);
         vw.decorator = FlowLayout(vw.bounds);
@@ -770,18 +742,7 @@ trigSynth.do { |key, i|
         );
         button.(vw, trigCodes[key].toUpper, bgColor:Color.black, scaleH:0.4)
         .action_({ |bt|
-            var buff;
-            if (sequence.size > 0) {
-                if (synthNames[key].asString.beginsWith("sr__e__")) {
-                    buff = sequence.scales[0]
-                };
-                if (synthNames[key].asString.beginsWith("sr__g__")) {
-                    buff = sequence.voices.choose
-                };
-            } {
-                buff = defaultBuff
-            };
-            keyboardFunc.(synthNames[key], params: [\bufnum, buff.bufnum], spring:1)
+            keyboardFunc.(synthNames[key], spring:1)
         });
         NumberBox(vw, (vw.bounds.width*0.9)@20)
             .clipLo_(0.01)
@@ -868,6 +829,7 @@ viewWorld.mouseUpAction = {
 };
 
 win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
+    // [view, char, modifiers, unicode, keycode].postln;
     case
     { keycode == 8 } { // C
         if (modifiers == 262144) { // Ctrl + C
@@ -892,40 +854,18 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
     // X - remove all particles and synths
     { keycode == 7 && [0, 256].includes(modifiers) } { removeAll.() }
 
-    // Q - new object
-    { keycode == 12 && [0, 256].includes(modifiers) } {
-        // WARNING - TEST ONLY!
-        b = NetAddr.new("127.0.0.1", 57120);
-        k.free;
-        k = Buffer.sendCollection(s, FloatArray[0, 3, 7, 10], 1, 0.2); // default scale
-        g = s.nextNodeID;
-
-        s.sendBundle(0.001,
-            ["/g_new", g],
-            // add spatializer to new group's tail
-            ["/s_new", \sr__s__ambisonic2, s.nextNodeID, 1, g,
-                \route, 4, // getting signal from synth
-                \outbus, 0], // to main output
-            // add synth to new group's head
-            ["/s_new", \sr__e__analog, s.nextNodeID, 0, g,
-                \route, 4, // feeding into spatilizer
-                \depth, ~depth,
-                \bufnum, k.bufnum
-            ]
-        );
-        b.sendMsg('/particle', 1, g, 1,
-            rrand(0.8, 2.0), 600.rand, 600.rand, 600.rand, inf
-        );
-    }
-    { keycode == 24 && [0, 256].includes(modifiers) } { // "+" ("=")
-        if (currSpeaker.isNil.not) { // increase speaker elevation
+    // "+" ("=") - increase speaker elevation
+    { keycode == 24 && [0, 256].includes(modifiers) } {
+        if (currSpeaker.isNil.not) {
             ~speakers.items[currSpeaker].elev = min(
                 ~speakers.items[currSpeaker].elev + 0.00872664, 0.5pi
             ).round(0.00872664) // round to 0.5 degrees
         }
     }
-    { keycode == 27 && [0, 256].includes(modifiers) } { // "-"
-        if (currSpeaker.isNil.not) { // decrease speaker elevation
+
+    // "-" - decrease speaker elevation
+    { keycode == 27 && [0, 256].includes(modifiers) } {
+        if (currSpeaker.isNil.not) {
             ~speakers.items[currSpeaker].elev = max(
                 ~speakers.items[currSpeaker].elev - 0.00872664, -0.5pi
             ).round(0.00872664) // round to 0.5 degrees
@@ -1134,7 +1074,6 @@ viewWorld.drawFunc = { |view|
                 \gElevation, gElevation,
 
                 // general
-                \master, 1,
                 \depth, ~depth,
             );
         };
@@ -1860,6 +1799,13 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
                 removeParticle.(unregisterParticle.(msg[2].asInteger));
             }
         },
+        \event, {
+            if (msg[2].asInteger <= 0) {
+                { btCurrNum.valueAction_(true) }.defer
+            } {
+                { btNextNum.valueAction_(true) }.defer
+            }
+        },
         \add, {
             // What other acts can be sent to the World?
         }
@@ -2018,6 +1964,7 @@ MIDIIn.connectAll;
 // clean everything on exit
 clean = {
     oscRemoveFunc.();
+    removeAll.();
     win.close;
     MIDIIn.disconnect;
 };

@@ -14,7 +14,7 @@ var oscSynthVal, trigID;
 var internalInLevels, internalOutLevels,
     oscInternalInLevels, oscInternalOutLevels;
 var midiGui, midiSet, midiOnOff, midiNextSynth, arKrMidi;
-var doubleClick, clickElement, clickBootSec=Date.getDate.bootSeconds;
+var doubleClick, clickElement, clickBootSec=Date.getDate.rawSeconds;
 
 var win;
 var paneMatrix, paneSettings, paneIndicators, paneSynths, paneSynth,
@@ -859,7 +859,7 @@ midiNextSynth = { |arKr, stripeInd|
     }.defer
 };
 doubleClick = { |elt|
-    var dblClick=false, dateStamp=Date.getDate.bootSeconds;
+    var dblClick=false, dateStamp=Date.getDate.rawSeconds;
 
     // double-click should stay within 0.3s
     if ((dateStamp-clickBootSec <= 0.3) && (clickElement == elt)) {

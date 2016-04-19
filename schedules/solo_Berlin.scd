@@ -1,42 +1,40 @@
+// solo concert for SPEKTRUM, Berlin
+
+//
+// main idea
+// adapt /Users/deniskolokol/Documents/dev_music/utils/markov_signs.scd
+// every tick leads to the change of a "scene"
+//
+// every scene can be one of the following:
+// a) the same synth connected to both hands
+// b) combination of synths taken from a library, where synths that fit each other aregrouped together
+// c) (a) or (b) plus "something happening around" (objects and particles flying around)
+// d) (a) or (b) plus a rhythm
+//
+// change of scene is "marked" by a designated sound from the library
+// (dictionary with keys as types of coming sequence [short, mid, long] and
+// samples that can "symbolize" those sequences)
+
+
+//
+// research and adapt (parts):
+// /Users/deniskolokol/Music/CD_cassette_vynil/Compilations/Egypt - Echoes Of The Nile/12 Rhythmic Improvisation.m4a
+// samples - /Users/deniskolokol/Music/material/Drum samples/513TubeDrumHits_Wav_SP/Samples/
+
+
 (
 var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
-
 //GLOBAL
 ~sequence = (
-    title: "Sympli Romatiko: band in Traer World",
-
-    // step marks (numbered) and time marks (entitled)
-    // (
-    //     0: [(event0), (event1), ...],
-    //     1: [(eventN), (eventN+1), ...],
-    //     foo: [...]
-    // )
+    title: "solo-B",
     events: Dictionary.new,
-
-    // connector of time and time marks
-    // (
-    //     0_00: \foo,
-    //     1_12_354: \gee
-    // )
     marks: Dictionary.new,
-
-    // descriptions of tasks
-    // (
-    //     taskX: Task({...}),
-    //     taskY: Task({...}),
-    // )
     tasks: Dictionary.new,
-
-    // list of buffers
     samples: List.new,
-
-    // list of buffers for voice samples
     voices: List.new,
-
-    // list of buffers for scales
     scales: List.new,
 );
 
@@ -75,8 +73,19 @@ guideBuff = Buffer.readChannel(~scsynth,
 
 ~sequence.events = (
     0: [
-        (message: \action,  params: [\remove, \all],
-            info: "Remove all before start\n Apply initial settings"),
+        (
+            // WARNING!
+            // call for main scheduler should always be called first (key 0)
+            info: "CALL main_scheduler",
+            message: \task, name: \main_scheduler, act: 1
+        )
+    ],
+    5: [
+        (
+            wait: 0.5,
+            message: \action,  params: [\remove, \all],
+            info: "Remove all before start\n Apply initial settings",
+        ),
         (message: \physics, params: [\gravX, \default]),
         (message: \physics, params: [\gravY, \default]),
         (message: \physics, params: [\gravZ, \default]),
@@ -89,9 +98,11 @@ guideBuff = Buffer.readChannel(~scsynth,
         (message: \physics, params: [\springDamp, \default]),
         (message: \physics, params: [\mutualAttraction, \default]),
     ],
-    5: [
+
+    6: [
         (
             info: "INTRO, no objects, only .kr buses",
+            wait: 20,
             message: \g_new,
             id: \intro_bundle,
             //XXX: Fix cliping!
@@ -99,10 +110,10 @@ guideBuff = Buffer.readChannel(~scsynth,
                 ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
                     \depth, ~depth,
                     \route, 14, // getting signal from synth
-                    \outbus, ~outbus], // to main output
+                \outbus, ~outbus], // to main output
                 ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
                     \route, 14, // feeding into spatilizer
-                    \velocity, 0.5, \att, 40, \bufnum, ~sequence.scales[4].bufnum],
+                \velocity, 0.5, \att, 40, \bufnum, ~sequence.scales[4].bufnum],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.2, \mul, 1pi, \outbus, 0],
                 ["/n_map", \group_id, \azimuth, 0],
                 ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \lfo, 0.08, \mul, 0.3, \add, 0.7, \outbus, 1],
@@ -116,6 +127,7 @@ guideBuff = Buffer.readChannel(~scsynth,
     ],
     7: [
         (
+            wait: 20,
             info: "INTRO: Particles",
             message: \physics, params: [particles: 1]
         ),
@@ -134,6 +146,7 @@ guideBuff = Buffer.readChannel(~scsynth,
     ],
     10: [
         ( // Remove all objects.
+            wait: 20,
             message: \action,  params: [\remove, \all]
         ),
         (
@@ -144,16 +157,17 @@ guideBuff = Buffer.readChannel(~scsynth,
     11: [
         (
             info: "INTRO: long noisy",
+            wait: 5,
             message: \g_new,
             id: \intro_noisy,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
                 ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
                     \depth, ~depth,
                     \route, 15, // getting signal from synth
-                    \outbus, ~outbus], // to main output
+                \outbus, ~outbus], // to main output
                 ["/s_new", \sr__e__noisy, \next_node_id, 0, \group_id, // add synth to new group's head
                     \route, 15, // feeding into spatilizer
-                    \velocity, 0.5, \att, 120],
+                \velocity, 0.5, \att, 120],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.2, \mul, 1pi, \outbus, 4],
                 ["/n_map", \group_id, \azimuth, 4],
                 ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.08, \mul, 2.3, \add, 2.7, \outbus, 5],
@@ -166,6 +180,7 @@ guideBuff = Buffer.readChannel(~scsynth,
     15: [
         (
             info: "INTRO: voices",
+            wait: 30,
             message: \task, name: \voices, act: 1
         ),
     ],
@@ -187,7 +202,8 @@ guideBuff = Buffer.readChannel(~scsynth,
         ),
     ],
     20: [
-        (info: "Physics environment change",
+        (wait:0.5,
+            info: "Physics environment change",
             message: \physics, params: [\drag, 0.5]),
         (message: \physics, params: [\repulsion, 10]),
         (message: \physics, params: [\maxVel, 150]),
@@ -204,17 +220,18 @@ guideBuff = Buffer.readChannel(~scsynth,
     30: [
         (
             info: "INTRO: __analog cutoff= -1",
-            message: \task, name: \sporadicAnalogCutoff, act: 1
+            message: \task, name: \introAnalogCutoff, act: 1
         ),
     ],
     31: [
         ( // Remove all objects.
+            wait: 60,
             info: "SCI-FI",
             message: \action, params: [\remove, \all]
         ),
         ( // Stop schedule with sporadic \sr__e__analog, cutoff= -1
             info: "Remove all, stop sched, particles OFF",
-            message: \task, name: \sporadicAnalogCutoff, act: 0
+            message: \task, name: \introAnalogCutoff, act: 0
         ),
         ( // Clear \intro schedule
             message: \task, name: \intro, act: 0
@@ -240,17 +257,18 @@ guideBuff = Buffer.readChannel(~scsynth,
         // Start 2 heavy sr__e__analog w/default cutoff and long attack
         (
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 40, \rel, 10]),
+            synth: (name: \sr__e__analog, params: [\att, 40, \rel, 20]),
             particle: (mass: 1, x: 300, y: 300, z: 250),
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 40, \rel, 10]),
+            synth: (name: \sr__e__analog, params: [\att, 40, \rel, 20]),
             particle: (mass: 1, x: 470, y: 300, z: 250)
         )
     ],
     32: [
         (
+            wait: 0.5,
             info: "SCI-FI: Remove all",
             message: \action,  params: [\remove, \all]
         ),
@@ -266,20 +284,49 @@ guideBuff = Buffer.readChannel(~scsynth,
             message: \particle,
             synth: (name: \sr__e__analog,
                 params: [\bufnum, ~sequence.scales[0].bufnum, \att, 2 + 1.0.rand2, \rel, 5, \threshold, 0.5]),
-            particle: (mass: 1, spring: 1)
+            particle: (mass: 1, spring: 1, x: 300, y: 300, z: 550)
         ),
     ],
     33: [
         (
+            wait: 0.1,
             info: "SCI-FI: heavy __analog 2",
             message: \particle,
             synth: (name: \sr__e__analog,
                 params: [\bufnum, ~sequence.scales[0].bufnum, \att, 2 + 1.0.rand2, \rel, 5, \threshold, 0.5]),
-            particle: (mass: 1, spring: 1)
+            particle: (mass: 1, spring: 1, x: 470, y: 300, z: 550)
+        ),
+    ],
+
+    // XXX
+    // - improve kick drum
+    // - add bass to drumline (maybe __lowe as a bass instrument?)
+    // - change default scale to METAL, narrow it down at the beginning (no very high notes), after 16-24 circles add high notes
+    // - form drum line better (logically) structured
+    // - more vivid off-beat
+    // - more interesting syncopes
+    // - why \gate, 0 doesn't switch drumline off??
+    // - compose drum line for ~5min
+    // - volume control in HEAVY!!!
+
+    34: [
+        (
+            wait: 300,
+            info: "SCI-FI: drum line",
+            message: \g_new,
+            id: \scifi_drumline,
+            params: [
+                ["/s_new", \scifi_drumline, \next_node_id, 0, \group_id, // add synth to new group's head
+                    \route, 0, \amp, 0.03,
+                    \att, 0.5
+                    // \att, 20
+                ]
+            ]
         ),
     ],
     35: [
         (
+            wait: 300,
             info: "METAL: Change scale",
             message: \n_set,
             synth: (
@@ -296,61 +343,67 @@ guideBuff = Buffer.readChannel(~scsynth,
             message: \task, name: \sporadicPulse, act: 0
         ),
     ],
-    36: [
-        (
-            info: "METAL-TO-FREE: reset to chromatic scale",
-            message: \n_set,
-            synth: (
-                params: [
-                    \bufnum, Buffer.sendCollection(~scsynth, Scale.chromatic.degrees[..4]).bufnum,
-                ]
-            )
-        ),
-    ],
-    40: [
-        (
-            info: "HEAVY: Reset scale",
-            message: \n_set,
-            synth: (
-                params: [\bufnum, nil]
-            )
-        ),
-        (
-            info: "Light __lowe ~heaviness",
-            message: \particle,
-            synth: (name: \sr__e__lowe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            particle: (mass: 0.8, spring: 1, x: 470, y: 300, z: 250)
-        ),
-    ],
-    45: [
-        (
-            info: "2 more heavy __analog (no scale)",
-            message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10]),
-            particle: (age: inf, mass: 1, spring: 1),
-        ),
-        (
-            message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \cutoff, -1]),
-            particle: (age: inf, mass: 1, spring: 1)
-        ),
-    ],
-    46: [
-        (
-            info: "Add heavy __therem - TAP twice for 2!",
-            message: \particle,
-            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
-            particle: (age: inf, mass: 0.8, spring: 1),
-        )
-    ],
-    47: [
-        (
-            info: "heavy __therem 2",
-            message: \particle,
-            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
-            particle: (age: inf, mass: 0.8, spring: 1)
-        ),
-    ],
+    // 36: [
+    //     (
+    //         info: "METAL-TO-FREE: reset to chromatic scale",
+    //         message: \n_set,
+    //         synth: (
+    //             params: [
+    //                 \bufnum, Buffer.sendCollection(~scsynth, Scale.chromatic.degrees[..4]).bufnum,
+    //             ]
+    //         )
+    //     ),
+    // ],
+    // 40: [
+    //     (
+    //         info: "HEAVY: Reset scale",
+    //         message: \n_set,
+    //         synth: (
+    //             params: [\bufnum, nil]
+    //         )
+    //     ),
+    //     (
+    //         info: "Light __lowe ~heaviness",
+    //         message: \particle,
+    //         synth: (name: \sr__e__lowe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
+    //         particle: (mass: 0.8, spring: 1, x: 470, y: 300, z: 250)
+    //     ),
+    // ],
+    // 41: [
+    //     (
+    //         info: "Stop drumline",
+    //         message: \g_free, id: \scifi_drumline, params: [\release, 80]
+    //     ),
+    // ],
+    // 45: [
+    //     (
+    //         info: "2 more heavy __analog (no scale)",
+    //         message: \particle,
+    //         synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10]),
+    //         particle: (age: inf, mass: 1, spring: 1),
+    //     ),
+    //     (
+    //         message: \particle,
+    //         synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \cutoff, -1]),
+    //         particle: (age: inf, mass: 1, spring: 1)
+    //     ),
+    // ],
+    // 46: [
+    //     (
+    //         info: "Add heavy __therem - TAP twice for 2!",
+    //         message: \particle,
+    //         synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
+    //         particle: (age: inf, mass: 0.8, spring: 1),
+    //     )
+    // ],
+    // 47: [
+    //     (
+    //         info: "heavy __therem 2",
+    //         message: \particle,
+    //         synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
+    //         particle: (age: inf, mass: 0.8, spring: 1)
+    //     ),
+    // ],
     50: [
         (
             info: "AIRY",
@@ -521,6 +574,59 @@ guideBuff = Buffer.readChannel(~scsynth,
             particle: (spring: 1, age: inf, mass: 0.9)
         )
     ],
+
+    98: [
+        (
+            // very rough draft for the last groove
+            info: "GROOVE back",
+            message: \g_new,
+            id: \scene_groove,
+            params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
+                ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
+                    \depth, ~depth,
+                    \distance, 0.2,
+                    \route, 14, // getting signal from synth
+                    \outbus, ~outbus], // to main output
+                ["/s_new", \sr__e__plane, \next_node_id, 0, \group_id, // add synth to new group's head
+                    \route, 14, // feeding into spatilizer
+                    \velocity, 0.5],
+                ["/s_new", \sr__k__keyscale, \next_node_id, 0, \group_id, \bufnum, ~sequence.scales[0].bufnum,
+                    \add, 16, \outbus, 0],
+                ["/n_map", \group_id, \freq, 0],
+                ["/s_new", \sr__k__saw, \next_node_id, 0, \group_id, \lfo, 5, \mul, 0.2, \add, 0.3, \outbus, 1],
+                ["/n_map", \group_id, \velocity, 1],
+
+                // modulate note
+                ["/s_new", \sr__k__pulse,
+                    \next_node_id, 0, \group_id, \lfo, 5, \mul, 0.2, \add, 0.2, \outbus, 2],
+                ["/n_map", \group_id, \val, 2], // map modulator's value to another modulator's output
+
+                // modulate amp
+                ["/s_new", \sr__k__saw,
+                    \next_node_id, 0, \group_id, \lfo, 5,
+                    \mul, 0.5, \add, 0.5, // for sharper use \mul, 0.25, \add, 0.75
+                    \outbus, 3],
+                ["/n_map", \group_id, \amp, 3],
+
+                // modulate azimuth
+                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \lfo, 0.08,
+                    \mul, 0.5pi, \add, -0.5pi, // for full circle: \mul, 1pi and no add
+                    \outbus, 4],
+                ["/n_map", \group_id, \azimuth, 4], // map modulator's value to another modulator's output
+
+                // ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.1, \mul, 0.25, \add, 0.5, \outbus, 2],
+                // ["/n_map", \group_id, \velocity, 2],
+                // ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.01, \mul, 0.1, \add, 0.1, \outbus, 3],
+                // ["/n_map", \group_id, \az, 3]
+
+                // // tune
+                // s.queryAllNodes
+                // s.sendMsg("/n_set", 1009, \mul, 0.5, \add, 0.5)
+                // s.sendMsg("/n_set", 1009, \lfo, 5)
+
+            ]
+        )
+    ],
     99: [
         (
             info: "FIN",
@@ -529,22 +635,61 @@ guideBuff = Buffer.readChannel(~scsynth,
         (
             info: "Remove all, particles OFF",
             message: \physics, params: [particles: 0]
+        ),
+        (
+            info: "Stop main scheduler",
+            message: \task, name: \main_scheduler, act: 0
         )
     ]
 );
 
+
 // Tasks dictionary.
 //
 ~sequence.tasks = (
+    main_scheduler: Task({
+        //
+        // main schedule
+        // XXX
+        // schedule it 1min after start or sthn like that!
+        //
+        // collects waitingTimes and their waiting times
+        var waitList, waitingTimes=List.new;
+
+        ~sequence.events.keys.asArray.sort.do { |eventKey|
+            if (eventKey.asInteger != 0) {
+                waitList = List.new;
+                ~sequence.events[eventKey].do { |message|
+                    // it is enough that one message in n event would contain \wait key,
+                    // if there are more than one message contains that, only the biggest
+                    // one is being taken intto consideration.
+                    if (message.keys.includes(\wait)) {
+                        waitList.add(message[\wait].asFloat)
+                    };
+                };
+                if (waitList.size > 0) {
+                    waitingTimes.add(waitList.maxItem)
+                } {
+                    waitingTimes.add(30) // default waiting time
+                };
+            };
+        };
+
+        waitingTimes.do { |wait|
+            ~sendMessage.('/action', [\event, 1]);
+            wait.wait;
+        }
+    }),
+
     randomParticles: Task({
         var key, next;
         var particleParams = [ // list of acceptable configurations
-            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.3, \partAgeThresh, 1.67, \partInitAccel, 10 ],
-            [                           \partSigmoidRatio, 0.7, \partAgeThresh, 0.20, \partInitAccel, 30 ],
+            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.3, \partAgeThresh, 1.67, \partInitAccel, 30 ],
+            [                           \partSigmoidRatio, 0.7, \partAgeThresh, 3.20, \partInitAccel, 10 ],
             [\partSynth, \sr__e__melo,  \partSigmoidRatio, 0.7, \partAgeThresh, 0.78, \partInitAccel, 2.0],
-            [\partSynth, \sr__e__cmb,   \partSigmoidRatio, 0.4, \partAgeThresh, 0.20, \partInitAccel, 30 ],
-            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.7, \partAgeThresh, 1.08, \partInitAccel, 8.0],
-            [\partSynth, \sr__e__pulse, \partSigmoidRatio, 0.2, \partAgeThresh, 1.03, \partInitAccel, 20 ],
+            [\partSynth, \sr__e__cmb,   \partSigmoidRatio, 0.4, \partAgeThresh, 0.20, \partInitAccel, 2.0],
+            [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.7, \partAgeThresh, 1.08, \partInitAccel, 10 ],
+            [\partSynth, \sr__e__pulse, \partSigmoidRatio, 0.2, \partAgeThresh, 1.03, \partInitAccel, 10 ],
             [\partSynth, \sr__e__noisy, \partSigmoidRatio, 0.2, \partAgeThresh, 1.67, \partInitAccel, 1.0],
         ];
         inf.do { |i|
@@ -646,13 +791,14 @@ guideBuff = Buffer.readChannel(~scsynth,
             if (prob.coin) { (age * 0.25).wait } { (age + rrand(4, 10)).wait }
         }
     }),
-    sporadicAnalogCutoff: Task({
-        var x, y, z;
+    introAnalogCutoff: Task({
         loop {
-            x = (1.0.sum3rand * 100).abs + [100, 500].choose;
-            #y, z = ({ (1.0.sum3rand * 150).abs + 100 } ! 2);
             ~sendParticle.(
-                particle: (mass:0.6, x:x, y:z, z:z, age:rrand(3, 4)),
+                particle: (mass:0.6, age:rrand(3, 4),
+                    x:(1.0.sum3rand * 100).abs + [100, 500].choose,
+                    y:(1.0.sum3rand * 50).abs,
+                    z:(1.0.sum3rand * 150).abs + 100
+                ),
                 synth: (name:\sr__e__analog, params:[\cutoff, -1, \att, 0.2, \rel, rrand(4, 6)])
             );
             (10 + 2.0.rand2).wait;
@@ -705,4 +851,140 @@ CmdPeriod.doOnce({
     // Free buffers.
     guideBuff.free;
 });
+
+
+// sequence specific synths
+SynthDef(\scifi_drumline, {
+    arg route=0, amp=1, gate=1, att=1, rel=1, ca=3, cr= -3;
+
+    var measure = 1/16!10 * 2;
+    var rhythmTrig = {
+        TDuty.ar(Dseq(measure, inf), 0, Dwhite(0.5, 1, inf))
+    }!2;
+    var hat = HPF.ar(
+        LPF.ar(
+            WhiteNoise.ar(
+                TWChoose.ar(rhythmTrig, [
+                    Decay2.ar(rhythmTrig * LFNoise1.ar(8, 0.5, 0.5), 0.02, 0.1),
+                    Decay2.ar(rhythmTrig * LFNoise1.ar(8, 0.5, 0.5), 0.5, 0.1)
+                ], [0.8, 0.2])
+            ), 6000
+        ),
+        TRand.ar(1000, 8000, rhythmTrig)
+    );
+    var kickTrig = {
+        TDuty.ar(Dseq(measure, inf) * 2, 0,
+            Dseq([
+                // Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 11),
+                // // off-beat
+                // Dseq([0, 0, 0, 0, 0, 1, 0, 1, 1, 0], 1),
+
+                Dseq([
+                    // fig 1 - main line
+                    Dseq([Dwrand([0, 1], [0.2, 0.8], 1), 0, 1, 0, 0, 0, 1, 1, 0, 0], 3),
+                    Dxrand([
+                        // fig 2 - syncope 1
+                        Dseq([0, 0, 1, 0, 0, 1, 1, 1, 0, 0], 1),
+                        // fig 3 - syncope 2
+                        Dseq([0, 1, 0, 0, 1, 0, 0, 1, 0, 0], 1),
+                    ], 1),
+                    // // closing
+                    // Dseq([0, 1, 0, 0, 0, 0, 0, 0, 0, 0], 1),
+                ], 4),
+                Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 4),
+            ], inf)
+        )
+    }!2;
+    var snareTrig = {
+        TDuty.ar(Dseq(measure, inf) * 2, 0,
+            Dseq([
+                // Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 11),
+                // // off-beat
+                // Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 1),
+
+                Dseq([
+                    // fig 1 - main line
+                    Dseq([0, 0, 0, 1, 0, 0, 0, 0, 1, 0], 3),
+                    Dxrand([
+                        // fig 2 - syncope 1
+                        Dseq([1, 1, 0, 0, 0, 1, 0, 0, 1, Drand([0, 1], 1)], 1),
+                        // fig 3 - syncope 2
+                        Dseq([1, 0, 0, 1, 0, 0, 1, 0, 1, Drand([0, 1], 1)], 1),
+                    ], 1),
+                    // // closing
+                    // Dseq([1, 0, 0, 0, 0, 0, 0, 0, 0, 0], 1),
+                ], 4),
+
+                Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 4),
+
+            ], inf)
+        )
+    }!2;
+    // var bassTrig = {
+    //     TDuty.ar(Dseq(measure, inf) * 2, 0,
+    //         Dseq([
+    //             Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 18),
+    //             // fig 1
+    //             Dseq([0, 1, 0.2, 0, 0, 1, 0, Drand([0, 1], 1), 0, 0], 22)
+    //         ], inf)
+    //     )
+    // }!2;
+    var snareNatTrig = {
+        TDuty.ar(Dseq(measure, inf) * 2, 0,
+            Dseq([
+                Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 8),
+                // fig 1
+                Dseq([0, 0, 0, 0, 0, 1, Dwrand([0, 1], [0.7, 0.3], 1), 0, 0, 1], 12)
+            ], inf)
+        )
+    }!2;
+    // var bass = SinOsc.ar(
+    //     0,
+    //     (Sweep.ar(bassTrig, 2pi * [52.8, 740]) + (pi/3)).wrap(-pi, pi),
+    // [2, 0.05]).mean.tanh * EnvGen.ar(Env([0, 0.2, 0.1, 0], [0, 0.2, 0.1], -5), bassTrig.abs)!2;
+    var kickFreq = #[58.0936, 47.3074, 10.2712, 57.8168, 75.0203];
+    var kick = BPeakEQ.ar(
+        SinOsc.ar(kickFreq, 0, 1/kickFreq.size), 1900, 1, 12.0
+    ) * EnvGen.ar(Env([0, 1, 0.4, 0], [0, 0.2, 0.01], -5), kickTrig.abs)!2
+    +
+    LPF.ar(WhiteNoise.ar(Decay2.ar(kickTrig * LFNoise1.ar(8, 0.5, 0.5), TRand.ar(0.02, 0.3, kickTrig), 0.1)), 1500);
+    var snareFreq = #[ 81.5224, 163, 244.3903, 326.7002, 407.7456 ];
+    var snareMul = [0.05, 0.65, 0.1, 0.04, 0.01];
+    var snare = (
+        LPF.ar(
+            Pulse.ar(snareFreq, 0.5, snareMul.sum),
+            EnvGen.ar(Env.perc(0.05, 0.2, 0.2, -4), snareTrig)!2 * 3000 + 30
+        ) * EnvGen.ar(Env.perc(0.05, 0.7, 1, -4), snareTrig)!2
+    )
+    + AllpassN.ar(
+        BPF.ar(HPF.ar(WhiteNoise.ar(1), 500), 1500), 0.05, [0.05.rand, 0.05.rand], 4
+    ) * EnvGen.ar(Env.perc(0.01, 0.3, 1, -3), snareTrig);
+    var snareNat = (
+        LPF.ar(
+            Pulse.ar(snareFreq, 0.5, snareMul*0.6),
+            EnvGen.ar(Env.perc(0.05, 0.2, 0.2, -4), snareNatTrig)!2 * 3000 + 30
+        ) * EnvGen.ar(Env.perc(0.05, 0.7, 1, -4), snareNatTrig)!2
+    )
+    + AllpassN.ar(
+        BPF.ar(HPF.ar(WhiteNoise.ar(0.35), 500), 1500), 0.05, [0.05.rand, 0.05.rand], 4
+    ) * EnvGen.ar(Env.perc(0.01, 0.3, 1, -3), snareNatTrig);
+    var signal = FreeVerb.ar(
+        MidEQ.ar(
+            hat
+            +
+            kick
+            +
+            snare
+            +
+            snareNat
+            , 14000, 0.7, 8
+        ),
+        0.13, 0.13, 0.2);
+    var out = Limiter.ar(signal, amp)
+    * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]),
+        gate: gate, doneAction: 2
+    );
+    Out.ar(route, out);
+}).send(s);
 )

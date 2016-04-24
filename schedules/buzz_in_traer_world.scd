@@ -1,14 +1,15 @@
 (
 var currentScale, currentOffset=24;
-var validScales=all{: c, c <- ScaleInfo.scales, c.pitchesPerOctave == 12};
+var validScales=all{: c, c <- Scale.all, c.pitchesPerOctave == 12};
 
 ~sequence = (
     title: "Buzz in Traer World",
     events: Dictionary.new,
+    marks: Dictionary.new,
     tasks: Dictionary.new,
-    scales: List.new,
     samples: List.new,
     voices: List.new,
+    scales: List.new,
 );
 [
     FloatArray[0, 3, 5],

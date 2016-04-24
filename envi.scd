@@ -408,6 +408,11 @@ srEnv = Environment.make {
             ~scsynth.listSendMsg(["/g_freeAll", ar__ROOT_NODE]);
             ~scsynth.listSendMsg(["/g_freeAll", kr__ROOT_NODE]);
             0.5.wait;
+            "[...] STOPPING SEQUENCE: freeing buffers".postln;
+            try { ~sequence.samples.do { |buff| buff.free}};
+            try { ~sequence.voices.do { |buff| buff.free}};
+            try { ~sequence.scales.do { |buff| buff.free}};
+            0.5.wait;
             "[...] STOPPING SEQUENCE: done".postln;
         };
     };

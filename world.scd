@@ -564,6 +564,7 @@ ddSequence = dropdown.(viewTopLeft, "sequence",
                 element.items = fileNames.(~seqPaths);
                 element.value = top;
             };
+            if (val == 0) {postMsg.("FAIL!")} {postMsg.("OK...")};
         };
         current = -1;
         updateButtonLabel.(btNextNum, getKey.(current, 1).asString);

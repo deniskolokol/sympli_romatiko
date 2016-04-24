@@ -62,11 +62,17 @@ guideBuff = Buffer.readChannel(~scsynth,
 );
 
 [
-    FloatArray[0, 3, 7, 10], // scales[0] is the main scale
-    FloatArray[0, 1, 3, 7, 8], // the rest are specific to sequence's parts
-    FloatArray[0, 2],
-    FloatArray[0, 3],
-    FloatArray[1, 3],
+    #[0, 3, 7, 10], // scales[0] is the main scale
+    #[0, 1, 3, 7, 8], // the rest are specific to sequence's parts
+    #[0, 2],
+    #[0, 3],
+    #[1, 3],
+
+	#[0,3,6,7,11], // Todi
+    #[0,1,4,6,7,8,11], // Purvi
+    #[0,1,4,6,7,9,11], // Marva
+    #[0,1,4,5,7,8,11], // Bhairav
+    #[0,1,4,5,7,9,10], // Ahirbhairav
 ].do { |c, i|
     ~sequence.scales.add(Buffer.sendCollection(~scsynth, c));
 };
@@ -98,131 +104,130 @@ guideBuff = Buffer.readChannel(~scsynth,
         (message: \physics, params: [\springDamp, \default]),
         (message: \physics, params: [\mutualAttraction, \default]),
     ],
-
-    6: [
-        (
-            info: "INTRO, no objects, only .kr buses",
-            wait: 20,
-            message: \g_new,
-            id: \intro_bundle,
-            //XXX: Fix cliping!
-            params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
-                ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
-                    \depth, ~depth,
-                    \route, 14, // getting signal from synth
-                \outbus, ~outbus], // to main output
-                ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
-                    \route, 14, // feeding into spatilizer
-                \velocity, 0.5, \att, 40, \bufnum, ~sequence.scales[4].bufnum],
-                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.2, \mul, 1pi, \outbus, 0],
-                ["/n_map", \group_id, \azimuth, 0],
-                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \lfo, 0.08, \mul, 0.3, \add, 0.7, \outbus, 1],
-                ["/n_map", \group_id, \distance, 1],
-                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \outbus, 2],
-                ["/n_map", \group_id, \velocity, 2],
-                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.01, \mul, 0.1, \add, 0.1, \outbus, 3],
-                ["/n_map", \group_id, \az, 3]
-            ]
-        )
-    ],
-    7: [
-        (
-            wait: 20,
-            info: "INTRO: Particles",
-            message: \physics, params: [particles: 1]
-        ),
-        (
-            message: \physics, params: [\maxVel, 2]
-        ),
-        (
-            info: "Silent object",
-            message: \particle,
-            synth: (name: \sr__e__silent),
-            particle: (mass: 1, x: 470, y: 300, z: 250)
-        ),
-        (
-            message: \task, name: \randomParticles, act: 1
-        ),
-    ],
-    10: [
-        ( // Remove all objects.
-            wait: 20,
-            message: \action,  params: [\remove, \all]
-        ),
-        (
-            info: "INTRO: objects",
-            message: \task, name: \intro, act: 1
-        )
-    ],
-    11: [
-        (
-            info: "INTRO: long noisy",
-            wait: 5,
-            message: \g_new,
-            id: \intro_noisy,
-            params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
-                ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
-                    \depth, ~depth,
-                    \route, 15, // getting signal from synth
-                \outbus, ~outbus], // to main output
-                ["/s_new", \sr__e__noisy, \next_node_id, 0, \group_id, // add synth to new group's head
-                    \route, 15, // feeding into spatilizer
-                \velocity, 0.5, \att, 120],
-                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.2, \mul, 1pi, \outbus, 4],
-                ["/n_map", \group_id, \azimuth, 4],
-                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.08, \mul, 2.3, \add, 2.7, \outbus, 5],
-                ["/n_map", \group_id, \distance, 5],
-                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 1, \mul, 0.2, \add, 0.6, \outbus, 6],
-                ["/n_map", \group_id, \velocity, 6]
-            ]
-        )
-    ],
-    15: [
-        (
-            info: "INTRO: voices",
-            wait: 30,
-            message: \task, name: \voices, act: 1
-        ),
-    ],
-    16: [
-        (
-            info: "INTRO: voices background",
-            message: \particle,
-            synth: (name: \sr__g__reg, params: [
-                \ca, 5, \att, rand(40, 60), \rel, 10, \bufnum, ~sequence.voices.choose.bufnum
-            ]),
-            particle: (mass: 0.5),
-        ),
-        (
-            message: \particle,
-            synth: (name: \sr__g__drone, params: [
-                \ca, 5, \att, rand(80, 120), \rel, 10, \bufnum, ~sequence.voices.choose.bufnum
-            ]),
-            particle: (mass: 0.5),
-        ),
-    ],
+    // 6: [
+    //     (
+    //         info: "INTRO, no objects, only .kr buses",
+    //         wait: 20,
+    //         message: \g_new,
+    //         id: \intro_bundle,
+    //         //XXX: Fix cliping!
+    //         params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
+    //             ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
+    //                 \depth, ~depth,
+    //                 \route, 14, // getting signal from synth
+    //             \outbus, ~outbus], // to main output
+    //             ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
+    //                 \route, 14, // feeding into spatilizer
+    //             \velocity, 0.5, \att, 40, \bufnum, ~sequence.scales[4].bufnum],
+    //             ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.2, \mul, 1pi, \outbus, 0],
+    //             ["/n_map", \group_id, \azimuth, 0],
+    //             ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \lfo, 0.08, \mul, 0.3, \add, 0.7, \outbus, 1],
+    //             ["/n_map", \group_id, \distance, 1],
+    //             ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \outbus, 2],
+    //             ["/n_map", \group_id, \velocity, 2],
+    //             ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.01, \mul, 0.1, \add, 0.1, \outbus, 3],
+    //             ["/n_map", \group_id, \az, 3]
+    //         ]
+    //     )
+    // ],
+    // 7: [
+    //     (
+    //         wait: 20,
+    //         info: "INTRO: Particles",
+    //         message: \physics, params: [particles: 1]
+    //     ),
+    //     (
+    //         message: \physics, params: [\maxVel, 2]
+    //     ),
+    //     (
+    //         info: "Silent object",
+    //         message: \particle,
+    //         synth: (name: \sr__e__silent),
+    //         particle: (mass: 1, x: 470, y: 300, z: 250)
+    //     ),
+    //     (
+    //         message: \task, name: \randomParticles, act: 1
+    //     ),
+    // ],
+    // 10: [
+    //     ( // Remove all objects.
+    //         wait: 20,
+    //         message: \action,  params: [\remove, \all]
+    //     ),
+    //     (
+    //         info: "INTRO: objects",
+    //         message: \task, name: \intro, act: 1
+    //     )
+    // ],
+    // 11: [
+    //     (
+    //         info: "INTRO: long noisy",
+    //         wait: 5,
+    //         message: \g_new,
+    //         id: \intro_noisy,
+    //         params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
+    //             ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
+    //                 \depth, ~depth,
+    //                 \route, 15, // getting signal from synth
+    //             \outbus, ~outbus], // to main output
+    //             ["/s_new", \sr__e__noisy, \next_node_id, 0, \group_id, // add synth to new group's head
+    //                 \route, 15, // feeding into spatilizer
+    //             \velocity, 0.5, \att, 120],
+    //             ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 0.2, \mul, 1pi, \outbus, 4],
+    //             ["/n_map", \group_id, \azimuth, 4],
+    //             ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \freq, 0.08, \mul, 2.3, \add, 2.7, \outbus, 5],
+    //             ["/n_map", \group_id, \distance, 5],
+    //             ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \freq, 1, \mul, 0.2, \add, 0.6, \outbus, 6],
+    //             ["/n_map", \group_id, \velocity, 6]
+    //         ]
+    //     )
+    // ],
+    // 15: [
+    //     (
+    //         info: "INTRO: voices",
+    //         wait: 30,
+    //         message: \task, name: \voices, act: 1
+    //     ),
+    // ],
+    // 16: [
+    //     (
+    //         info: "INTRO: voices background",
+    //         message: \particle,
+    //         synth: (name: \sr__g__reg, params: [
+    //             \ca, 5, \att, rand(40, 60), \rel, 10, \bufnum, ~sequence.voices.choose.bufnum
+    //         ]),
+    //         particle: (mass: 0.5),
+    //     ),
+    //     (
+    //         message: \particle,
+    //         synth: (name: \sr__g__drone, params: [
+    //             \ca, 5, \att, rand(80, 120), \rel, 10, \bufnum, ~sequence.voices.choose.bufnum
+    //         ]),
+    //         particle: (mass: 0.5),
+    //     ),
+    // ],
     20: [
-        (wait:0.5,
+        (wait:3,
             info: "Physics environment change",
             message: \physics, params: [\drag, 0.5]),
         (message: \physics, params: [\repulsion, 10]),
         (message: \physics, params: [\maxVel, 150]),
     ],
-    22: [
-        (
-            info: "INTRO: stop voices",
-            message: \task, name: \voices, act: 0
-        ),
-        (
-            message: \physics, params: [audioIn: false]
-        )
-    ],
-    30: [
-        (
-            info: "INTRO: __analog cutoff= -1",
-            message: \task, name: \introAnalogCutoff, act: 1
-        ),
-    ],
+    // 22: [
+    //     (
+    //         info: "INTRO: stop voices",
+    //         message: \task, name: \voices, act: 0
+    //     ),
+    //     (
+    //         message: \physics, params: [audioIn: false]
+    //     )
+    // ],
+    // 30: [
+    //     (
+    //         info: "INTRO: __analog cutoff= -1",
+    //         message: \task, name: \introAnalogCutoff, act: 1
+    //     ),
+    // ],
     31: [
         ( // Remove all objects.
             wait: 60,
@@ -258,12 +263,12 @@ guideBuff = Buffer.readChannel(~scsynth,
         (
             message: \particle,
             synth: (name: \sr__e__analog, params: [\att, 40, \rel, 20]),
-            particle: (mass: 1, x: 300, y: 300, z: 250),
+            particle: (mass: 1, spring: 0, x: 300, y: 300, z: 250),
         ),
         (
             message: \particle,
             synth: (name: \sr__e__analog, params: [\att, 40, \rel, 20]),
-            particle: (mass: 1, x: 470, y: 300, z: 250)
+            particle: (mass: 1, spring: 0, x: 470, y: 300, z: 250)
         )
     ],
     32: [
@@ -283,7 +288,7 @@ guideBuff = Buffer.readChannel(~scsynth,
             info: "heavy __analog - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__analog,
-                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 2 + 1.0.rand2, \rel, 5, \threshold, 0.5]),
+            params: [\bufnum, ~sequence.scales[0].bufnum, \att, 2 + 1.0.rand2, \rel, 5, \threshold, 0.5]),
             particle: (mass: 1, spring: 1, x: 300, y: 300, z: 550)
         ),
     ],
@@ -293,23 +298,49 @@ guideBuff = Buffer.readChannel(~scsynth,
             info: "SCI-FI: heavy __analog 2",
             message: \particle,
             synth: (name: \sr__e__analog,
-                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 2 + 1.0.rand2, \rel, 5, \threshold, 0.5]),
+            params: [\bufnum, ~sequence.scales[0].bufnum, \att, 2 + 1.0.rand2, \rel, 5, \threshold, 0.5]),
             particle: (mass: 1, spring: 1, x: 470, y: 300, z: 550)
         ),
     ],
 
+    34: [
+        (
+            info: "INTRO: heavy bass 1",
+            wait: 5,
+            message: \g_new,
+            id: \intro_heavy_bass1,
+            params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
+                ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
+                    \depth, ~depth,
+                    \route, 16, // getting signal from synth
+                    \outbus, ~outbus, // to main output
+                \azimuth, -0.5pi],
+                ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
+                    \route, 16, // feeding into spatilizer
+                    \ax, 1, \distance, 0, \velocity, 0.8, \att, 1,
+                    \attenuate, 0.2,
+                    \offset, 33,
+                    \bufnum, ~sequence.scales[0].bufnum
+                ],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.25, \mul, 0.2, \add, 0.8, \outbus, 0],
+                ["/n_map", \group_id, \velocity, 0],
+                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \lfo, 0.5, \mul, 0.1, \add, 0.1, \outbus, 2],
+                ["/n_map", \group_id, \az, 2],
+            ]
+        )
+    ],
+
     // XXX
-    // - improve kick drum
-    // - add bass to drumline (maybe __lowe as a bass instrument?)
-    // - change default scale to METAL, narrow it down at the beginning (no very high notes), after 16-24 circles add high notes
-    // - form drum line better (logically) structured
+    // + improve kick drum
+    // + add bass to drumline (maybe __lowe as a bass instrument?)
+    // + form drum line better (logically) structured
     // - more vivid off-beat
     // - more interesting syncopes
-    // - why \gate, 0 doesn't switch drumline off??
+    // + why \gate, 0 doesn't switch drumline off??
     // - compose drum line for ~5min
     // - volume control in HEAVY!!!
 
-    34: [
+    35: [
         (
             wait: 300,
             info: "SCI-FI: drum line",
@@ -317,14 +348,13 @@ guideBuff = Buffer.readChannel(~scsynth,
             id: \scifi_drumline,
             params: [
                 ["/s_new", \scifi_drumline, \next_node_id, 0, \group_id, // add synth to new group's head
-                    \route, 0, \amp, 0.03,
-                    \att, 0.5
-                    // \att, 20
+                    \route, 0, \amp, 0.05,
+                    \att, 20
                 ]
             ]
         ),
     ],
-    35: [
+    36: [
         (
             wait: 300,
             info: "METAL: Change scale",
@@ -338,72 +368,86 @@ guideBuff = Buffer.readChannel(~scsynth,
                 ]
             )
         ),
+        ( // change scale to bass
+            message: \g_free, id: \intro_heavy_bass1, params: [\release, 10]
+        ),
+        (
+            info: "INTRO: heavy bass 2",
+            message: \g_new,
+            id: \intro_heavy_bass2,
+            params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
+                ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
+                    \depth, ~depth,
+                    \route, 16, // getting signal from synth
+                    \outbus, ~outbus, // to main output
+                    \azimuth, -0.5pi],
+                ["/s_new", \sr__e__humm, \next_node_id, 0, \group_id, // add synth to new group's head
+                    \route, 16, // feeding into spatilizer
+                    \ax, 1, \distance, 0, \velocity, 1, \att, 10,
+                    \amp, 0.4,
+                    \bufnum, ~sequence.scales[0].bufnum
+                ],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.25, \mul, 0.5, \add, 0.5, \outbus, 0],
+                ["/n_map", \group_id, \velocity, 0],
+                ["/s_new", \sr__k__stepnoise, \next_node_id, 0, \group_id, \lfo, 0.25, \mul, 0.1, \add, 0.1, \outbus, 2],
+                ["/n_map", \group_id, \az, 2],
+            ]
+        ),
         (
             info: "Stop sporadic __pulse",
             message: \task, name: \sporadicPulse, act: 0
         ),
     ],
-    // 36: [
-    //     (
-    //         info: "METAL-TO-FREE: reset to chromatic scale",
-    //         message: \n_set,
-    //         synth: (
-    //             params: [
-    //                 \bufnum, Buffer.sendCollection(~scsynth, Scale.chromatic.degrees[..4]).bufnum,
-    //             ]
-    //         )
-    //     ),
-    // ],
-    // 40: [
-    //     (
-    //         info: "HEAVY: Reset scale",
-    //         message: \n_set,
-    //         synth: (
-    //             params: [\bufnum, nil]
-    //         )
-    //     ),
-    //     (
-    //         info: "Light __lowe ~heaviness",
-    //         message: \particle,
-    //         synth: (name: \sr__e__lowe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-    //         particle: (mass: 0.8, spring: 1, x: 470, y: 300, z: 250)
-    //     ),
-    // ],
-    // 41: [
-    //     (
-    //         info: "Stop drumline",
-    //         message: \g_free, id: \scifi_drumline, params: [\release, 80]
-    //     ),
-    // ],
-    // 45: [
-    //     (
-    //         info: "2 more heavy __analog (no scale)",
-    //         message: \particle,
-    //         synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10]),
-    //         particle: (age: inf, mass: 1, spring: 1),
-    //     ),
-    //     (
-    //         message: \particle,
-    //         synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \cutoff, -1]),
-    //         particle: (age: inf, mass: 1, spring: 1)
-    //     ),
-    // ],
-    // 46: [
-    //     (
-    //         info: "Add heavy __therem - TAP twice for 2!",
-    //         message: \particle,
-    //         synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
-    //         particle: (age: inf, mass: 0.8, spring: 1),
-    //     )
-    // ],
-    // 47: [
-    //     (
-    //         info: "heavy __therem 2",
-    //         message: \particle,
-    //         synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
-    //         particle: (age: inf, mass: 0.8, spring: 1)
-    //     ),
-    // ],
+    37: [
+        (
+            info: "METAL-TO-FREE: reset to chromatic scale",
+            message: \n_set,
+            synth: (
+                params: [
+                    \bufnum, Buffer.sendCollection(~scsynth, Scale.chromatic.degrees[..4]).bufnum,
+                ]
+            )
+        ),
+    ],
+    40: [
+        (
+            info: "HEAVY: Reset scale",
+            message: \n_set,
+            synth: (
+                params: [\bufnum, nil]
+            )
+        ),
+        (
+            info: "Light __lowe ~heaviness",
+            message: \particle,
+            synth: (name: \sr__e__lowe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
+            particle: (mass: 0.8, spring: 1, x: 470, y: 300, z: 250)
+        ),
+    ],
+    45: [
+        (
+            info: "One more __analog w/cutoff",
+            message: \particle,
+            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \cutoff, -1]),
+            particle: (age: inf, mass: 0.7, spring: 1)
+        ),
+    ],
+    46: [
+        (
+            info: "Add heavy __therem - TAP twice for 2!",
+            message: \particle,
+            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
+            particle: (age: inf, mass: 0.8, spring: 1),
+        )
+    ],
+    47: [
+        (
+            info: "heavy __therem 2",
+            message: \particle,
+            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
+            particle: (age: inf, mass: 0.8, spring: 1)
+        ),
+    ],
     50: [
         (
             info: "AIRY",
@@ -429,6 +473,10 @@ guideBuff = Buffer.readChannel(~scsynth,
         ),
         (
             message: \task, name: \sporadicMelo, act: 1
+        ),
+        (
+            info: "Schedule scale switch",
+            message: \task, name: \switchScale, act: 1
         )
     ],
     60: [
@@ -468,12 +516,6 @@ guideBuff = Buffer.readChannel(~scsynth,
             message: \particle,
             synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, ~sequence.scales[1].bufnum]),
             particle: (age: inf, mass: 1, spring: 1)
-        ),
-    ],
-    72: [
-        (
-            info: "Schedule scale switch",
-            message: \task, name: \switchScale, act: 1
         ),
     ],
     80: [
@@ -574,7 +616,6 @@ guideBuff = Buffer.readChannel(~scsynth,
             particle: (spring: 1, age: inf, mass: 0.9)
         )
     ],
-
     98: [
         (
             // very rough draft for the last groove
@@ -822,7 +863,7 @@ guideBuff = Buffer.readChannel(~scsynth,
             ~sendParticle.(
                 particle: (x:x, y:z, z:z, age: rrand(2, 5), mass: 0.9, spring: [1, 0].wchoose([0.7, 0.3])),
                 synth: (name: \sr__e__cmb, params: [\att, 1.5, \rel, 3]));
-            (30 + rand2(30 * 0.25)).wait;
+            (20 + rand2(20 * 0.25)).wait;
         }
     }),
     sporadicMelo: Task({
@@ -859,26 +900,20 @@ SynthDef(\scifi_drumline, {
 
     var measure = 1/16!10 * 2;
     var rhythmTrig = {
-        TDuty.ar(Dseq(measure, inf), 0, Dwhite(0.5, 1, inf))
+        TDuty.ar(Dseq(measure, inf), 0,
+            Dseq([
+                // off-beat
+                Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 1),
+                Dwhite(0.5, 1, 71) // 71 = 18 cycles * 4 - 1 empty; (old - inf)
+            ], 1)
+        )
     }!2;
-    var hat = HPF.ar(
-        LPF.ar(
-            WhiteNoise.ar(
-                TWChoose.ar(rhythmTrig, [
-                    Decay2.ar(rhythmTrig * LFNoise1.ar(8, 0.5, 0.5), 0.02, 0.1),
-                    Decay2.ar(rhythmTrig * LFNoise1.ar(8, 0.5, 0.5), 0.5, 0.1)
-                ], [0.8, 0.2])
-            ), 6000
-        ),
-        TRand.ar(1000, 8000, rhythmTrig)
-    );
     var kickTrig = {
         TDuty.ar(Dseq(measure, inf) * 2, 0,
             Dseq([
-                // Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 11),
-                // // off-beat
-                // Dseq([0, 0, 0, 0, 0, 1, 0, 1, 1, 0], 1),
-
+                // off-beat
+                Dseq([0, 0, 0, 0, 1, 1, 0, 0, 1, 1], 1),
+                // main line
                 Dseq([
                     // fig 1 - main line
                     Dseq([Dwrand([0, 1], [0.2, 0.8], 1), 0, 1, 0, 0, 0, 1, 1, 0, 0], 3),
@@ -887,20 +922,20 @@ SynthDef(\scifi_drumline, {
                         Dseq([0, 0, 1, 0, 0, 1, 1, 1, 0, 0], 1),
                         // fig 3 - syncope 2
                         Dseq([0, 1, 0, 0, 1, 0, 0, 1, 0, 0], 1),
+                        // fig 4 - syncope 3
+                        Dseq([0, 1, 0, 0, 1, 1, 0, 0, 1, 1], 1),
                     ], 1),
-                    // // closing
-                    // Dseq([0, 1, 0, 0, 0, 0, 0, 0, 0, 0], 1),
                 ], 4),
-                Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 4),
-            ], inf)
+                // intermission
+                Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 1),
+            ], 4)
         )
     }!2;
     var snareTrig = {
         TDuty.ar(Dseq(measure, inf) * 2, 0,
             Dseq([
-                // Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 11),
-                // // off-beat
-                // Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 1),
+                // off-beat
+                Dseq([0, 0, 0, 0, 0, 0, 1, 0, 1, 1], 1),
 
                 Dseq([
                     // fig 1 - main line
@@ -910,38 +945,41 @@ SynthDef(\scifi_drumline, {
                         Dseq([1, 1, 0, 0, 0, 1, 0, 0, 1, Drand([0, 1], 1)], 1),
                         // fig 3 - syncope 2
                         Dseq([1, 0, 0, 1, 0, 0, 1, 0, 1, Drand([0, 1], 1)], 1),
+                        // fig 4 - syncope 3
+                        Dseq([0, 0, 1, 0, 0, 0, 1, 0, 1, 1], 1),
                     ], 1),
-                    // // closing
-                    // Dseq([1, 0, 0, 0, 0, 0, 0, 0, 0, 0], 1),
                 ], 4),
-
-                Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 4),
-
-            ], inf)
+                // intermission
+                Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 1),
+            ], 4)
         )
     }!2;
-    // var bassTrig = {
-    //     TDuty.ar(Dseq(measure, inf) * 2, 0,
-    //         Dseq([
-    //             Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 18),
-    //             // fig 1
-    //             Dseq([0, 1, 0.2, 0, 0, 1, 0, Drand([0, 1], 1), 0, 0], 22)
-    //         ], inf)
-    //     )
-    // }!2;
     var snareNatTrig = {
         TDuty.ar(Dseq(measure, inf) * 2, 0,
             Dseq([
-                Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 8),
-                // fig 1
-                Dseq([0, 0, 0, 0, 0, 1, Dwrand([0, 1], [0.7, 0.3], 1), 0, 0, 1], 12)
-            ], inf)
+                // silent
+                Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 5),
+                // fig 1 - main line
+                Dseq([0, 0, 0, 0, 0, 1, Dwrand([0, 1], [0.7, 0.3], 1), 0, 0, 1], 12),
+                // intermission
+                Dseq([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 1),
+            ], 4)
         )
     }!2;
-    // var bass = SinOsc.ar(
-    //     0,
-    //     (Sweep.ar(bassTrig, 2pi * [52.8, 740]) + (pi/3)).wrap(-pi, pi),
-    // [2, 0.05]).mean.tanh * EnvGen.ar(Env([0, 0.2, 0.1, 0], [0, 0.2, 0.1], -5), bassTrig.abs)!2;
+    // var bassTrig = {
+    //     Duty.ar(
+    //         Dseq([1/8, 1/4, 1/16, 1/16, 1/4, 1/8, 1/4, 1/16, 1/16], inf) * 2,
+    //         0,
+    //         Dseq([
+    //             Dseq([
+    //                 // fig 1 - main line
+    //                 Dseq([0, 3, 7, 10, 0, 0, 3, 7, 10]+24, 3),
+    //                 Dseq([0, 1, 3, 7,  8, 1, 3, 7, 8 ]+36, 1),
+    //             ], 4),
+    //             Dseq([0, 1, 3, 7,  8, 0, 3, 7, 10]+48, 4),
+    //         ], inf).midicps
+    //     )
+    // }!2;
     var kickFreq = #[58.0936, 47.3074, 10.2712, 57.8168, 75.0203];
     var kick = BPeakEQ.ar(
         SinOsc.ar(kickFreq, 0, 1/kickFreq.size), 1900, 1, 12.0
@@ -957,7 +995,7 @@ SynthDef(\scifi_drumline, {
         ) * EnvGen.ar(Env.perc(0.05, 0.7, 1, -4), snareTrig)!2
     )
     + AllpassN.ar(
-        BPF.ar(HPF.ar(WhiteNoise.ar(1), 500), 1500), 0.05, [0.05.rand, 0.05.rand], 4
+        BPF.ar(HPF.ar(WhiteNoise.ar(1), 500), 1000), 0.05, [0.05.rand, 0.05.rand], 4
     ) * EnvGen.ar(Env.perc(0.01, 0.3, 1, -3), snareTrig);
     var snareNat = (
         LPF.ar(
@@ -968,7 +1006,28 @@ SynthDef(\scifi_drumline, {
     + AllpassN.ar(
         BPF.ar(HPF.ar(WhiteNoise.ar(0.35), 500), 1500), 0.05, [0.05.rand, 0.05.rand], 4
     ) * EnvGen.ar(Env.perc(0.01, 0.3, 1, -3), snareNatTrig);
-    var signal = FreeVerb.ar(
+    var hat = HPF.ar(
+        LPF.ar(
+            WhiteNoise.ar(
+                TWChoose.ar(rhythmTrig, [
+                    Decay2.ar(rhythmTrig * LFNoise1.ar(8, 0.5, 0.5), 0.02, 0.1),
+                    Decay2.ar(rhythmTrig * LFNoise1.ar(8, 0.5, 0.5), 0.5, 0.1)
+                ], [0.8, 0.2])
+            ), 6000
+        ),
+        TRand.ar(1000, 8000, rhythmTrig)
+    );
+
+    var signal, out;
+
+    // var bass = LFSaw.ar((1..5) * bassTrig, LFNoise1.ar(1, 1, 1))
+    // + Impulse.ar(
+    //     SinOsc.ar((4..8) * bassTrig).exprange(0.3, 300)
+    // );
+    // bass = RLPF.ar(Mix.ar(bass), 125, 0.8);
+    // bass = bass * EnvGen.ar(Env.adsr(0.01, 0.3, 0.2, 0.2, 0.2), bassTrig.sign);
+
+    signal = FreeVerb.ar(
         MidEQ.ar(
             hat
             +
@@ -977,11 +1036,12 @@ SynthDef(\scifi_drumline, {
             snare
             +
             snareNat
+            // +
+            // bass
             , 14000, 0.7, 8
         ),
-        0.13, 0.13, 0.2);
-    var out = Limiter.ar(signal, amp)
-    * EnvGen.kr(
+        0.05, 0.13, 0.2);
+    out = Limiter.ar(signal, amp) * EnvGen.kr(
         Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]),
         gate: gate, doneAction: 2
     );

@@ -324,15 +324,10 @@ guideBuff = Buffer.readChannel(~scsynth,
     ],
     45: [
         (
-            info: "2 more heavy __analog (no scale)",
-            message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10]),
-            particle: (age: inf, mass: 1, spring: 1),
-        ),
-        (
+            info: "One more __analog w/cutoff",
             message: \particle,
             synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \cutoff, -1]),
-            particle: (age: inf, mass: 1, spring: 1)
+            particle: (age: inf, mass: 0.7, spring: 1)
         ),
     ],
     46: [
@@ -376,6 +371,10 @@ guideBuff = Buffer.readChannel(~scsynth,
         ),
         (
             message: \task, name: \sporadicMelo, act: 1
+        ),
+        (
+            info: "Schedule scale switch",
+            message: \task, name: \switchScale, act: 1
         )
     ],
     60: [
@@ -415,12 +414,6 @@ guideBuff = Buffer.readChannel(~scsynth,
             message: \particle,
             synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, ~sequence.scales[1].bufnum]),
             particle: (age: inf, mass: 1, spring: 1)
-        ),
-    ],
-    72: [
-        (
-            info: "Schedule scale switch",
-            message: \task, name: \switchScale, act: 1
         ),
     ],
     80: [

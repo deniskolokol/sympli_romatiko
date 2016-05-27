@@ -326,15 +326,15 @@ guideBuff = Buffer.readChannel(~scsynth,
         (
             info: "One more __analog w/cutoff",
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \cutoff, -1]),
-            particle: (age: inf, mass: 0.7, spring: 1)
+            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \cutoff, -1, \amp, 0.5]),
+            particle: (age: inf, mass: 0.8, spring: 1)
         ),
     ],
     46: [
         (
             info: "Add heavy __therem - TAP twice for 2!",
             message: \particle,
-            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
+            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10, \amp, 0.7]),
             particle: (age: inf, mass: 0.8, spring: 1),
         )
     ],
@@ -342,7 +342,7 @@ guideBuff = Buffer.readChannel(~scsynth,
         (
             info: "heavy __therem 2",
             message: \particle,
-            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10]),
+            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10, \amp, 0.7]),
             particle: (age: inf, mass: 0.8, spring: 1)
         ),
     ],
@@ -366,11 +366,9 @@ guideBuff = Buffer.readChannel(~scsynth,
             particle: (age: inf, mass: 0.9, spring: 1),
         ),
         (
-            info: "Schedule sporadic __cmb & __melo",
-            message: \task, name: \sporadicCMB, act: 1
-        ),
-        (
-            message: \task, name: \sporadicMelo, act: 1
+            info: "Schedule __cmb & __melo",
+            wait: 180,
+            message: \task, name: \randomCMBMelo, act: 1
         ),
         (
             info: "Schedule scale switch",
@@ -428,10 +426,7 @@ guideBuff = Buffer.readChannel(~scsynth,
             message: \task, name: \switchScale, act: 0
         ),
         (
-            message: \task, name: \sporadicCMB, act: 0
-        ),
-        (
-            message: \task, name: \sporadicMelo, act: 0
+            message: \task, name: \randomCMBMelo, act: 0
         ),
         (
             info: "heavy __entro + TAP for __radio",
@@ -581,6 +576,7 @@ guideBuff = Buffer.readChannel(~scsynth,
 
                 if (0.7.coin) {
                     synth = (
+                        // XXX - \sr__e__radio - quieter in INTRO!
                         name: [\sr__e__lowe, \sr__e__radio, \sr__e__humm].wchoose([0.6, 0.2, 0.2])
                     );
                     ~sendParticle.(
@@ -640,13 +636,14 @@ guideBuff = Buffer.readChannel(~scsynth,
         }
     }),
     sporadicAnalogCutoff: Task({
-        var x, y, z;
         loop {
-            x = (1.0.sum3rand * 100).abs + [100, 500].choose;
-            #y, z = ({ (1.0.sum3rand * 150).abs + 100 } ! 2);
             ~sendParticle.(
-                particle: (mass:0.6, x:x, y:z, z:z, age:rrand(3, 4)),
-                synth: (name:\sr__e__analog, params:[\cutoff, -1, \att, 0.2, \rel, rrand(4, 6)])
+                particle: (mass:0.6, age:rrand(3, 4),
+                    x: (1.0.sum3rand * 100).abs + [100, 500].choose,
+                    y: rrand(~worldSize*0.15, ~worldSize*0.2),
+                    z: ~worldSize*0.8 // (1.0.sum3rand * 150).abs + 100
+                ),
+                synth: (name:\sr__e__analog, params:[\cutoff, -1, \att, 0.2, \rel, rrand(4, 6), \amp, 0.6])
             );
             (10 + 2.0.rand2).wait;
         }
@@ -662,34 +659,25 @@ guideBuff = Buffer.readChannel(~scsynth,
             (20 + rand2(20 * 0.5)).wait;
         }
     }),
-    sporadicCMB: Task({
-        var x, y, z;
-        loop {
-            #x, y, z = ({ (1.0.sum3rand * 150).abs + 100 } ! 3);
+    randomCMBMelo: Task({
+        var x, y, z, synthName = [\sr__e__cmb, \sr__e__melo];
+        inf.do { |j|
+            x = ~worldSize * [0.2, 0.8].choose;
+            #y, z = ~worldSize * 0.2 ! 2;
             ~sendParticle.(
-                particle: (x:x, y:z, z:z, age: rrand(2, 5), mass: 0.9, spring: [1, 0].wchoose([0.7, 0.3])),
-                synth: (name: \sr__e__cmb, params: [\att, 1.5, \rel, 3]));
-            (30 + rand2(30 * 0.25)).wait;
-        }
-    }),
-    sporadicMelo: Task({
-        var x, y, z;
-        loop {
-            #x, y, z = ({ (1.0.sum3rand * 150).abs + 100 } ! 3);
-            (20 + rand2(20 * 0.25)).wait;
-            ~sendParticle.(
-                particle: (x:x, y:z, z:z, age: rrand(5, 10), mass: 0.9, spring: [1, 0].wchoose([0.7, 0.3])),
-                synth: (name: \sr__e__melo, params: [\att, 1.5, \rel, 3, \bufnum, ~sequence.scales[0].bufnum]));
-            ((20 + rand2(20 * 0.25))/2).wait;
+                particle: (x:x, y:z, z:z, age: rrand(3, 6), mass: 0.9, spring: 1),
+                synth: (name: synthName[j % synthName.size] , params: [\att, 1.5, \rel, 3])
+            );
+            (20 * rrand(0.8, 1.3)).wait;
         }
     }),
     switchScale: Task({
-        var sca = ~sequence.scales[0..1];
+        var sca = ~sequence.scales[0..2];
         inf.do{ |i|
             s.sendMsg("/n_set", nil, \bufnum, sca[i % sca.size].bufnum);
-            (1..3).choose.wait;
+            (6..9).choose.wait;
             s.sendMsg("/n_set", nil, \bufnum, nil);
-            (60..120).choose.wait;
+            (30, 32..60).choose.wait;
         }
     }),
 );

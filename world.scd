@@ -347,14 +347,14 @@ sendSNew = { |data|
     try { // Ignore the case when doneAction = 2.
         synths.put(data[\synth][\id], node);
     };
-    s.listSendMsg(["/s_new", data[\synth][\name], node, 0, sGroupId]
+    ~scsynth.listSendMsg(["/s_new", data[\synth][\name], node, 0, sGroupId]
         ++ data[\synth].atFail(\params, {[]})
     );
 };
 
 // Send \n_set message to server.
 sendNSet = { |data|
-    s.listSendMsg(["/n_set",
+    ~scsynth.listSendMsg(["/n_set",
         synths.at(data[\synth].atFail(\id), {nil})]
         ++ data[\synth].atFail(\params, {[]})
     )
@@ -574,7 +574,11 @@ ddSequence = dropdown.(viewTopLeft, "sequence",
 );
 button.(viewTopLeft,
     "stop", bgColor:Color.grey(0.2), scaleW:0.41, scaleH:0.5
-).action_({ |bt| ~stopSequence.() });
+).action_({ |bt|
+    ~stopSequence.();
+    animateSeq = false; // stop clock
+    count = 0; // reset clock
+});
 button.(viewTopLeft,
     "reload", bgColor:Color.grey(0.2), scaleW:0.6, scaleH:0.5
 ).action_({ |bt|
@@ -830,7 +834,7 @@ viewWorld.mouseUpAction = {
 };
 
 win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
-    // [view, char, modifiers, unicode, keycode].postln;
+    [view, char, modifiers, unicode, keycode].postln;
     case
     { keycode == 8 } { // C
         if (modifiers == 262144) { // Ctrl + C
@@ -847,6 +851,14 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
         }
     }
     { keycode == 53 } { // ESC
+        if (win.bounds == Window.screenBounds) {
+            win.endFullScreen
+        }
+    }
+    { keycode == 45 } { // [N]ext
+        { btNextNum.valueAction_(true) }.defer
+    }
+    { modifiers == 1048576 } { // Cmd
         if (win.bounds == Window.screenBounds) {
             win.endFullScreen
         }
@@ -1790,6 +1802,7 @@ oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
 
 // Catch action messages.
 oscAction = OSCFunc({ |msg, time, addr, recvPort|
+    var data, synthId;
     // postf("from % received %\n", addr, msg);
     postMsg.(format("from % received %\n", addr, msg));
     msg[1].switch(
@@ -1809,6 +1822,22 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
         },
         \add, {
             // What other acts can be sent to the World?
+        },
+        // XXX - finish it
+        \srv_msg, {
+            msg[2].switch(
+                \s_new, {  },
+                \n_set, {
+                    data = Dictionary.newFrom(msg[3..]);
+                    synthId = data[\id];
+                    data.removeAt(\id);
+                    sendNSet.((\synth: (\id: synthId, \params: data.asKeyValuePairs)))
+                },
+                \g_new, {  },
+                \g_free, {  },
+                { ~sendMessage.(d[\message], d[\params]) }
+            );
+            // /n_set
         }
     );
 }, '/action');

@@ -292,14 +292,14 @@ SynthDef(\sr__e__lowe, { // the "lowe"st
 
 SynthDef(\sr__e__probe, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
-        amp=1, attenuate=0.5, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
-        offset=36, cutoff=0;
+    amp=1, attenuate=0.5, gate=1, att=1, rel=1, ca=3, cr= -3,
+    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
+    offset=36, cutoff=0, scope=12;
     var note, in, out, signal;
     var rate=1, dtl=0.01, dtr=0.05;
     // Conversion.
-    rate = (velocity * 5).max(0.1) * exprand(3, 8);
-    note = DegreeToKey.kr(bufnum, az * 15, 24, 1, 15);
+    rate = (velocity*5).max(0.1) * exprand(3, 8);
+    note = DegreeToKey.kr(bufnum, az * scope, 12, 1, offset);
     // Synthesis.
     in = LPZ2.ar(
         LFPulse.ar(
@@ -310,11 +310,11 @@ SynthDef(\sr__e__probe, {
             )
         )
     );
-    2.do({in = AllpassN.ar(in, 0.05, [dtl, dtr], 3.0.rand, amp * attenuate)});
-    signal = Mix(in);
+    2.do({in = AllpassN.ar(in, 0.05, [dtl, dtr], 3.0.rand, amp)});
+    signal = Limiter.ar(MidEQ.ar(Mix(in), 1400, 0.7, 8), attenuate);
     // Envelope.
     out = signal * EnvGen.kr(
-        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
     SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
     Out.ar(route, out);
 }).send(s);
@@ -665,23 +665,32 @@ SynthDef(\sr__e__gauss, {
         ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=1, velocity=0.5,
         offset=36, cutoff=0;
     var note, scale, in, out, signal;
-    var cutOff, rq, dur, width;
+    var cutOff, rq, dur, width, lag, rate, trig;
     // Conversion.
     cutOff = distance.linexp(0.0, 1.0, 10000, 200); // different from arg cutoff!
     rq = distance.linexp(0, 2.sqrt, 1, 0.2);
     dur = SinOsc.ar(LinExp.kr(az, 0.001, 1, 0.05, 5000) * [1, 1.1]).range(0.0006, 0.01);
     width = SinOsc.ar(0.5 * [1, 1.1]).range(0.01, 0.3);
+    lag = velocity.lincurve(0, 1, 0.5, 0.05, -4);
+    rate = velocity.linlin(0, 1, 2, 4).round;
+    trig = Impulse.kr(0) + Dust2.kr(rate);
     // Synthesis.
     in = (
         LFGauss.ar(dur, width)
-        + SinOsc.ar(
-            az.linexp(0, 1, 0.01, 5000) * [1, 1.1],
-            mul:(az.clip(0, 1) * velocity).sqrt // sqrt boosts mul
-        )
+        + SinOsc.ar(az.linexp(0, 1, 0.01, 5000) * [1, 1.1])
+    )
+    * amp
+    // amp controlled by velocity, when "behind the back"
+    * SelectX.kr(BinaryOpUGen('<', ay, 0.5),
+        [
+            (az.clip(0, 1) * velocity).sqrt, // sqrt boosts mul
+            Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2))
+        ]
     );
     in = Limiter.ar(
-        MidEQ.ar(Mix.fill(10, in), 14000, velocity.lincurve(0, 1, 0.8, 0.1, 2), 8),
-        amp * attenuate);
+        in: MidEQ.ar(Mix.fill(10, in), 14000, velocity.lincurve(0, 1, 0.8, 0.1, 2), 8),
+        level: attenuate
+    );
     signal = RLPF.ar(RLPF.ar(Mix.ar(in), cutOff, rq), cutOff, rq);
     // Envelope.
     out = signal * EnvGen.kr(
@@ -881,13 +890,15 @@ SynthDef(\sr__e__therem, {
 
 SynthDef(\sr__e__plane, {
     arg bufnum=0, inbus=30, route=20, trigID=80, freq=65,
-        amp=1, attenuate=0.1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.5, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
-        offset=36, cutoff=0, rq=0.1;
-    var in, out, signal;
+        offset=36, cutoff=0, scope=12;
+    var note, in, out, signal;
+    // Conversion.
+    note = DegreeToKey.kr(bufnum, az*scope, 12, 1, offset).midicps;    // add some low freq stereo detuning
     // Synthesis.
-    in = LFSaw.ar((1..5) * freq, abs(velocity * 2), velocity)
-         + Impulse.ar((0..4) + SinOsc.ar((4..8) * freq).exprange(0.3, 300));
+    in = LFSaw.ar((1..5)*note, abs(velocity * 2), velocity)
+         + Impulse.ar((0..4) + SinOsc.ar((4..8)*note).exprange(0.3, 300));
     in = Mix.ar(in) * amp * attenuate;
     signal = RLPF.ar(in,
         freq:LinLin.kr(velocity, 0, 1, 830, 30),
@@ -1452,6 +1463,15 @@ SynthDef(\sr__k__tri, {
     arg outbus=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
     var out = env * LFTri.kr(lfo, phase, mul, add);
+    SendTrig.kr(Impulse.kr(30), trigID, out);
+    Out.kr(outbus, out);
+}).send(s);
+
+
+SynthDef(\sr__k__sawperc, {
+    arg outbus=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
+    var out = env * LFSaw.ar(lfo, phase, mul, add).cubed.neg.clip;
     SendTrig.kr(Impulse.kr(30), trigID, out);
     Out.kr(outbus, out);
 }).send(s);

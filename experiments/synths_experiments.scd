@@ -319,7 +319,7 @@ SynthDef(\sr__e__plane, {
         offset=36, cutoff=0, rq=0.1;
     var note, in, out, signal;
     // Conversion.
-    note = (DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 15), 12, 1, offset).poll
+    note = (DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 15), 12, 1, offset)
         + LFNoise1.kr([3, 3], 0.04)).midicps;    // add some low freq stereo detuning
     // Synthesis.
     in = LFSaw.ar((1..5) * note, abs(velocity * 2), velocity)
@@ -338,10 +338,41 @@ SynthDef(\sr__e__plane, {
     SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
     Out.ar(route, Pan2.ar(out));
 }).add;
+
+SynthDef(\sr__e__probe, {
+    arg bufnum=0, inbus=30, route=20, trigID=80,
+        amp=1, attenuate=0.5, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
+        offset=36, cutoff=0,
+
+        phaseL=2pi.rand, phaseR=2pi.rand;
+    var note, in, out, signal;
+    var rate=1, dtl=0.01, dtr=0.05;
+    // Conversion.
+    rate = (velocity * 5).max(0.1) * exprand(3, 8);
+    note = DegreeToKey.kr(bufnum, az * 15, 24, 1, 15);
+    // Synthesis.
+    in = LPZ2.ar(
+        LFPulse.ar(
+            note.midicps, 2pi.rand, 0.1,
+            (
+                Mix.ar(SinOsc.ar(rate * [0.1, 1], [pi, 1.35pi], 0.04)).max(0)
+                * Mix.ar(SinOsc.ar(exprand(6,24) * [rrand(0.7, 1.3), 1], [2pi.rand, 2pi.rand])).abs
+            )
+        )
+    );
+    2.do({in = AllpassN.ar(in, 0.05, [dtl, dtr], 3.0.rand, amp * attenuate)});
+    signal = Mix(in);
+    // Envelope.
+    out = signal * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
+    Out.ar(route, Pan2.ar(out));
+}).add;
 )
 
 (
-var names = [\sr__e__lowe, \sr__e__plane,  \sr__e__harm, \sr__e__neural, \sr__e__buzzow, \sr__e__hammond, \sr__e__pipe, \sr__e__growl];
+var names = [\sr__e__probe, \sr__e__plane,  \sr__e__harm, \sr__e__neural, \sr__e__buzzow, \sr__e__hammond, \sr__e__pipe, \sr__e__growl];
 var nodeL, nodeR;
 var synL, synR;
 var sNew, sOff, sNext, nSet;
@@ -386,15 +417,15 @@ MIDIIn.control = { |scr, chan, num, val|
         //
         // LEFT
         //
-        24, { nSet.(nodeL, \ax, \midinote.asSpec.unmap(val)) }, // Knob 1 Left
-        25, { nSet.(nodeL, \distance, \midinote.asSpec.unmap(val)) }, // Knob 2 Left
-        26, { nSet.(nodeL, \velocity, \midinote.asSpec.unmap(val)) }, // Knob 3 Left
+        24, { nSet.(nodeL, \az, \midinote.asSpec.unmap(val)) }, // Knob 1 Left
+        25, { nSet.(nodeL, \phaseL, \midinote.asSpec.unmap(val).linlin(0, 1, 0, 2pi)) }, // Knob 2 Left
+        26, { nSet.(nodeL, \phaseR, \midinote.asSpec.unmap(val).linlin(0, 1, 0, 2pi)) }, // Knob 3 Left
         12, { nSet.(nodeL, \amp, \midinote.asSpec.unmap(val)) }, // Pitch fader Left
 
         27, { nSet.(nodeL, \offset, val) }, // Knob Hi Left
         28, { nSet.(nodeL, \cutoff, \freq.asSpec.map(\midinote.asSpec.unmap(val))) }, // Knob Mid Left ControlSpec
         29, { nSet.(nodeL, \rq, \rq.asSpec.map(\midinote.asSpec.unmap(val))) }, // Knob Low Left
-        11, { nSet.(nodeL, \amp, \midinote.asSpec.unmap(val)) }, // Volume fader Left
+        11, { nSet.(nodeL, \velocity, \midinote.asSpec.unmap(val)) }, // Volume fader Left
         //
         // RIGHT
         //

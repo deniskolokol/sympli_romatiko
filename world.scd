@@ -50,6 +50,7 @@ var transparent=Color.grey(alpha:0.01),
     fontLarge1=Font("Monaco", 18),
     fontGiant=Font("Monaco", 24),
     fontColor=Color.gray(0.8);
+var waitNextEvent= -1;
 var tmp;
 
 // INITIAL
@@ -297,6 +298,7 @@ updateButtonLabel = { |btn, label|
 // Switches to the next or prev event in a sequence
 // and updates GUI.
 switchEvent = { |nxt=1|
+    var wait;
     if (~sequence.isNil.not) {
         if (~sequence.size > 0) {
             current = getKey.(current, nxt);
@@ -311,6 +313,16 @@ switchEvent = { |nxt=1|
             blinked = 0; // blinking several times with red, then change to grey.
             if (animateSeq.not && (nxt > 0)) { animateSeq = true };
             processEvents.(current);
+
+            // reset waiting time globally
+            waitNextEvent = -1;
+            wait = List.new;
+            ~sequence.events[current].do { |msg|
+                wait.add(msg.atFail(\wait, {-1}))
+            };
+            // update waiting time until the next event
+            waitNextEvent = wait.maxItem;
+            postMsg.(format("Waiting time for next event: %\n", waitNextEvent));
         }
     }
 };
@@ -1949,22 +1961,28 @@ viewWorld.animate = true;
     while {win.isClosed.not} {
         if (animateSeq) {
             count = count + 1;
-
-            // blinking "next event" info.
             shade = (count % 8) * 0.1;
-            if (blinked < 40) { // = 8 * 5times
+            if (blinked < 24) { // = 8 * 3times
+                // blinking next event info AFTER switch
                 stCurrInfo.stringColor = Color.red(shade);
                 stNextInfo.stringColor = Color.green(shade);
                 blinked = blinked + 1;
             } {
-                stCurrInfo.stringColor = fontColor;
-                stNextInfo.stringColor = fontColor;
+                if ((waitNextEvent < 4) && (waitNextEvent > 0)) {
+                    // blinking next event info BEFORE switch (in 4 sec)
+                    stNextInfo.stringColor = Color.red(shade);
+                } {
+                    // static color
+                    stCurrInfo.stringColor = fontColor;
+                    stNextInfo.stringColor = fontColor;
+                }
             };
             timeLabel.string = ~convertTime.(count / 10);
-
-            if (count % 10 == 0) {
-                // TODO: process timemarks
-            };
+            // process waiting time
+            waitNextEvent = waitNextEvent - 0.1;
+            if ((waitNextEvent <= 0.0) && (waitNextEvent > -0.2)) {
+                ~sendMessage.('/action', [\event, 1]);
+            }
         };
         0.1.wait;
     }

@@ -84,13 +84,14 @@ guideBuff = Buffer.readChannel(~scsynth,
         (message: \physics, params: [\repulsion, \default]),
         (message: \physics, params: [\starMass, \default]),
         (message: \physics, params: [\particles, \default]),
-        (message: \physics, params: [\springRestLen, \default]),
-        (message: \physics, params: [\springStrength, \default]),
-        (message: \physics, params: [\springDamp, \default]),
+        (message: \physics, params: [\springRestLen, 3]),
+        (message: \physics, params: [\springStrength, 0.5]),
+        (message: \physics, params: [\springDamp, 2]),
         (message: \physics, params: [\mutualAttraction, \default]),
     ],
     5: [
         (
+            wait: 10,
             info: "INTRO, no objects, only .kr buses",
             message: \g_new,
             id: \intro_bundle,
@@ -116,6 +117,7 @@ guideBuff = Buffer.readChannel(~scsynth,
     ],
     7: [
         (
+            wait:15,
             info: "INTRO: Particles",
             message: \physics, params: [particles: 1]
         ),

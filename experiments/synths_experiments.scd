@@ -412,7 +412,7 @@ nSet = { |node, name, val|
 
 MIDIIn.connectAll;
 MIDIIn.control = { |scr, chan, num, val|
-    // [chan, num, val, \midinote.asSpec.unmap(val)].postln;
+    [chan, num, val, val].postln;
     num.switch(
         //
         // LEFT

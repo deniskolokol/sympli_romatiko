@@ -435,6 +435,58 @@ srEnv = Environment.make {
             0 // if unsuccessful, return 1st element ("")
         };
     };
+
+    ~ensureRecDir = {
+        var dirname = ~currentDir +/+ "rec";
+        if (File.type(dirname) == \not_found) {
+            File.mkdir(dirname)
+        };
+        dirname
+    };
+
+    // Generates the next filename for recording.
+    ~setRecPath = {
+        var dirname, numbers=List.new;
+        dirname = ~ensureRecDir.();
+        PathName(dirname).filesDo { |fname|
+            fname = fname.absolutePath;
+            if ("sr__rec__[0-9]+.aif".matchRegexp(fname)) {
+                numbers.add(
+                    fname.split($\.)[0].split($\_).last.asInteger
+                )
+            }
+        };
+        ~recPath = dirname +/+ format(
+            "sr__rec__%.aif",
+            (numbers.maxItem ? 0 + 1).asString
+        );
+    };
+
+    // Records to a multichannel AIFF file set by ~recPath.
+    ~recordAudio = { |start|
+        var dirname, filename, msg;
+        if (start.booleanValue) {
+            ~setRecPath.();
+            ~scsynth.recChannels = ~speakers.items.size;
+            ~scsynth.recHeaderFormat = "aiff";
+            ~scsynth.recSampleFormat = "int24";
+            AppClock.sched(0, {
+                fork {
+                    ~scsynth.prepareForRecord(~recPath);
+                    ~scsynth.sync;
+                    ~scsynth.record
+                }
+            });
+            format("ENTER: recording started %\n", ~recPath)
+        } {
+            if (~recPath.isNil) {
+                "WARNING: Nothing is being recorded currently"
+            } {
+                ~scsynth.stopRecording;
+                format("INFO: recording stopped %\n", ~recPath)
+            }
+        };
+    }
 };
 currentEnvironment = srEnv;
 

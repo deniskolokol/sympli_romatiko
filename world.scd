@@ -724,13 +724,13 @@ panel = compViewFlow.(viewRight, scaleH:0.2, margin:30@30, gap:10@10);
 miscParams[\removeall] = (
     midinote: 70,
     gui: button.(panel,
-        "X", bgColor:Color.black, scaleW:0.405, scaleH:0.2
+        "X", bgColor:Color.black, scaleW:0.267, scaleH:0.2
     ).action_({ |bt| removeAll.() })
 );
 miscParams[\reset] = (
     midinote: 58,
     gui: button.(panel,
-        "RESET", bgColor:Color.black, scaleW:0.405, scaleH:0.2
+        "RESET", bgColor:Color.black, scaleW:0.267, scaleH:0.2
     ).action_({ |bt|
         worldParams.values.do { |element|
             if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
@@ -738,6 +738,12 @@ miscParams[\reset] = (
             }
         }
     })
+);
+miscParams[\rec] = (
+    // midinote: 58,
+    gui: buttonCheckbox.(panel,
+        "REC.", labelColor: Color.red, bgColor:Color.black, scaleW:0.267, scaleH:0.2
+    ).action_({ |bt| postMsg.(~recordAudio.(bt.value)) })
 );
 
 // GUI: trigger objects keyboard)

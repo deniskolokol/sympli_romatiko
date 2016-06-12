@@ -473,7 +473,10 @@ guideBuff = Buffer.readChannel(~scsynth,
         (
             info: "heavy __gauss - TAP twice for 2!",
             message: \particle,
-            synth: (name: \sr__e__gauss, params: [\att, 100, \rel, 16, \ca, 5]),
+            // synth: (name: \sr__e__gauss, params: [\att, 100, \rel, 16, \ca, 5]),
+
+            // XXX: temp!
+            synth: (name: \sr__e__gauss, params: [\att, 40, \rel, 16, \ca, 5]),
             particle: (spring: 1, age: inf, mass: 0.9)
         ),
     ],
@@ -481,7 +484,10 @@ guideBuff = Buffer.readChannel(~scsynth,
         (
             info: "heavy __gauss 2",
             message: \particle,
-            synth: (name: \sr__e__gauss, params: [\att, 100, \rel, 16, \ca, 5]),
+            // synth: (name: \sr__e__gauss, params: [\att, 100, \rel, 16, \ca, 5]),
+
+            // XXX: temp!
+            synth: (name: \sr__e__gauss, params: [\att, 40, \rel, 16, \ca, 5]),
             particle: (spring: 1, age: inf, mass: 0.9)
         )
     ],

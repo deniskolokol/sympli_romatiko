@@ -2,7 +2,7 @@
 
 //
 // main idea
-// adapt /Users/deniskolokol/Documents/dev_music/utils/markov_signs.scd
+// adapt ~/Documents/dev_music/utils/markov_signs.scd
 // every tick leads to the change of a "scene"
 //
 // every scene can be one of the following:
@@ -18,8 +18,8 @@
 
 //
 // research and adapt (parts):
-// /Users/deniskolokol/Music/CD_cassette_vynil/Compilations/Egypt - Echoes Of The Nile/12 Rhythmic Improvisation.m4a
-// samples - /Users/deniskolokol/Music/material/Drum samples/513TubeDrumHits_Wav_SP/Samples/
+// ~/Music/CD_cassette_vynil/Compilations/Egypt - Echoes Of The Nile/12 Rhythmic Improvisation.m4a
+// samples - ~/Music/material/Drum samples/513TubeDrumHits_Wav_SP/Samples/
 
 
 (

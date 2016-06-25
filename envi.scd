@@ -421,6 +421,7 @@ srEnv = Environment.make {
     ~loadSequence = { |path|
         if (path.isNil) { path = ~seqPaths[2] };
         postf("Loading sequence %...\n", PathName.new(path).fileName);
+        path = path.absolutePath;
         if (this.executeFile(path).isNil.not) {
             "OK...".postln;
             if (~seqPaths.asString.contains(path).not) {

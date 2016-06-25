@@ -1,6 +1,4 @@
 *.DS_Store
-conf/*
-rec
 *.wav
 *.aiff
 *.aif

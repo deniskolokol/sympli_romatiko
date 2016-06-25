@@ -467,7 +467,8 @@ srEnv = Environment.make {
         var dirname, filename, msg;
         if (start.booleanValue) {
             ~setRecPath.();
-            ~scsynth.recChannels = ~speakers.items.size;
+            // If the first channel of the main mix is not 0, record all audio buses.
+            if (~outbus == 0) { ~scsynth.recChannels = ~speakers.items.size };
             ~scsynth.recHeaderFormat = "aiff";
             ~scsynth.recSampleFormat = "int24";
             AppClock.sched(0, {

@@ -4,7 +4,7 @@ Simple solid physics in 3D controlled by Kinect in surround sound.
 
 ## Install packages
 * Install **Sensebloom OSCeleton** https://github.com/Sensebloom/OSCeleton
-* Install **SuperCollider** http://supercollider.github.io/download  **WARNING!** As of time of writing, it has been tested only on OS X with SuperCollider 3.6.6. Use on your own risk with newer versions of SuperCollider and/or different systems (at this stage no support for Windows).
+* Install **SuperCollider** http://supercollider.github.io/download  **WARNING!** As of time of writing, it has been tested only on OS X with SuperCollider 3.6+. Use on your own risk with older versions of SuperCollider and/or different systems (at this stage no support for Windows).
 * In SuperCollider add quarks **MathLib** and **TraerPhysics** (Cmd+E -> Quarks.gui -> mark quarks and hit "Recompile Class Library" after finishing)
 * Install **sc3-plugins** https://github.com/supercollider/sc3-plugins
 * Optional: you might also want to install **libfreenect** https://github.com/OpenKinect/libfreenect (useful for calibration)

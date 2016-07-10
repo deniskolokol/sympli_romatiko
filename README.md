@@ -11,7 +11,9 @@ Simple solid physics in 3D controlled by Kinect in surround sound.
 
 ## Working?
 In **SuperCollider** open `envi.scd` from this repo, select all and run it (`Cmd + Return`). If everything went smooth, you will see the following image. This means it is working.
- ...
+
+![screen shot 2016-07-01 at 18 01 46](https://cloud.githubusercontent.com/assets/580676/16528372/dd158710-3fbc-11e6-8369-695c925f4d6a.png)
+
 ## Calibrate your sound system
 * Add as many speakers as you need by holding `Ctrl` button and clicking somewhere on the central area withing the purple circle.
 * Using the "max dist" slider on the control panel (the right side), set up a distance to the furthest speaker (in meters)

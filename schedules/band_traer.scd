@@ -95,7 +95,6 @@ guideBuff = Buffer.readChannel(~scsynth,
             info: "INTRO, no objects, only .kr buses",
             message: \g_new,
             id: \intro_bundle,
-            //XXX: Fix cliping!
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
                 ["/s_new", ~getSpatial.(), \next_node_id, 1, \group_id, // add spatializer to new group's tail
                     \depth, ~depth,

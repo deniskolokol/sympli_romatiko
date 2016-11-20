@@ -130,15 +130,16 @@ SynthDef(\sr__g__slic, { // slicing
 
 SynthDef(\sr__g__scratch, { // ~ chunks of sound
     arg bufnum=0, inbus=30, route=20, trigID=80,
-        ax=0, ay=0, az=0, velocity=10, distance=0.5,
+    // bookmark
+        ax=0, ay=0, az=0, gx=0.1, gy=0.1, gz=0.1, velocity=10, distance=0.5,
         amp=1, attenuate=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, signal, out;
     var rate, pos, ds;
     // Conversion.
     ds = distance/3.44;
     rate = velocity.linlin(0, 1, 0.1, 1.9);
-    // XXX - for finer control ise gx instead of ax
-    pos = ax * BufDur.kr(bufnum);
+    // gx is being used for finer control (instead of ax)
+    pos = gx * BufDur.kr(bufnum);
     // Synthesis.
     in = BufRd.ar(1, bufnum, Lag.ar(K2A.ar(BufFrames.ir(bufnum) * pos), 4), 1);
     signal = in * amp * attenuate;
@@ -298,6 +299,11 @@ SynthDef(\sr__e__probe, {
     var note, in, out, signal;
     var rate=1, dtl=0.01, dtr=0.05;
     // Conversion.
+    // XXX
+    // some params should be functions of [ax, ay, az], but some
+    // of [gx, gy, gz], ideally this will create a feeleing of "flow",
+    // in which aX changes come slower than gX
+    // can also be applied to voices!
     rate = (velocity*5).max(0.1) * exprand(3, 8);
     note = DegreeToKey.kr(bufnum, az * scope, 12, 1, offset);
     // Synthesis.
@@ -437,7 +443,9 @@ SynthDef(\sr__e__pulse, {
     Out.ar(route, out);
 }).send(s);
 
-
+// XXX
+// modulations (chord progression) based on azim? chords in bufnums?
+// see how it is done in wavefield synthesis
 SynthDef(\sr__e__analog, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, attenuate=0.05, gate=1, att=1, rel=1, ca=3, cr= -3,
@@ -640,7 +648,7 @@ SynthDef(\sr__e__growl, {
                 SelectX.kr(BinaryOpUGen('<', ay, 0.5),
                     [
                         velocity.scurve,
-                        amp * Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2))
+                        Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2))
                     ]
                 )
             )
@@ -648,7 +656,7 @@ SynthDef(\sr__e__growl, {
         }
     );
     in = RLPF.ar(RLPF.ar(Mix.fill(10, in), cutOff, rq), cutOff, rq);
-    in = Limiter.ar(MidEQ.ar(in, [200, 1400], 0.7, 8), amp * attenuate);
+    in = Limiter.ar(MidEQ.ar(in, [200, 1400], 0.7, 8), (amp/tones) * attenuate);
     signal = Mix.ar(in);
 
     // Envelope.
@@ -814,6 +822,64 @@ SynthDef(\sr__e__radio, {
     SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
     Out.ar(route, out);
 }).send(s);
+
+
+SynthDef( \sr__e__pitchflw, {
+    arg bufnum=0, inbus=30, route=20,
+        amp=1, attenuate=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth=0, distance=0.5, elevation=0, velocity=0.5,
+        gx=0.1, gy=0.1, gz=0.1, gAzimuth=0, gDistance=0.5, gElevation=0.5,
+        offset=12;
+	var freq, freq0, freq1, freq2, note, shift1, shift2, detune, hasFreq, in, out, signal;
+
+    in = InFeedback.ar(inbus, 1);
+    # freq, hasFreq = Pitch.kr(in, ampThreshold: 0.02, median: 7);
+    note = freq.cpsmidi;
+    freq = Lag.kr(note.round(1).midicps, 0.05);
+    detune = LFNoise1.kr(Rand(1, 3), 0.04);
+    freq0 = (
+        note
+        - DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 24), 12, 1, offset)
+        + detune
+    ).clip(0, 127).midicps;
+    freq1 = (
+        note
+        + DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 24), 12, 1, offset)
+        + detune
+    ).clip(0, 127).midicps;
+    freq2 = (
+        note
+        + DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 24), 12, 1, offset+6)
+        + detune
+    ).clip(0, 127).midicps;
+    signal = Mix.new(
+        [
+            VarSaw.ar(freq0,
+                0, LFNoise1.kr(0.3,0.1,0.1), Amplitude.kr(in, 0.1, 0.1)
+            ),
+            VarSaw.ar([freq, freq1, freq2],
+                0, LFNoise1.kr(0.3,0.1,0.1), Amplitude.kr(in, 0.05, 0.05)
+            ),
+
+            // interesting option!!
+            // Blip.ar(SinOsc.kr(freq0, 0, Amplitude.kr(in, 0.1, 0.1)), 100, 0.2),
+            // Blip.ar(SinOsc.kr([freq, freq1, freq2], 0, Amplitude.kr(in, 0.1, 0.1)), 100, 0.2),
+            CombC.ar(
+                LPF.ar(in, ay*1000+0.01),
+                (0.2 * freq).reciprocal.clip(0.05, 0.1),
+                decaytime: -6
+            ).distort * 0.3
+        ]
+    );
+	6.do({
+		signal = AllpassN.ar(signal, 0.040, [0.040.rand,0.040.rand], ax.linlin(0,1, 0.1, 4))
+	});
+    signal = Mix.ar(signal) * amp * attenuate;
+    // Envelope.
+    out = signal * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    Out.ar(route, out);
+}).add;
 
 
 SynthDef(\sr__e__wasp, {
@@ -1416,9 +1482,9 @@ SynthDef(\sr__r__buffloop, { // continuous recording into buffer
 
 
 SynthDef(\sr__r__authro, { // audio-through
-    arg bufnum=0, inbus=0, outbus=0,
+    arg bufnum=0, inbus=0, route=0,
         amp=1, gate=1, att=1, rel=1, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5;
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.01, velocity=0.5;
     var in, out, signal, ds;
     // Conversion.
     ds = distance/3.44;
@@ -1429,7 +1495,7 @@ SynthDef(\sr__r__authro, { // audio-through
         distance.linlin(0, 2.sqrt, 10000, 1000), 0.5);
     // Envelope.
     out = signal * EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
-    Out.ar(outbus, out);
+    Out.ar(route, out);
 }).send(s);
 
 

@@ -194,7 +194,12 @@ worldParams = (
         label: "calibr",
         default: true,
         midinote: 69,
-        hint: "static image if in calibration mode",
+        hint: "display image if in calibration mode",
+    ),
+    internalBuf: (
+        label: "internal buf",
+        default: false,
+        hint: "granular synths use internal buffer instead of samples",
     ),
 );
 
@@ -210,14 +215,16 @@ worldParams.keysValuesDo { |k, v| world[k] = v[\default] }; // set default param
 worldTrace = Dictionary.newFrom(world); // tracing changes of the world
 
 // dictionary of the synths symbolic IDs vs. server Nodes
-synths =Dictionary.new;
+synths = Dictionary.new;
 sGroupId = s.nextNodeID; // Group for synths not connected to objects.
 s.sendMsg("/g_new", sGroupId);
 
 // skeletons
 skel = (waitBeforeRemove: 5, limit: 1);
 skeleton = Dictionary.new;
-jointVisible = [\l_hand, \l_elbow, \neck, \r_elbow, \r_hand]; // visualize only these joints
+jointVisible = [ // visualize only these joints
+    \l_hand, \l_elbow, \l_shoulder, \neck, \head, \neck, \r_shoulder, \r_elbow, \r_hand
+];
 springSrcSkel = #[\r_hand, \l_hand]; // joints that springs can be attached to
 listenerPos = ( // as default - center of the world
     x: world.width * 0.5,
@@ -230,7 +237,7 @@ trigCodes = [
     12, "q", 13, "w", 14, "e", 15, "r", 17, "t", 16, "y",
     32, "u", 34, "i", 31, "o", 35, "p", 33, "[", 30, "]",
     1,  "s", 2,  "d", 3,  "f", 5,  "g", 4,  "h", 38, "j", 40, "k",
-    37, "l", 41, ";", 39, "\"", 42, "\\"
+    37, "l", 41, ";", 39, "\"", 42, "\\", 47, "\?"
 ];
 
 // collect keys and synths in a form of dict, unsorted
@@ -625,7 +632,8 @@ tmp = 0.85 * s.options.numOutputBusChannels / (
 );
 panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:tmp);
 s.options.numOutputBusChannels.do { |j|
-    internalOutLevels[j] = LevelIndicator(panel, 19@(panel.bounds.height*0.8))
+    var w = (panel.bounds.width / s.options.numOutputBusChannels)-3;
+    internalOutLevels[j] = LevelIndicator(panel, w@(panel.bounds.height*0.8))
     .background_(Color.clear)
     .warning_(-6.dbamp)
     .critical_(-3.dbamp)
@@ -636,10 +644,10 @@ s.options.numOutputBusChannels.do { |j|
 sText.(panel, "outputs", stringFont:fontSmall, scaleH:0.15, scaleW:1);
 
 // GUI: post window
-panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.7);
-sText.(panel, "", scaleH:0.1, scaleW:1); // gap
+panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.85);
+sText.(panel, "", scaleH:0.05, scaleW:1); // gap
 panel.decorator.nextLine;
-postListener = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.889))
+postListener = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.94))
    .editable_(false)
    .font_(fontSmall)
    .stringColor_(fontColor)
@@ -739,15 +747,37 @@ miscParams[\reset] = (
         }
     })
 );
+panel.decorator.nextLine;
 miscParams[\rec] = (
-    // midinote: 58,
     gui: buttonCheckbox.(panel,
         "REC.", labelColor: Color.red, bgColor:Color.black, scaleW:0.267, scaleH:0.2
     ).action_({ |bt| postMsg.(~recordAudio.(bt.value)) })
 );
+miscParams[\intBuf] = (
+    gui: buttonCheckbox.(panel,
+        "int buf", labelColor: Color.red, bgColor:Color.black, scaleW:0.267, scaleH:0.2
+    )
+    .action_({ |bt|
+		var synthIn;
+		if(bt.value == 1, {
+            //recording synth
+			synthIn = Synth(\sr__r__buffloop, [
+                \bufnum, ~internalBuff.bufnum,  \busnum, ~inbus,
+                \volIn, 1, \loop, 1, \gate, 1, \dur, 1]);
+		}, {
+			synthIn.free;
+		});
+        sendPhysics.([\internalBuf, bt.value])
+	})
+);
 
-// GUI: trigger objects keyboard)
+// GUI: trigger objects keyboard
 keyboardFunc = { |synthName, params, spring=0, mass=1|
+    params = params ? [];
+    worldParams[\internalBuf].booleanValue.postln;
+    if (world[\internalBuf].booleanValue && params.includes(\bufnum).not) {
+        params = params ++ [\bufnum, ~internalBuff.bufnum]
+    };
     ~sendParticle.(
         particle:(spring:spring, mass:mass),
         synth:(name: synthName, params: params)
@@ -910,6 +940,7 @@ viewWorld.drawFunc = { |view|
         unit[\gui].string = unit.func.();
     };
 
+    Pen.smoothing_(true);
     if (world.calibration.booleanValue) {
         Pen.scale(1, 1);
         Pen.translate(0, 0);
@@ -931,12 +962,10 @@ viewWorld.drawFunc = { |view|
     Pen.strokeRect(Rect.aboutPoint(center, world.width, world.height));
 
     // maxDist
-    // Pen.color = Color.new255(48, 45, 92, 150);
     Pen.color = Color.new255(110, 45, 48, 100);
     Pen.fillOval(Rect.aboutPoint(center, world.width/2, world.height/2));
 
     // depth
-    // Pen.color = Color.new255(108, 107, 152, 50);
     Pen.color = Color.new255(182, 107, 108, 50);
     Pen.fillOval(Rect.aboutPoint(
         center,
@@ -1050,6 +1079,69 @@ viewWorld.drawFunc = { |view|
         ) { removeAttraction.(attr) }
     };
 
+    // WARNING!
+    // The following block of code should go BEFORE particle for the sake of better
+    // visualisation of particles as connectors of skeleton joins, springs and attractions.
+    //
+    // Visualize springs.
+    physics.springs.do { |spring, i|
+        Pen.color = Color.white;
+        Pen.moveTo(Point(spring.a.position.x, spring.a.position.y));
+        Pen.lineTo(Point(spring.b.position.x, spring.b.position.y));
+        Pen.stroke;
+    };
+    // Visualize attractions.
+    physics.attractions.do { |attr, i|
+        Pen.color = Color.yellow(alpha:0.3);
+        Pen.moveTo(Point(attr.a.position.x, attr.a.position.y));
+        Pen.lineTo(Point(attr.b.position.x, attr.b.position.y));
+        Pen.stroke;
+    };
+    // Visualize joins connections.
+    Pen.color = Color.green(0.5);
+    skeleton.values.do { |sk|
+        jointVisible.size.do { |j|
+            try {
+                Pen.moveTo(Point(
+                    sk[jointVisible[j]].position.x,
+                    sk[jointVisible[j]].position.y));
+                Pen.lineTo(Point(
+                    sk[jointVisible[j+1]].position.x,
+                    sk[jointVisible[j+1]].position.y));
+                Pen.width = sk[jointVisible[j+1]].position.z.linlin(0, world.depth, 3, 20);
+                Pen.stroke;
+            }
+        };
+
+        // XXX
+        //
+        // var curve;
+        // var drawCurve = { |crv, j|
+        //     try {
+        //         Pen.moveTo(Point(sk[crv[j]].position.x, sk[crv[j]].position.y));
+        //         Pen.lineTo(Point(sk[crv[j+1]].position.x, sk[crv[j+1]].position.y));
+        //         Pen.stroke;
+        //     }
+        // };
+        // if (world.calibration.booleanValue) {
+        //     curve = ['head', 'neck', 'torso'];
+        //     curve.do { |joint, j| drawCurve.(curve, j) };
+        //     curve = ['l_hand', 'l_elbow', 'l_shoulder', 'neck', 'r_shoulder', 'r_elbow', 'r_hand'];
+        //     curve.do { |joint, j| drawCurve.(curve, j) };
+        //     curve = ['l_foot', 'l_knee', 'l_hip', 'torso', 'r_hip', 'r_knee', 'r_foot'];
+        //     curve.do { |joint, j| drawCurve.(curve, j) };
+        // } {
+        //     jointVisible.size.do { |j|
+        //         try {
+        //             Pen.moveTo(Point(sk[jointVisible[j]].position.x, sk[jointVisible[j]].position.y));
+        //             Pen.lineTo(Point(sk[jointVisible[j+1]].position.x, sk[jointVisible[j+1]].position.y));
+        //             Pen.stroke;
+        //         }
+        //     }
+        // };
+    };
+    // WARNING - end
+
     // Manage particles.
     particlesSkelVis = getParticlesSkelVis.();
     particlesHidden = getParticlesHidden.();
@@ -1146,59 +1238,39 @@ viewWorld.drawFunc = { |view|
         };
     };
 
-    // Visualize springs.
-    physics.springs.do { |spring, i|
-        Pen.color = Color.white;
-        Pen.moveTo(Point(spring.a.position.x, spring.a.position.y));
-        Pen.lineTo(Point(spring.b.position.x, spring.b.position.y));
-        Pen.stroke;
+    // audio through is connected either to skeletons head
+    // or to the star
+    if (skeleton.keys.size > 0) {
+        guide = skeleton[skeleton.keys.minItem][\head];
+    } {
+        guide = star;
     };
-    // Visualize attractions.
-    physics.attractions.do { |attr, i|
-        Pen.color = Color.yellow(alpha:0.3);
-        Pen.moveTo(Point(attr.a.position.x, attr.a.position.y));
-        Pen.lineTo(Point(attr.b.position.x, attr.b.position.y));
-        Pen.stroke;
-    };
-    // Visualize joins connections.
-    Pen.color = Color.grey(0.5);
-    Pen.width = 4;
-    skeleton.values.do { |sk|
-        jointVisible.size.do { |j|
-            try {
-                Pen.moveTo(Point(sk[jointVisible[j]].position.x, sk[jointVisible[j]].position.y));
-                Pen.lineTo(Point(sk[jointVisible[j+1]].position.x, sk[jointVisible[j+1]].position.y));
-                Pen.stroke;
-            }
-        };
+    #ax, ay, az = xyz.(guide.position);
+    #azimuth, distance, elevation = xyz2ade.(guide.position);
+    s.sendMsg("/n_set", ~nodeAudioThrough,
+        // particle params
+        \ax, ax,
+        \ay, ay,
+        \az, az,
+        \azimuth, azimuth,
+        \distance, distance,
+        \elevation, elevation,
+        \velocity, mag3D.(guide.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
+        \amp, (0.9 // static guide's loudness
+            + (mag3D.(guide.velocity) * 0.01) // subtle "colors" due to velocity
+        ).clip(0, 1),
 
-        // XXX
-        //
-        // var curve;
-        // var drawCurve = { |crv, j|
-        //     try {
-        //         Pen.moveTo(Point(sk[crv[j]].position.x, sk[crv[j]].position.y));
-        //         Pen.lineTo(Point(sk[crv[j+1]].position.x, sk[crv[j+1]].position.y));
-        //         Pen.stroke;
-        //     }
-        // };
-        // if (world.calibration.booleanValue) {
-        //     curve = ['head', 'neck', 'torso'];
-        //     curve.do { |joint, j| drawCurve.(curve, j) };
-        //     curve = ['l_hand', 'l_elbow', 'l_shoulder', 'neck', 'r_shoulder', 'r_elbow', 'r_hand'];
-        //     curve.do { |joint, j| drawCurve.(curve, j) };
-        //     curve = ['l_foot', 'l_knee', 'l_hip', 'torso', 'r_hip', 'r_knee', 'r_foot'];
-        //     curve.do { |joint, j| drawCurve.(curve, j) };
-        // } {
-        //     jointVisible.size.do { |j|
-        //         try {
-        //             Pen.moveTo(Point(sk[jointVisible[j]].position.x, sk[jointVisible[j]].position.y));
-        //             Pen.lineTo(Point(sk[jointVisible[j+1]].position.x, sk[jointVisible[j+1]].position.y));
-        //             Pen.stroke;
-        //         }
-        //     }
-        // };
-    };
+        // guide params
+        \gx, ax,
+        \gy, ay,
+        \gz, az,
+        \gzimuth, azimuth,
+        \gDistance, distance,
+        \gElevation, elevation,
+
+        // general
+        \depth, ~depth,
+    );
 
     physics.tick;
 };
@@ -1648,7 +1720,10 @@ skeletonRemove = { |id|
 // a siggle float value of the magnitude is returned, or a collection of such
 // objects, which result in a collection of magnitudes.
 mag3D = { |vec|
+    // XXX Profile the following functions: which one is the fastest and the least memory greedy
     var func = { |vector| (vector.x.sumsqr(vector.y) + vector.z.pow(2)).sqrt};
+    // var func = { |vector| (vector.x.pow(2) + vector.y.pow(2) + vector.z.pow(2)).sqrt};
+    // var func = { |vector| [vector.x.pow(2), vector.y.pow(2), vector.z.pow(2)].sum.sqrt};
     var result = 0;
     try {
         result = func.(vec)
@@ -1932,8 +2007,10 @@ oscInternalInLevels = OSCFunc({ |msg, time, addr, recvPort|
 oscInternalOutLevels = OSCFunc({ |msg, time, addr, recvPort|
     {
         internalOutLevels.do { |elem, j|
-            elem.peakLevel = msg[3+(j*2)].ampdb.linlin(-80, 0, 0, 1);
-            elem.value = msg[3+(j*2+1)].ampdb.linlin(-80, 0, 0, 1);
+            try {
+                elem.peakLevel = msg[3+(j*2)].ampdb.linlin(-80, 0, 0, 1);
+                elem.value = msg[3+(j*2+1)].ampdb.linlin(-80, 0, 0, 1);
+            }
         }
     }.defer;
 }, '/internalOutLevels');

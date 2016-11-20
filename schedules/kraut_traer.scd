@@ -3,10 +3,10 @@ var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
-// // XXX - test and remove this and skelSimulation task
+// // XXX - remove after test
 // var skelData;
 // postf("Reading skeleton simulation data\n");
-// skelData = File(~currentDir +/+ "joints.log", "r").readAllString.interpret;
+// skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
 
 //GLOBAL
 ~sequence = (
@@ -79,7 +79,7 @@ guideBuff = Buffer.readChannel(s,
         (message: \action,  params: [\remove, \all],
             info: "Remove all before start\n Apply initial settings"),
         (message: \physics, params: [\gravX, \default]),
-        (message: \physics, params: [\gravY, -1]), // everythin is being dragged "forward"
+        (message: \physics, params: [\gravY, \default]),
         (message: \physics, params: [\gravZ, \default]),
         (message: \physics, params: [\drag, 0.5]),
         (message: \physics, params: [\repulsion, 10]),
@@ -93,29 +93,84 @@ guideBuff = Buffer.readChannel(s,
         (message: \physics, params: [\audioIn, true])
     ],
 
-    // // XXX - test and remove this and skelSimulation task
-    // 5: [
+    // // XXX - remove after test
+    // 1: [
     //     (
     //         info: "Skeleton simulation",
     //         message: \task, name: \skelSimulation, act: 1
     //     ),
     // ],
-
-    10: [
+    2: [
         (
             info: "heavy __growls - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__growl,
-                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 2 + 1.0.rand2, \rel, 5, \threshold, 0.5]),
+                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 10, \rel, 5, \offset, 36]),
             particle: (mass: 1, spring: 1)
         ),
     ],
-    15: [
+    3: [
         (
             info: "heavy growl 2",
             message: \particle,
             synth: (name: \sr__e__growl,
-                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 2 + 1.0.rand2, \rel, 5, \threshold, 0.5]),
+                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 10, \rel, 5, \offset, 36]),
+            particle: (mass: 1, spring: 1)
+        ),
+    ],
+    5: [
+        (
+            info: "__analog 1 for audio through, .kr buses",
+            message: \g_new,
+            id: \feed_audiothrough1,
+            params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
+                ["/s_new", \sr__e__analog, \next_node_id, 0, \group_id, // add synth to new group's head
+                    \route, ~audioThruBus[0], // feeding into the bus designated for audio through
+                    \velocity, 0.5, \att, 40, \bufnum, ~sequence.scales[0].bufnum,
+                    \amp, 0.5 // attenuate not to overshout main synth
+                ],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \outbus, 0],
+                ["/n_map", \group_id, \velocity, 0],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.2, \add, 0.2, \outbus, 1],
+                ["/n_map", \group_id, \az, 1]
+            ]
+        )
+    ],
+    6: [
+        (
+            info: "__analog 2 for audio through, .kr buses",
+            message: \g_new,
+            id: \feed_audiothrough2,
+            params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
+                ["/s_new", \sr__e__analog, \next_node_id, 0, \group_id, // add synth to new group's head
+                    \route, ~audioThruBus[1],
+                    \velocity, 0.5, \att, 40, \bufnum, ~sequence.scales[0].bufnum,
+                    \amp, 0.5 // attenuate not to overshout main synth
+                ],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \outbus, 2],
+                ["/n_map", \group_id, \velocity, 2],
+                ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.2, \add, 0.2, \outbus, 3],
+                ["/n_map", \group_id, \az, 3]
+            ]
+        )
+    ],
+    10: [
+        (
+            info: "heavy __authro - TAP twice for 2!",
+            message: \particle,
+            synth: (name: \sr__r__authro,
+                params: [\inbus, ~audioThruBus[0],
+                    \att, 2+1.0.rand2, \rel, 5, \threshold, 0.5]),
+            particle: (mass: 1, spring: 1)
+        ),
+    ],
+    11: [
+        (
+            info: "heavy __authro 2",
+            message: \particle,
+            synth: (name: \sr__r__authro,
+                params: [\inbus, ~audioThruBus[1],
+                    \att, 2+1.0.rand2, \rel, 5, \threshold, 0.5]),
             particle: (mass: 1, spring: 1)
         ),
     ],
@@ -127,6 +182,12 @@ guideBuff = Buffer.readChannel(s,
     ],
     30: [
         (
+            info: "increase gravity",
+            message: \physics, params: [\gravY, -2], // everythin is being dragged "forward"
+        ),
+    ],
+    35: [
+        (
             info: "storm",
             message: \task, name: \storm, act: 1
         ),
@@ -137,7 +198,7 @@ guideBuff = Buffer.readChannel(s,
             message: \task, name: \randomParticles, act: 0
         ),
 
-        // // XXX - test and remove this and skelSimulation task
+        // // XXX - remove after test
         // (
         //     info: "stop skeleton simulation",
         //     message: \task, name: \skelSimulation, act: 0
@@ -148,7 +209,10 @@ guideBuff = Buffer.readChannel(s,
         ),
         (
             message: \physics, params: [audioIn: false]
-        )
+        ),
+        ( // remove intro group from server
+            message: \g_free, id: \feed_audiothrough, params: [\release, 30]
+        ),
     ],
     99: [
         (
@@ -162,20 +226,18 @@ guideBuff = Buffer.readChannel(s,
 //
 ~sequence.tasks = (
 
-    // // TEST ONLY
+    // // XXX - remove after test
     // skelSimulation: Task({
-    //     var msg;
-    //     inf.do { |j|
+    //     var i=0;
+    //     inf.do {
     //         // process
-    //         if (skelData[j].isNil) {
-    //             ~sequence.tasks.skelSimulation.stop;
-    //             ~sequence.tasks.skelSimulation.reset;
-    //         };
-    //         msg = [skelData[j][0], 1] ++ skelData[j][1..];
-    //         ~sendMessage.(\joint, msg);
+    //         if (i == skelData.size) {i = 0};
+    //         ~sendMessage.(\joint, [skelData[i][0], 1] ++ skelData[i][1..]);
+    //         i = i + 1;
     //         0.005.wait;
     //     }
     // }),
+
     randomParticles: Task({
         var key, next;
         var particleParams = [ // list of acceptable configurations

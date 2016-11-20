@@ -42,9 +42,9 @@ srEnv = Environment.make {
     ~scsynth = Server.internal;
     ~surround = conf.atFail(\surround, {"ambisonic"});
     ~depth = conf.atFail(\depth, {3.5});
-    ~inbus = conf.atFail(\inbus, {20});
+    ~inbus = conf.atFail(\inbus, {4});
     ~outbus = conf.atFail(\outbus, {0});
-    ~audioThruBus = conf.atFail(\audioThruBus, {[21, 22]});
+    ~audioThruBus = conf.atFail(\audioThruBus, {[12, 13]}); // two buses for audio through on skeletons hands
     ~worldSize = conf.atFail(\worldSize, {700}); // assume the World is a cube
     ~receiver = conf.atFail(\receiver, {NetAddr.new("127.0.0.1", 57120)}); // World
     ~speakers = (
@@ -182,9 +182,13 @@ srEnv = Environment.make {
             key: nil,
             attenuate: 0.05,
         ),
-        sr__e__orbit: (
+        \sr__e__orbit: (
             key: 122, // z
             attenuate: 0.1,
+        ),
+        \sr__e__pitchflw: (
+            key: 47, // \?
+            attenuate: 1,
         ),
     );
     ~synths = merge( // update default ~synths settings by those in conf
@@ -209,8 +213,13 @@ srEnv = Environment.make {
         var node, spatializer, generator, messages, synthPar, l=30, h=53;
 
         node = s.nextNodeID;
-        inbus = inbus ? ~inbus;
-        outbus = outbus ? ~outbus;
+        params = Dictionary.newFrom(params ? []);
+        if (inbus.isNil) {
+            inbus = params.removeAt(\inbus) ? ~inbus;
+        };
+        if (outbus.isNil) {
+            outbus = params.removeAt(\outbus) ? ~outbus;
+        };
         ~route = ~clipInc.(~route ?? l, lo:l, hi:h); // calculate and save for subsequent assignments
         spatial = spatial ? ~getSpatial.();
         spatializer = [
@@ -225,15 +234,17 @@ srEnv = Environment.make {
 
         synthPar = ~synths.atFail(synth.asSymbol, {~synths[\sr__e__silent]});
         if (bufnum.isNil) {
-            bufnum = ~getDefaultBuffer.(synth).bufnum;
+            // buffer can also be found in params
+            bufnum = params.removeAt(\bufnum) ? ~getDefaultBuffer.(synth).bufnum;
         };
+        params = params.asKeyValuePairs;
         generator = [
             "/s_new", synth, s.nextNodeID, 0, node, // synth goes to a new group's head
             \inbus, inbus,
             \route, ~route,
             \bufnum, bufnum,
             \attenuate, synthPar[\attenuate]
-        ] ++ (params ? []);
+        ] ++ params;
         messages = [
             ["/error", 0], // turn errors off locally
             ["/g_new", node, 0, ar__ROOT_NODE],
@@ -465,7 +476,7 @@ srEnv = Environment.make {
 
     // Records to a multichannel AIFF file set by ~recPath.
     ~recordAudio = { |start|
-        var dirname, filename, msg;
+        var filename, msg;
         if (start.booleanValue) {
             ~setRecPath.();
             // If the first channel of the main mix is not 0, record all audio buses.
@@ -517,15 +528,21 @@ scsynthOnBoot = {
     // default scale buffer
     ~defaultBuff = Buffer.sendCollection(~scsynth, Scale.ahirbhairav.degrees, 1, 0.2);
 
+    // internal buffer
+    ~internalBuff = Buffer.alloc(~scsynth, ~scsynth.sampleRate, 1); // 1 seconds 1 channel
+
     "Loading synth definitions...".postln;
     if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
         postf("OK\n\n")
     };
 
-    // "Loading world...".postln;
+    "Loading world...".postln;
     if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
         postf("OK\n\n")
     };
+
+    "Initiating audio-through synth".postln;
+    ~nodeAudioThrough = ~groupInit.(\sr__r__authro);
 
     // // XXX - in progress
     // "Loading control matrix...".postln;
@@ -538,7 +555,7 @@ if (~scsynth == Server.internal) {
     s = ~scsynth; // default server
 
     s.options.numInputBusChannels = 4;
-    s.options.numOutputBusChannels = 10;
+    s.options.numOutputBusChannels = 12; // 10 outputs on the interface + one aux stereo output
     s.options.memSize = 262144;
     s.options.blockSize = 512;
 
@@ -570,6 +587,11 @@ CmdPeriod.doOnce({
     ~sequence.samples.do { |buff| buff.free};
     ~sequence.scales.do { |buff| buff.free};
     ~sequence.voices.do { |buff| buff.free};
+    ~defaultBuff.free;
+    ~internalBuff.free;
+
+    "Killing audio-through".postln;
+    ~groupFree.(~nodeAudioThrough);
 
     "Disconnecting from synth server...".postln;
     ~scsynth.addr.disconnect;

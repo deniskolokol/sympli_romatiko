@@ -164,7 +164,6 @@ worldParams = (
         minval: 0.5,
         maxval: 30,
         default: 5,
-        midicc: 14,
         hint: "particle initial acceleration",
     ),
     partDefaultMass: (
@@ -260,7 +259,9 @@ trigCodes = Dictionary.newFrom(trigCodes);
 
 // Get only filenames from sequence paths.
 fileNames = { |paths|
-    paths[..1] ++ paths[2..].collect({|a| PathName(a).fileName })
+	paths[..1] ++ paths[2..].collect({ |path|
+		PathName(path.asString.asAbsolutePath).fileName;
+	});
 };
 
 // Miscelaneous parameters for GUI elements controllable by MIDI.
@@ -530,10 +531,6 @@ viewTopCenter = compViewFlow.(viewTop, gap:8@4, scaleW:0.7);
 viewTopRight = compViewFlow.(viewTop, scaleW:0.14);
 
 // current event number and info
-miscParams[\prev] = ( // make it controllable by midi
-    midinote: 46,
-    gui: btCurrNum
-);
 stCurrInfo = sText.(viewTopCenter, "...", stringFont:fontLarge1, scaleW:0.44, scaleH:1);
 stCurrInfo.align = \right;
 btCurrNum = button.(viewTopCenter, ">>",
@@ -545,7 +542,11 @@ btNextNum = button.(viewTopCenter, "<<",
 ).action_({ |bt|
     switchEvent.(1)
 });
-miscParams[\next] = ( // make it controllable by midi
+miscParams[\prev] = (
+    midinote: 46,
+    gui: btCurrNum
+);
+miscParams[\next] = (
     midinote: 43,
     gui: btNextNum
 );
@@ -560,7 +561,7 @@ ddSequence = dropdown.(viewTopLeft, "sequence",
     items: fileNames.(~seqPaths),
     initVal: if (~seqPaths.size > 2) { 2 } { 0 },
     action: { |element|
-        var val, states, top=2;
+        var val, path, top=2;
 
         animateSeq = false;
         case
@@ -574,10 +575,11 @@ ddSequence = dropdown.(viewTopLeft, "sequence",
         }
         { element.value > 1 } {
             removeAll.();
+			path = ~seqPaths[element.value].asString;
             postMsg.(format("Loading sequence %...\n",
-                PathName.new(~seqPaths[element.value]).fileName
+                PathName.new(path).fileName
             ));
-            val = ~loadSequence.(~seqPaths[element.value]); // open from file
+            val = ~loadSequence.(path); // open from file
             if (val > top) { // place at the top
                 ~seqPaths.insert(top, ~seqPaths.pop(val));
                 element.items = fileNames.(~seqPaths);
@@ -591,6 +593,7 @@ ddSequence = dropdown.(viewTopLeft, "sequence",
     },
     initAction: true
 );
+
 button.(viewTopLeft,
     "stop", bgColor:Color.grey(0.2), scaleW:0.41, scaleH:0.5
 ).action_({ |bt|
@@ -694,21 +697,26 @@ panel = compViewFlow.(viewRight, scaleH:0.5, margin:10@30);
 // slider controllers for misc params
 panel = compViewFlow.(viewRight, scaleH:0.15, margin:10@30);
 miscParams[\serverVolume] = (
-    midicc: 12, spec: \db,
+    midicc: 12,
+	spec: \db,
     gui: slider.(panel, "sVol", (label: "s.vol", spec: \db))
-    .action_({ |sl| s.volume.volume = sl.value })
+    .action_({ |sl| ~scsynth.volume.volume = sl.value })
     .value_(1)
 );
+// XXX: Repeating spec in GUI def and Dictionary values is UGLY! Re-factor!
 miscParams[\maxDist] = (
-    midicc: 12,
-    gui: slider.(panel, "maxDist",
-        (label: "max dist", spec: [1, 30, \lin, 0.1, ~speakers.maxDist])
-    )
+    midicc: 14,
+	spec: [0.5, 30.0, \lin, 0.1, ~speakers.maxDist].asSpec,
+	gui: slider.(panel, "maxDist", (
+		label: "max dist", minval: 1.0, maxval: 30.0,
+		step: 0.1, default: ~speakers.maxDist
+	))
     .action_({ |sl| ~speakers.maxDist = sl.value })
     .value_(~speakers.maxDist)
 );
 miscParams[\depth] = (
     midicc: 15,
+	spec: [1, 10, \lin, 0.1, ~depth].asSpec,
     gui: slider.(panel, "depth",
         (label: "depth", minval: 1, maxval: 10, step: 0.1, default: ~depth)
     ).action_({ |ez|

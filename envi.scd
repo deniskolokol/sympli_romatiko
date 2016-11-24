@@ -326,18 +326,25 @@ srEnv = Environment.make {
         // Sends particle creation message to the World:
         // [create:1, node, spring:0|1, mass:9, x:470, y:300, z:250, age:inf]
         // Returns Server node.
-        var x, y, z, node, spring, age, params;
+        var x, y, z, node, spring, source, age, params;
         #x, y, z = [\x, \y, \z].collect({ |k| particle.atFail(k, { ~worldSize.rand }) });
         particle.putAll((x: x, y: y, z: z));
         node = ~groupInit.(synth[\name], params:synth[\params]);
+		spring = particle.atFail(\spring, {0});
         params = [
             1, // create
             node,
-            particle.atFail(\spring, {0}), // spring:0|1
+            spring, // spring:0|1
             particle.mass,
             particle.x, particle.y, particle.z,
             particle.atFail(\age, {inf}) // if inf, particle will be waiting for the romoval signal
         ];
+		if (spring.booleanValue) {
+			source = particle.atFail(\source, {nil});
+			if (source.isNil.not) {
+				params = params ++ [source]
+			};
+		};
         ~sendMessage.('/particle', params);
         node
     };

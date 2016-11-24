@@ -3,7 +3,6 @@ var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
-
 //GLOBAL
 ~sequence = (
     title: "Sympli Romatiko: band in Traer World",
@@ -250,7 +249,7 @@ guideBuff = Buffer.readChannel(~scsynth,
             particle: (mass: 1, x: 470, y: 300, z: 250)
         )
     ],
-    32: [
+    34: [
         (
             info: "SCI-FI: Remove all",
             message: \action,  params: [\remove, \all]
@@ -263,20 +262,18 @@ guideBuff = Buffer.readChannel(~scsynth,
             message: \task, name: \sporadicPulse, act: 1
         ),
         (
-            info: "heavy __analog - TAP twice for 2!",
+            info: "2 heavy __analog",
             message: \particle,
             synth: (name: \sr__e__analog,
                 params: [\bufnum, ~sequence.scales[0].bufnum, \att, 2 + 1.0.rand2, \rel, 5, \threshold, 0.5]),
-            particle: (mass: 1, spring: 1)
+            particle: (mass: 1, spring: 1, source: \r_hand)
         ),
-    ],
-    33: [
         (
             info: "SCI-FI: heavy __analog 2",
             message: \particle,
             synth: (name: \sr__e__analog,
                 params: [\bufnum, ~sequence.scales[0].bufnum, \att, 2 + 1.0.rand2, \rel, 5, \threshold, 0.5]),
-            particle: (mass: 1, spring: 1)
+            particle: (mass: 1, spring: 1, source: \l_hand)
         ),
     ],
     35: [
@@ -308,7 +305,7 @@ guideBuff = Buffer.readChannel(~scsynth,
             )
         ),
     ],
-    40: [
+    40: [ // bookmark
         (
             info: "HEAVY: Reset scale",
             message: \n_set,
@@ -317,54 +314,56 @@ guideBuff = Buffer.readChannel(~scsynth,
             )
         ),
         (
-            info: "Light __lowe ~heaviness",
+			message: \action,  params: [\remove, \all]
+        ),
+        (
+            info: "Midrange __analog w/wt/cutoff",
+            message: \particle,
+            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \amp, 0.4]),
+            particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
+        ),
+        (
+            message: \particle,
+            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \cutoff, -1, \amp, 0.4]),
+            particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
+        ),
+        (
+            info: "Light __lowe ~heaviness", // must be on the same hand with cutoff!
             message: \particle,
             synth: (name: \sr__e__lowe, params: [\att, 2 + 1.0.rand2, \rel, 10]),
-            particle: (mass: 0.8, spring: 1, x: 470, y: 300, z: 250)
+            particle: (mass: 0.9, spring: 1, x: 470, y: 300, z: 250, source: \l_hand)
         ),
-    ],
-    45: [
         (
-            info: "One more __analog w/cutoff",
+            info: "Two heavy __therems",
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \cutoff, -1, \amp, 0.5]),
-            particle: (age: inf, mass: 0.8, spring: 1)
+            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10, \amp, 0.3]),
+            particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand),
         ),
-    ],
-    46: [
         (
-            info: "Add heavy __therem - TAP twice for 2!",
             message: \particle,
-            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10, \amp, 0.7]),
-            particle: (age: inf, mass: 0.8, spring: 1),
-        )
-    ],
-    47: [
-        (
-            info: "heavy __therem 2",
-            message: \particle,
-            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10, \amp, 0.7]),
-            particle: (age: inf, mass: 0.8, spring: 1)
+            synth: (name: \sr__e__therem, params: [\att, 2, \rel, 10, \amp, 0.3]),
+            particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
     ],
     50: [
-        (
-            info: "AIRY",
+        ( // bookmark
+            info: "AIRY - 1st change automatic!",
             message: \action,  params: [\remove, \all]
         ),
         (
-            info: "heavy __probe - TAP twice for 2!",
+            info: "2 heavy __probe",
             message: \particle,
-            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10, \bufnum, ~sequence.scales[0].bufnum]),
-            particle: (age: inf, mass: 0.9, spring: 1)
+            synth: (name: \sr__e__probe,
+				params: [\att, 2 + 1.0.rand2, \rel, 60, // very long release for xfade
+					\bufnum, ~sequence.scales[0].bufnum]),
+            particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
-    ],
-    55: [
         (
-            info: "AIRY: heavy __probe 2",
             message: \particle,
-            synth: (name: \sr__e__probe, params: [\att, 2 + 1.0.rand2, \rel, 10, \bufnum, ~sequence.scales[0].bufnum]),
-            particle: (age: inf, mass: 0.9, spring: 1),
+            synth: (name: \sr__e__probe,
+				params: [\att, 2 + 1.0.rand2, \rel, 60, // very long release for xfade
+					\bufnum, ~sequence.scales[0].bufnum]),
+            particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand),
         ),
         (
             info: "Schedule __cmb & __melo",
@@ -377,22 +376,16 @@ guideBuff = Buffer.readChannel(~scsynth,
         )
     ],
     60: [
-        ( // Remove all objects.
-            message: \action,  params: [\remove, \all]
+        (
+            info: "2 heavy __cmb",
+            message: \particle,
+            synth: (name: \sr__e__cmb, params: [\att, 30, \rel, 20]),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand),
         ),
         (
-            info: "Heavy __cmb - TAP twice for 2!",
             message: \particle,
-            synth: (name: \sr__e__cmb, params: [\att, 1.0.rand, \rel, 10]),
-            particle: (age: inf, mass: 1, spring: 1),
-        ),
-    ],
-    61: [
-        (
-            info: "Heavy __cmb",
-            message: \particle,
-            synth: (name: \sr__e__cmb, params: [\att, 3 + 2.0.rand2, \rel, 10]),
-            particle: (age: inf, mass: 1, spring: 1)
+            synth: (name: \sr__e__cmb, params: [\att, 30, \rel, 20]),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
     ],
     70: [
@@ -401,18 +394,17 @@ guideBuff = Buffer.readChannel(~scsynth,
             message: \action,  params: [\remove, \all]
         ),
         (
-            info: "2 heavy __melo - TAP twice for 2!",
+            info: "2 heavy __melo",
             message: \particle,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, ~sequence.scales[1].bufnum]),
-            particle: (age: inf, mass: 1, spring: 1)
+            synth: (name: \sr__e__melo,
+				params: [\att, 5.0.rand, \rel, 8, \bufnum, ~sequence.scales[1].bufnum]),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
-    ],
-    71: [
         (
-            info: "heavy __melo 2",
             message: \particle,
-            synth: (name: \sr__e__melo, params: [\att, 5.0.rand, \rel, 8, \bufnum, ~sequence.scales[1].bufnum]),
-            particle: (age: inf, mass: 1, spring: 1)
+            synth: (name: \sr__e__melo,
+				params: [\att, 5.0.rand, \rel, 8, \bufnum, ~sequence.scales[1].bufnum]),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
     ],
     80: [
@@ -430,18 +422,15 @@ guideBuff = Buffer.readChannel(~scsynth,
             message: \task, name: \randomCMBMelo, act: 0
         ),
         (
-            info: "heavy __entro + TAP for __radio",
+            info: "heavy __entro + __radio",
             message: \particle,
             synth: (name: \sr__e__entro),
-            particle: (spring: 1, age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
         ),
-    ],
-    81: [
         (
-            info: "heavy __radio 2",
             message: \particle,
             synth: (name: \sr__e__radio),
-            particle: (spring: 1, age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand) // radio must be on r_hand!
         ),
     ],
     82: [
@@ -450,18 +439,15 @@ guideBuff = Buffer.readChannel(~scsynth,
             message: \action,  params: [\remove, \all]
         ),
         (
-            info: "heavy __entro - TAP twice for 2!",
+            info: "2 heavy __entro",
             message: \particle,
             synth: (name: \sr__e__entro),
-            particle: (spring: 1, age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
         ),
-    ],
-    83: [
         (
-            info: "heavy __entro 2",
             message: \particle,
             synth: (name: \sr__e__entro),
-            particle: (spring: 1, age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         ),
     ],
     90: [
@@ -472,22 +458,14 @@ guideBuff = Buffer.readChannel(~scsynth,
         (
             info: "heavy __gauss - TAP twice for 2!",
             message: \particle,
-            // synth: (name: \sr__e__gauss, params: [\att, 100, \rel, 16, \ca, 5]),
-
-            // XXX: temp!
-            synth: (name: \sr__e__gauss, params: [\att, 40, \rel, 16, \ca, 5]),
-            particle: (spring: 1, age: inf, mass: 0.9)
+            synth: (name: \sr__e__gauss, params: [\att, 60, \rel, 16, \ca, 5]),
+            particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
         ),
-    ],
-    91: [
         (
             info: "heavy __gauss 2",
             message: \particle,
-            // synth: (name: \sr__e__gauss, params: [\att, 100, \rel, 16, \ca, 5]),
-
-            // XXX: temp!
-            synth: (name: \sr__e__gauss, params: [\att, 40, \rel, 16, \ca, 5]),
-            particle: (spring: 1, age: inf, mass: 0.9)
+            synth: (name: \sr__e__gauss, params: [\att, 60, \rel, 16, \ca, 5]),
+            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         )
     ],
     92: [
@@ -499,21 +477,20 @@ guideBuff = Buffer.readChannel(~scsynth,
             info: "heavy __noisy - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
-            particle: (spring: 1, age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
         ),
-    ],
-    93: [
         (
             info: "heavy __noisy 2",
             message: \particle,
             synth: (name: \sr__e__noisy, params: [\att, 5.0.rand, \rel, 10]),
-            particle: (spring: 1, age: inf, mass: 0.9)
+            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         ),
         (
             info: "heavy __pulse with long attack",
             message: \particle,
-            synth: (name: \sr__e__pulse, params: [\att, 120, \rel, 10, \ca, 5, \bufnum, ~sequence.scales[3].bufnum]),
-            particle: (spring: 1, age: inf, mass: 0.9)
+            synth: (name: \sr__e__pulse,
+				params: [\att, 120, \rel, 10, \ca, 5, \bufnum, ~sequence.scales[3].bufnum]),
+            particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand) // must be on l_hand!
         )
     ],
     99: [
@@ -583,7 +560,6 @@ guideBuff = Buffer.readChannel(~scsynth,
 
                 if (0.7.coin) {
                     synth = (
-                        // XXX - \sr__e__radio - quieter in INTRO!
                         name: [\sr__e__lowe, \sr__e__radio, \sr__e__humm].wchoose([0.6, 0.2, 0.2])
                     );
                     ~sendParticle.(
@@ -646,9 +622,9 @@ guideBuff = Buffer.readChannel(~scsynth,
         loop {
             ~sendParticle.(
                 particle: (mass:0.6, age:rrand(3, 4),
-                    x: (1.0.sum3rand * 100).abs + [100, 500].choose,
-                    y: rrand(~worldSize*0.15, ~worldSize*0.2),
-                    z: ~worldSize*0.8 // (1.0.sum3rand * 150).abs + 100
+                    x: [0.2, 0.8].choose * ~worldSize,
+                    y: ~worldSize*0.17,
+                    z: ~worldSize*0.8
                 ),
                 synth: (name:\sr__e__analog, params:[\cutoff, -1, \att, 0.2, \rel, rrand(4, 6), \amp, 0.6])
             );

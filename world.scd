@@ -1374,18 +1374,15 @@ registerSprings = { |springsList|
 
 // Translates spring end from joint name to particle.
 resolveSpringEnd = { |end|
-    if (springSrcSkel.includes(end)) {
-        try {
-            end = skeleton[skeleton.keys.asArray[0]][end]
-        } {
-            end = nil
-        }
-    };
-    end
+	try {
+		skeleton[skeleton.keys.asArray[0]][end]
+	} { |error|
+		nil
+	};
 };
 
 
-// Finds
+// Finds spring connected by any of its ends to a given particle.
 getSpringForParticle = { |particle|
     var spring;
     physics.springs.do { |sp|
@@ -1430,12 +1427,11 @@ setSpringProp = { |spring, particle|
 
 
 // Apply spring: choose a source and connect particle to it.
-applySpring = { |particle, source, ks, d, r|
-    var spring;
-    if (source.isNil) { source = defineSource.() };
-    source = resolveSpringEnd.(source);
-    particle = resolveSpringEnd.(particle);
-    if (particle.isNil.not && source.isNil.not) {
+applySpring = { |particle, src, ks, d, r|
+    var spring, source;
+    source = resolveSpringEnd.(src);
+	if (source.isNil) { source = defineSource.() };
+    if (source.isNil.not && particle.isNil.not) {
         spring = physics.makeSpring(source, particle,
             ks ? world.springStrength, d ? world.springDamp, r ? world.springRestLen);
     };
@@ -1827,22 +1823,21 @@ postMsg = { |msg|
 //
 // Catch messages related to particles.
 oscParticle = OSCFunc({ |msg, time, addr, recvPort|
-    var particle, node, age, mass, x, y, z, spring, registered;
-    // postf("from % received %\n", addr, msg);
-    postMsg.(format("from % received %\n", addr, msg));
+    var particle, node, age, source, mass, x, y, z, spring, registered;
+	postMsg.(format("from % received %\n", addr, msg));
     node = msg[2];
     msg[1].switch(
         1, { // create particle
             mass = msg[4];
             try {
-                #x, y, z, age = msg[5..]
+                #x, y, z, age, source = msg[5..]
             } {
-                #x, y, z, age = nil ! 4
+                #x, y, z, age, source = nil ! 5
             };
             particle = initParticle.(mass, x, y, z, age);
             registerParticle.(particle, node);
             if (msg[3].booleanValue) {
-                spring = applySpring.(particle);
+                spring = applySpring.(particle, source);
                 registered = registerSpring.(spring);
             };
             if (msg[3].booleanValue.not || registered.isNil) {

@@ -703,7 +703,6 @@ miscParams[\serverVolume] = (
     .action_({ |sl| ~scsynth.volume.volume = sl.value })
     .value_(1)
 );
-// XXX: Repeating spec in GUI def and Dictionary values is UGLY! Re-factor!
 tmp = [0.5, 30.0, \lin, 0.1, ~speakers.maxDist].asSpec;
 miscParams[\maxDist] = (
     midicc: 14,
@@ -719,7 +718,7 @@ tmp = [1, 10, \lin, 0.1, ~depth].asSpec;
 miscParams[\depth] = (
     midicc: 15,
 	spec: tmp,
-    gui: slider.(panel, "depth",(
+    gui: slider.(panel, "depth", (
 		label: "depth", minval: tmp.minval, maxval: tmp.maxval,
 		step: tmp.step, default: tmp.default
 	))

@@ -704,22 +704,26 @@ miscParams[\serverVolume] = (
     .value_(1)
 );
 // XXX: Repeating spec in GUI def and Dictionary values is UGLY! Re-factor!
+tmp = [0.5, 30.0, \lin, 0.1, ~speakers.maxDist].asSpec;
 miscParams[\maxDist] = (
     midicc: 14,
-	spec: [0.5, 30.0, \lin, 0.1, ~speakers.maxDist].asSpec,
+	spec: tmp,
 	gui: slider.(panel, "maxDist", (
-		label: "max dist", minval: 1.0, maxval: 30.0,
-		step: 0.1, default: ~speakers.maxDist
+		label: "max dist", minval: tmp.minval, maxval: tmp.maxval,
+		step: tmp.step, default: tmp.default
 	))
     .action_({ |sl| ~speakers.maxDist = sl.value })
     .value_(~speakers.maxDist)
 );
+tmp = [1, 10, \lin, 0.1, ~depth].asSpec;
 miscParams[\depth] = (
     midicc: 15,
-	spec: [1, 10, \lin, 0.1, ~depth].asSpec,
-    gui: slider.(panel, "depth",
-        (label: "depth", minval: 1, maxval: 10, step: 0.1, default: ~depth)
-    ).action_({ |ez|
+	spec: tmp,
+    gui: slider.(panel, "depth",(
+		label: "depth", minval: tmp.minval, maxval: tmp.maxval,
+		step: tmp.step, default: tmp.default
+	))
+	.action_({ |ez|
         ~depth = ez.value;
         ~sendMessage.('/audio', [\depth, ~depth])
     })

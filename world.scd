@@ -1962,9 +1962,9 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
     id = msg[2].asInteger;
     joint = msg[1];
     #x, y, z = [
-        msg[3].linlin(-0.1, 1.1, 0, world.width),
-        msg[5].linlin(0.3, 3.4, 0, world.height),
-        msg[4].linlin(-0.15, 0.99, 0, world.depth)
+        msg[3].linlin(0.0, 1.0, 0, world.width),
+        msg[5].linlin(0.0, 5.0, 0, world.height),
+        msg[4].linlin(0.0, 1.0, 0, world.depth)
     ];
     // XXX
     // if (world.calibration.booleanValue) {

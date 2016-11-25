@@ -1072,7 +1072,8 @@ viewWorld.drawFunc = { |view|
     springsPhysical = all {: g.identityHash, g <- physics.springs} ? [];
     springs.keysValuesDo { |springId, end|
         if (springsPhysical.includes(springId).not) {
-            springMissed = applySpring.(end[0], end[1]);
+			// end = [ <joint id e.g. \r_hand>, TraerParticle ]
+            springMissed = applySpring.(end[1], end[0]);
         }
     };
     // Update global dictionary of springs.

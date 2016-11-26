@@ -269,7 +269,6 @@ guideBuff = Buffer.readChannel(~scsynth,
             particle: (mass: 1, spring: 1, source: \r_hand)
         ),
         (
-            info: "SCI-FI: heavy __analog 2",
             message: \particle,
             synth: (name: \sr__e__analog,
                 params: [\bufnum, ~sequence.scales[0].bufnum, \att, 2 + 1.0.rand2, \rel, 5, \threshold, 0.5]),
@@ -305,7 +304,7 @@ guideBuff = Buffer.readChannel(~scsynth,
             )
         ),
     ],
-    40: [ // bookmark
+    40: [
         (
             info: "HEAVY: Reset scale",
             message: \n_set,
@@ -324,7 +323,7 @@ guideBuff = Buffer.readChannel(~scsynth,
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \cutoff, -1, \amp, 0.4]),
+            synth: (name: \sr__e__analog, params: [\att, 2, \rel, 10, \cutoff, -1, \amp, 0.2]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
         ),
         (
@@ -346,7 +345,7 @@ guideBuff = Buffer.readChannel(~scsynth,
         ),
     ],
     50: [
-        ( // bookmark
+        (
             info: "AIRY - 1st change automatic!",
             message: \action,  params: [\remove, \all]
         ),
@@ -622,11 +621,11 @@ guideBuff = Buffer.readChannel(~scsynth,
         loop {
             ~sendParticle.(
                 particle: (mass:0.6, age:rrand(3, 4),
-                    x: [0.2, 0.8].choose * ~worldSize,
-                    y: ~worldSize*0.17,
-                    z: ~worldSize*0.8
+                    x: [0.3, 0.7].choose * ~worldSize,
+                    y: ~worldSize*0.25,
+                    z: ~worldSize*0.6
                 ),
-                synth: (name:\sr__e__analog, params:[\cutoff, -1, \att, 0.2, \rel, rrand(4, 6), \amp, 0.6])
+                synth: (name:\sr__e__analog, params:[\cutoff, -1, \att, 0.2, \rel, rrand(4, 6), \amp, 0.5])
             );
             (10 + 2.0.rand2).wait;
         }

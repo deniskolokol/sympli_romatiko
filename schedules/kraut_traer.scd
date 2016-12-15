@@ -3,10 +3,10 @@ var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
-// // XXX - remove after test
-// var skelData;
-// postf("Reading skeleton simulation data\n");
-// skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
+// XXX - remove after test
+var skelData;
+postf("Reading skeleton simulation data\n");
+skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
 
 //GLOBAL
 ~sequence = (
@@ -93,29 +93,27 @@ guideBuff = Buffer.readChannel(s,
         (message: \physics, params: [\audioIn, true])
     ],
 
-    // // XXX - remove after test
-    // 1: [
-    //     (
-    //         info: "Skeleton simulation",
-    //         message: \task, name: \skelSimulation, act: 1
-    //     ),
-    // ],
+    // XXX - remove after test
+    1: [
+        (
+            info: "Skeleton simulation",
+            message: \task, name: \skelSimulation, act: 1
+        ),
+    ],
     2: [
         (
             info: "heavy __growls - TAP twice for 2!",
             message: \particle,
             synth: (name: \sr__e__growl,
                 params: [\bufnum, ~sequence.scales[0].bufnum, \att, 10, \rel, 5, \offset, 36]),
-            particle: (mass: 1, spring: 1)
+			particle: (mass: 1, spring: 1, source: \l_hand)
         ),
-    ],
-    3: [
         (
             info: "heavy growl 2",
             message: \particle,
             synth: (name: \sr__e__growl,
                 params: [\bufnum, ~sequence.scales[0].bufnum, \att, 10, \rel, 5, \offset, 36]),
-            particle: (mass: 1, spring: 1)
+			particle: (mass: 1, spring: 1, source: \r_hand)
         ),
     ],
     5: [
@@ -161,17 +159,15 @@ guideBuff = Buffer.readChannel(s,
             synth: (name: \sr__r__authro,
                 params: [\inbus, ~audioThruBus[0],
                     \att, 2+1.0.rand2, \rel, 5, \threshold, 0.5]),
-            particle: (mass: 1, spring: 1)
+            particle: (mass: 1, spring: 1, source: \l_hand)
         ),
-    ],
-    11: [
         (
             info: "heavy __authro 2",
             message: \particle,
             synth: (name: \sr__r__authro,
                 params: [\inbus, ~audioThruBus[1],
                     \att, 2+1.0.rand2, \rel, 5, \threshold, 0.5]),
-            particle: (mass: 1, spring: 1)
+            particle: (mass: 1, spring: 1, source: \r_hand)
         ),
     ],
     20: [
@@ -198,11 +194,11 @@ guideBuff = Buffer.readChannel(s,
             message: \task, name: \randomParticles, act: 0
         ),
 
-        // // XXX - remove after test
-        // (
-        //     info: "stop skeleton simulation",
-        //     message: \task, name: \skelSimulation, act: 0
-        // ),
+        // XXX - remove after test
+        (
+            info: "stop skeleton simulation",
+            message: \task, name: \skelSimulation, act: 0
+        ),
         (
             info: "stop random particles",
             message: \task, name: \storm, act: 0
@@ -226,17 +222,17 @@ guideBuff = Buffer.readChannel(s,
 //
 ~sequence.tasks = (
 
-    // // XXX - remove after test
-    // skelSimulation: Task({
-    //     var i=0;
-    //     inf.do {
-    //         // process
-    //         if (i == skelData.size) {i = 0};
-    //         ~sendMessage.(\joint, [skelData[i][0], 1] ++ skelData[i][1..]);
-    //         i = i + 1;
-    //         0.005.wait;
-    //     }
-    // }),
+    // XXX - remove after test
+    skelSimulation: Task({
+        var i=0;
+        inf.do {
+            // process
+            if (i == skelData.size) {i = 0};
+            ~sendMessage.(\joint, [skelData[i][0], 1] ++ skelData[i][1..]);
+            i = i + 1;
+            0.005.wait;
+        }
+    }),
 
     randomParticles: Task({
         var key, next;

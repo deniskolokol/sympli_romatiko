@@ -460,8 +460,6 @@ SynthDef(\sr__e__analog, {
     trig = velocity > 0.33; // high velocity causes sharp switch
     timer = Timer.kr(trig);
     freq = TRand.kr(trig:Delay2.kr(Dust.kr(1)));
-
-    // XXX - find and remove "dumb" timbre
     cutoff = SelectX.kr(BinaryOpUGen('<', cutoff, 0) * 2,
         [ // Positive cutoff falls at the freq range 500..5000
             TWChoose.kr((timer > 0.25) * trig,
@@ -497,8 +495,7 @@ SynthDef(\sr__e__analog, {
     Out.ar(route, out);
 }).send(s);
 
-
-// XXX - to-do:
+// XXX:
 // - add less obvious elevation based control (az)
 // - more effective compander, possibly multiband! don't allow it to burst!
 SynthDef(\sr__e__neural, {

@@ -1072,7 +1072,8 @@ viewWorld.drawFunc = { |view|
     springsPhysical = all {: g.identityHash, g <- physics.springs} ? [];
     springs.keysValuesDo { |springId, end|
         if (springsPhysical.includes(springId).not) {
-            springMissed = applySpring.(end[0], end[1]);
+			// end = [ <joint id e.g. \r_hand>, TraerParticle ]
+            springMissed = applySpring.(end[1], end[0]);
         }
     };
     // Update global dictionary of springs.
@@ -1374,18 +1375,15 @@ registerSprings = { |springsList|
 
 // Translates spring end from joint name to particle.
 resolveSpringEnd = { |end|
-    if (springSrcSkel.includes(end)) {
-        try {
-            end = skeleton[skeleton.keys.asArray[0]][end]
-        } {
-            end = nil
-        }
-    };
-    end
+	try {
+		skeleton[skeleton.keys.asArray[0]][end]
+	} { |error|
+		nil
+	};
 };
 
 
-// Finds
+// Finds spring connected by any of its ends to a given particle.
 getSpringForParticle = { |particle|
     var spring;
     physics.springs.do { |sp|
@@ -1430,12 +1428,11 @@ setSpringProp = { |spring, particle|
 
 
 // Apply spring: choose a source and connect particle to it.
-applySpring = { |particle, source, ks, d, r|
-    var spring;
-    if (source.isNil) { source = defineSource.() };
-    source = resolveSpringEnd.(source);
-    particle = resolveSpringEnd.(particle);
-    if (particle.isNil.not && source.isNil.not) {
+applySpring = { |particle, src, ks, d, r|
+    var spring, source;
+    source = resolveSpringEnd.(src);
+	if (source.isNil) { source = defineSource.() };
+    if (source.isNil.not && particle.isNil.not) {
         spring = physics.makeSpring(source, particle,
             ks ? world.springStrength, d ? world.springDamp, r ? world.springRestLen);
     };
@@ -1827,22 +1824,21 @@ postMsg = { |msg|
 //
 // Catch messages related to particles.
 oscParticle = OSCFunc({ |msg, time, addr, recvPort|
-    var particle, node, age, mass, x, y, z, spring, registered;
-    // postf("from % received %\n", addr, msg);
-    postMsg.(format("from % received %\n", addr, msg));
+    var particle, node, age, source, mass, x, y, z, spring, registered;
+	postMsg.(format("from % received %\n", addr, msg));
     node = msg[2];
     msg[1].switch(
         1, { // create particle
             mass = msg[4];
             try {
-                #x, y, z, age = msg[5..]
+                #x, y, z, age, source = msg[5..]
             } {
-                #x, y, z, age = nil ! 4
+                #x, y, z, age, source = nil ! 5
             };
             particle = initParticle.(mass, x, y, z, age);
             registerParticle.(particle, node);
             if (msg[3].booleanValue) {
-                spring = applySpring.(particle);
+                spring = applySpring.(particle, source);
                 registered = registerSpring.(spring);
             };
             if (msg[3].booleanValue.not || registered.isNil) {
@@ -1967,9 +1963,9 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
     id = msg[2].asInteger;
     joint = msg[1];
     #x, y, z = [
-        msg[3].linlin(-0.1, 1.1, 0, world.width),
-        msg[5].linlin(0.3, 3.4, 0, world.height),
-        msg[4].linlin(-0.15, 0.99, 0, world.depth)
+        msg[3].linlin(0.0, 1.0, 0, world.width),
+        msg[5].linlin(0.0, 5.0, 0, world.height),
+        msg[4].linlin(0.0, 1.0, 0, world.depth)
     ];
     // XXX
     // if (world.calibration.booleanValue) {

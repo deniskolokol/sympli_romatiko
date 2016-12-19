@@ -188,8 +188,8 @@ srEnv = Environment.make {
         ),
         \sr__e__perc: (
             key: 47, // \?
-            attenuate: 1,
-        ),
+            attenuate: 0.5,
+        )
     );
     ~clipInc = {
         // Increments `in` until `in + step` reaches `hi`, then resets to `lo`.

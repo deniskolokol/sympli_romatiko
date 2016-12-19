@@ -496,9 +496,6 @@ SynthDef(\sr__e__analog, {
 }).send(s);
 
 
-// XXX
-// Continuous signal is good as a wobbly bass:
-// Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2)
 SynthDef(\sr__e__perc, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, gate=1, att=1, rel=1, ca=3, cr= -3,
@@ -514,7 +511,10 @@ SynthDef(\sr__e__perc, {
 		width: PinkNoise.kr((ExpRand(0.009, dur*0.9)*amp).min(0.45), 0.45),
 		mul: FSinOsc.ar(LinRand(9, 99*freq).round(9), 0, LinRand(0.09, 0.999-dur), amp));
 	signal = in * EnvGen.kr(Env.perc(0.009, dur-amp), gate:((timer>lag)*trig));
-    out = RLPF.ar(signal, (freq*9*dur).max(freq*4.5), LinRand(0.09, 4.5)).softclip;
+    out = RLPF.ar(signal,
+		freq: (freq*9*dur).max(freq*4.5),
+		rq: LinRand(0.09, 4.5)
+	).softclip;
 	SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
     Out.ar(route, out);
 }).send(s);

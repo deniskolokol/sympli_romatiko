@@ -65,11 +65,8 @@ guideBuff = Buffer.readChannel(s,
 );
 
 [
-    FloatArray[0, 3, 7, 10], // scales[0] is the main scale
-    FloatArray[0, 1, 3, 7, 8], // the rest are specific to sequence's parts
-    FloatArray[0, 2],
-    FloatArray[0, 3],
-    FloatArray[1, 3],
+    FloatArray[0, 2, 5, 7, 10], // scales[0] is the main scale
+    FloatArray[0, 2, 4, 8, 10], // the rest are specific to sequence's parts
 ].do { |c, i|
     ~sequence.scales.add(Buffer.sendCollection(~scsynth, c));
 };

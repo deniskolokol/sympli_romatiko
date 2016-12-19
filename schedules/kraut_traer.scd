@@ -93,30 +93,83 @@ guideBuff = Buffer.readChannel(s,
         (message: \physics, params: [\audioIn, true])
     ],
 
-    // XXX - remove after test
-    1: [
-        (
-            info: "Skeleton simulation",
-            message: \task, name: \skelSimulation, act: 1
-        ),
-    ],
+	// XXX - remove after test
+	1: [
+		(
+			info: "Skeleton simulation",
+			message: \task, name: \skelSimulation, act: 1
+		),
+	],
     2: [
         (
-            info: "heavy __growls - TAP twice for 2!",
+            info: "2 heavy __growls",
+			wait: 60,
             message: \particle,
             synth: (name: \sr__e__growl,
-                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 10, \rel, 5, \offset, 36]),
+                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 60, \rel, 5, \offset, 36]),
 			particle: (mass: 1, spring: 1, source: \l_hand)
         ),
         (
-            info: "heavy growl 2",
             message: \particle,
             synth: (name: \sr__e__growl,
-                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 10, \rel, 5, \offset, 36]),
+                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 60, \rel, 5, \offset, 36]),
 			particle: (mass: 1, spring: 1, source: \r_hand)
         ),
     ],
+    3: [
+        (
+            info: "2 heavy __melo",
+            message: \particle,
+            synth: (name: \sr__e__melo,
+				params: [\att, 5.0.rand, \rel, 8, \amp, 0.7, \bufnum, ~sequence.scales[1].bufnum]),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        ),
+        (
+            message: \particle,
+            synth: (name: \sr__e__melo,
+				params: [\att, 5.0.rand, \rel, 8, \amp, 0.7, \bufnum, ~sequence.scales[1].bufnum]),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        )
+    ],
+    4: [
+		(
+            message: \action,  params: [\remove, \all]
+        ),
+        (
+            info: "heavy __lowe",
+            message: \particle,
+            synth: (name: \sr__e__lowe,
+				params: [\att, 5.0.rand, \rel, 8]),
+            particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
+        ),
+        (
+            info: "heavy __noisy",
+            message: \particle,
+            synth: (name: \sr__e__noisy,
+				params: [\att, 5.0.rand, \rel, 8, \amp, 0.7, \bufnum, ~sequence.scales[1].bufnum]),
+            particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
+        )
+    ],
     5: [
+		(
+            message: \action,  params: [\remove, \all]
+        ),
+        (
+            info: "2 heavy __melo",
+            message: \particle,
+            synth: (name: \sr__e__melo,
+				params: [\att, 5.0.rand, \rel, 8, \amp, 0.7, \bufnum, ~sequence.scales[1].bufnum, \offset, 12]),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        ),
+        (
+            message: \particle,
+            synth: (name: \sr__e__melo,
+				params: [\att, 5.0.rand, \rel, 8, \amp, 0.7, \bufnum, ~sequence.scales[1].bufnum, \offset, 12]),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        )
+    ],
+
+    15: [
         (
             info: "__analog 1 for audio through, .kr buses",
             message: \g_new,
@@ -134,7 +187,7 @@ guideBuff = Buffer.readChannel(s,
             ]
         )
     ],
-    6: [
+    16: [
         (
             info: "__analog 2 for audio through, .kr buses",
             message: \g_new,
@@ -152,7 +205,7 @@ guideBuff = Buffer.readChannel(s,
             ]
         )
     ],
-    10: [
+    17: [
         (
             info: "heavy __authro - TAP twice for 2!",
             message: \particle,
@@ -194,11 +247,11 @@ guideBuff = Buffer.readChannel(s,
             message: \task, name: \randomParticles, act: 0
         ),
 
-        // XXX - remove after test
-        (
-            info: "stop skeleton simulation",
-            message: \task, name: \skelSimulation, act: 0
-        ),
+		// XXX - remove after test
+		(
+			info: "stop skeleton simulation",
+			message: \task, name: \skelSimulation, act: 0
+		),
         (
             info: "stop random particles",
             message: \task, name: \storm, act: 0
@@ -222,17 +275,17 @@ guideBuff = Buffer.readChannel(s,
 //
 ~sequence.tasks = (
 
-    // XXX - remove after test
-    skelSimulation: Task({
-        var i=0;
-        inf.do {
-            // process
-            if (i == skelData.size) {i = 0};
-            ~sendMessage.(\joint, [skelData[i][0], 1] ++ skelData[i][1..]);
-            i = i + 1;
-            0.005.wait;
-        }
-    }),
+	// XXX - remove after test
+	skelSimulation: Task({
+		var i=0;
+		inf.do {
+			// process
+			if (i == skelData.size) {i = 0};
+			~sendMessage.(\joint, [skelData[i][0], 1] ++ skelData[i][1..]);
+			i = i + 1;
+			0.005.wait;
+		}
+	}),
 
     randomParticles: Task({
         var key, next;

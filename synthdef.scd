@@ -495,6 +495,31 @@ SynthDef(\sr__e__analog, {
     Out.ar(route, out);
 }).send(s);
 
+
+// XXX
+// Continuous signal is good as a wobbly bass:
+// Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2)
+SynthDef(\sr__e__perc, {
+    arg bufnum=0, inbus=30, route=20, trigID=80,
+        amp=1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
+        offset=36, cutoff=0, threshold=0.7, scope=12;
+    var in, out, signal, dur, freq, trig, timer, lag=0.25;
+    dur = velocity * LinRand(0.9, 9);
+	freq = DegreeToKey.kr(bufnum, az.linlin(threshold, 1, 0, scope), 12, 1, offset);
+	freq = freq.round(6-(dur*3).round(3)).midicps*0.5;
+	trig = velocity > 0.2;
+	timer = Timer.kr(trig);
+	in = Pulse.ar(freq,
+		width: PinkNoise.kr((ExpRand(0.009, dur*0.9)*amp).min(0.45), 0.45),
+		mul: FSinOsc.ar(LinRand(9, 99*freq).round(9), 0, LinRand(0.09, 0.999-dur), amp));
+	signal = in * EnvGen.kr(Env.perc(0.009, dur-amp), gate:((timer>lag)*trig));
+    out = RLPF.ar(signal, (freq*9*dur).max(freq*4.5), LinRand(0.09, 4.5)).softclip;
+	SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
+    Out.ar(route, out);
+}).send(s);
+
+
 // XXX:
 // - add less obvious elevation based control (az)
 // - more effective compander, possibly multiband! don't allow it to burst!

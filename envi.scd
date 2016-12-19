@@ -6,7 +6,7 @@
 (
 var srEnv;
 var currentDir;
-var key, subkey, synthNames;
+var key, subkey;
 var conf, confFile, confKeys;
 var seqPathsFile, seqPaths;
 var harmonics, numHarmonics, numWavetables;
@@ -69,7 +69,7 @@ srEnv = Environment.make {
         }
     );
 
-    synthNames = (
+    ~synths = (
         sr__e__wasp: (
             key: 12, // q
             attenuate: 0.02,
@@ -186,15 +186,11 @@ srEnv = Environment.make {
             key: 122, // z
             attenuate: 0.1,
         ),
-        \sr__e__pitchflw: (
+        \sr__e__perc: (
             key: 47, // \?
             attenuate: 1,
         ),
     );
-    ~synths = merge( // update default ~synths settings by those in conf
-        synthNames, conf.atFail(\synths, {Dictionary.new}), { |a, b| b }
-    );
-
     ~clipInc = {
         // Increments `in` until `in + step` reaches `hi`, then resets to `lo`.
         arg in=0, step=1, lo=0, hi=inf;
@@ -607,7 +603,7 @@ CmdPeriod.doOnce({
     confKeys = [ // keys to save to conf file
         'surround', 'depth',
         'inbus', 'outbus', 'audioThruBus', 'inbus', 'outbus',
-        'worldSize', 'receiver', 'speakers', 'synths'
+        'worldSize', 'receiver', 'speakers'
     ];
     conf = Dictionary.newFrom(currentEnvironment);
     currentEnvironment.keysValuesDo { |envKey, envVal|

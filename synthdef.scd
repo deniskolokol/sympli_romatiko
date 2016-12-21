@@ -500,12 +500,12 @@ SynthDef(\sr__e__perc, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
         amp=1, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
-        offset=36, cutoff=0, threshold=0.7, scope=12;
+        offset=36, cutoff=0, threshold=0.5, scope=12, sensitive=0.8;
     var in, out, signal, dur, freq, trig, timer, lag=0.25;
     dur = velocity * LinRand(0.9, 9);
 	freq = DegreeToKey.kr(bufnum, az.linlin(threshold, 1, 0, scope), 12, 1, offset);
 	freq = freq.round(6-(dur*3).round(3)).midicps*0.5;
-	trig = velocity > 0.2;
+	trig = velocity > (1-sensitive);
 	timer = Timer.kr(trig);
 	in = Pulse.ar(freq,
 		width: PinkNoise.kr((ExpRand(0.009, dur*0.9)*amp).min(0.45), 0.45),

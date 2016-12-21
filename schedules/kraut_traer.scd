@@ -274,13 +274,15 @@ guideBuff = Buffer.readChannel(s,
 
 	// XXX - remove after test
 	skelSimulation: Task({
-		var i=0;
+		var i=0, coords;
 		inf.do {
 			// process
 			if (i == skelData.size) {i = 0};
-			~sendMessage.(\joint, [skelData[i][0], 1] ++ skelData[i][1..]);
+			coords = skelData[i][1..];
+			coords[2] = coords[2] + 0.6; // offset
+			~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
 			i = i + 1;
-			0.005.wait;
+			0.0005.wait;
 		}
 	}),
 

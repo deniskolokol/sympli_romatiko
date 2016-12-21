@@ -115,15 +115,15 @@ guideBuff = Buffer.readChannel(s,
     ],
     3: [
         (
-            info: "2 heavy __melo",
+            info: "2 heavy __perc",
             message: \particle,
-            synth: (name: \sr__e__melo,
+            synth: (name: \sr__e__perc,
 				params: [\att, 5.0.rand, \rel, 8, \amp, 0.7, \bufnum, ~sequence.scales[1].bufnum]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__melo,
+            synth: (name: \sr__e__perc,
 				params: [\att, 5.0.rand, \rel, 8, \amp, 0.7, \bufnum, ~sequence.scales[1].bufnum]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         )
@@ -147,6 +147,8 @@ guideBuff = Buffer.readChannel(s,
             particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
         )
     ],
+	// 2 noisy (while rhythm)
+	// 2 radio (alien-like sound)
     5: [
 		(
             message: \action,  params: [\remove, \all]
@@ -282,7 +284,7 @@ guideBuff = Buffer.readChannel(s,
 			coords[2] = coords[2] + 0.6; // offset
 			~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
 			i = i + 1;
-			0.0005.wait;
+			0.005.wait;
 		}
 	}),
 

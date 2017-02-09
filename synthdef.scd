@@ -645,12 +645,14 @@ SynthDef(\sr__e__growl, {
     trig = Impulse.kr(0) + Dust2.kr(rate);
     lag = velocity.lincurve(0, 1, 0.5, 0.05, -4);
     detune = velocity.lincurve(0, 1, 0.1, 0.5, 4);
-    note = DegreeToKey.kr(bufnum,
-        // guide params for fine control of pitch and threshold
-        // XXX - substitute gz with gAzimuth.linlin(0pi, 1pi, 0, 15) - ???
-        Gate.kr(gz.linlin(0, 1, 0, 15), gDistance - meloThresh),
-        12, 1, offset
-    ).min(124);
+	// guide params for fine control of pitch and threshold
+	note = DegreeToKey.kr(bufnum, gz.linlin(0, 1, 0, 15), 12, 1, offset).min(124);
+
+	// note = DegreeToKey.kr(bufnum,
+	// 	// guide params for fine control of pitch and threshold
+	// 	// XXX - substitute gz with gAzimuth.linlin(0pi, 1pi, 0, 15) - ???
+	// 	Gate.kr(gz.linlin(0, 1, 0, 15), gDistance - meloThresh), 12, 1, offset
+	// ).min(124);
 
     // Synthesis.
     in = Mix.fill(tones,
@@ -667,12 +669,14 @@ SynthDef(\sr__e__growl, {
             Blip.ar(
                 SinOsc.kr(0.5, 0, LFDNoise1.kr(1.5), pitches),
                 100,
-                SelectX.kr(BinaryOpUGen('<', ay, 0.5),
-                    [
-                        velocity.scurve,
-                        Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2))
-                    ]
-                )
+				Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2)),
+				// behind the back controlled by hands
+				// SelectX.kr(BinaryOpUGen('<', ay, 0.5),
+				// 	[
+				// 		velocity.scurve,
+				// 		Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2))
+				// 	]
+				// )
             )
             * ( if(index < noOfSynths, 1, 0) );
         }

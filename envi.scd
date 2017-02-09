@@ -32,6 +32,8 @@ seqPaths = ["", "Load..."];
 try { // to load from settings file
     seqPaths = seqPaths ++ File(seqPathsFile, "r").readAllString.interpret;
     postf("OK\n\n");
+} { |err|
+	"Cannot load file with sequences!".postln;
 };
 seqPaths = seqPaths.asList;
 
@@ -156,7 +158,7 @@ srEnv = Environment.make {
         ),
         \sr__e__growl: (
             key: 39, // "
-            attenuate: 0.3,
+            attenuate: 0.5,
         ),
         \sr__e__analog: (
             key: 42, // \ (the answer to the ultimate question ))

@@ -977,6 +977,45 @@ SynthDef(\sr__e__therem, {
 }).send(s);
 
 
+SynthDef(\sr__e__buzz, {
+    arg bufnum=0, inbus=30, route=20, trigID=80,
+        amp=1, attenuate=0.07, gate=1, att=1, rel=1, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
+        offset=36, cutoff=0, threshold=0.4, scope=12;
+    var note, in, out, signal;
+    // Conversion.
+    note = (
+		SelectX.kr(BinaryOpUGen('<', az, threshold) * 2,
+			[   // Go melodic above height threshold.
+				DegreeToKey.kr(bufnum, az.linlin(threshold, 1, 0, scope), 12, 1, offset),
+				az.linlin(0, threshold, (offset-6), offset) // bottom to middle change continuously
+			]
+		)
+		+ LFNoise1.kr([3, 3], 0.04) // add some low freq stereo detuning
+	).midicps;
+    // Synthesis.
+	in = attenuate * (
+		LFSaw.ar(
+			(1..5) * note, abs(velocity * 2)
+		)
+		+
+		Impulse.ar(
+			(0..4) + SinOsc.ar((4..8) * note).exprange(0.3, 300)
+		)
+	);
+    signal = RLPF.ar(in,
+		freq: LinLin.kr(velocity, 0, 1, 800, 50),
+		rq: LinLin.kr(velocity, 0, 1, 0.2, 0.8),
+		mul: amp * velocity
+	);
+    // Envelope.
+    out = signal * EnvGen.kr(
+        Env.adsr(att, 0.1, 1, rel, curve:[ca, cr]), gate: gate, doneAction: 2);
+    SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
+    Out.ar(route, out);
+}).send(s);
+
+
 // XXX
 // WARNING! New synths for matrix control!
 
@@ -1238,29 +1277,6 @@ SynthDef(\sr__s__ambisonic2, {
 }).send(s);
 
 
-SynthDef(\sr__s__ambisonic3, {
-    arg route=20, outbus=0, gate=1, rel=1,
-        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
-        speakerAzim= #[-0.17pi, -0.83pi, 0.5pi], speakerElev= #[0, 0, 0],
-        speakerDist= #[2, 2, 2], maxDist=2;
-    var w, x, y, z, r, s, t, u, v, scaleFlag=1,
-        in, signal, out, room, mix;
-    distance = distance.linlin(0, 2.sqrt, 0.01, depth);
-    mix = distance.linexp(0.01, depth, 0.1, 0.8);
-    room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(route, 1);
-    in = RLPF.ar(
-        FreeVerb.ar(in, mix, room, 0.2),
-        distance.linlin(0.5, depth, 10000, 1000),
-    0.5);
-    signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
-    #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
-    out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
-    azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
-    Out.ar(outbus, out);
-}).send(s);
-
-
 SynthDef(\sr__s__ambisonic4, {
     arg route=20, outbus=0, gate=1, rel=1,
         azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
@@ -1280,29 +1296,6 @@ SynthDef(\sr__s__ambisonic4, {
     #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
     out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
     azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
-    Out.ar(outbus, out);
-}).send(s);
-
-
-SynthDef(\sr__s__ambisonic5, {
-    arg route=20, outbus=0, gate=1, rel=1,
-        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
-        speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 0.75pi, 0.25pi], speakerElev=[0, 0, 0, 0, 0],
-        speakerDist= #[2, 2, 2, 2, 2], maxDist=2;
-    var w, x, y, z, r, s, t, u, v, scaleFlag=1,
-        in, signal, out, room, mix;
-    distance = distance.linlin(0, 2.sqrt, 0.01, depth);
-    mix = distance.linexp(0.01, depth, 0.1, 0.8);
-    room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(route, 1);
-    in = RLPF.ar(
-        FreeVerb.ar(in, mix, room, 0.2),
-        distance.linlin(0.5, depth, 10000, 1000),
-    0.5);
-    signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
-    #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
-    out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
-        azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
     Out.ar(outbus, out);
 }).send(s);
 
@@ -1330,60 +1323,12 @@ SynthDef(\sr__s__ambisonic6, {
 }).send(s);
 
 
-SynthDef(\sr__s__ambisonic7, {
-    arg route=20, outbus=0, gate=1, rel=1,
-        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
-        speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 1pi, 0.75pi, 0.25pi, 0],
-        speakerElev= #[0, 0, 0, 0, 0, 0, 0],
-        speakerDist= #[2, 2, 2, 2, 2, 2, 2], maxDist=2;
-    var w, x, y, z, r, s, t, u, v, scaleFlag=1,
-        in, signal, out, room, mix;
-    distance = distance.linlin(0, 2.sqrt, 0.01, depth);
-    mix = distance.linexp(0.01, depth, 0.1, 0.8);
-    room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(route, 1);
-    in = RLPF.ar(
-        FreeVerb.ar(in, mix, room, 0.2),
-        distance.linlin(0.5, depth, 10000, 1000),
-    0.5);
-    signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
-    #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
-    out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
-        azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
-    Out.ar(outbus, out);
-}).send(s);
-
-
 SynthDef(\sr__s__ambisonic8, {
     arg route=20, outbus=0, gate=1, rel=1,
         azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
         speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 1pi, 0.75pi, 0.5pi, 0.25pi, 0],
         speakerElev= #[0, 0, 0, 0, 0, 0, 0, 0],
         speakerDist= #[2, 2, 2, 2, 2, 2, 2, 2], maxDist=2;
-    var w, x, y, z, r, s, t, u, v, scaleFlag=1,
-        in, signal, out, room, mix;
-    distance = distance.linlin(0, 2.sqrt, 0.01, depth);
-    mix = distance.linexp(0.01, depth, 0.1, 0.8);
-    room = distance.linexp(0.01, depth, 0.2, 1);
-    in = In.ar(route, 1);
-    in = RLPF.ar(
-        FreeVerb.ar(in, mix, room, 0.2),
-        distance.linlin(0.5, depth, 10000, 1000),
-    0.5);
-    signal = in * EnvGen.kr(Env.cutoff(rel * 2, 1, \sin), gate: gate, doneAction: 2);
-    #w, x, y, z, r, s, t, u, v = FMHEncode1.ar(signal, azimuth, elevation.clip2(elevClip), distance);
-    out = FMHDecode1.ar1(w, x, y, z, r, s, t, u, v,
-        azimuth: speakerAzim, elevation: speakerElev, distance: speakerDist, maxDist:maxDist, scaleflag:scaleFlag);
-    Out.ar(outbus, out);
-}).send(s);
-
-
-SynthDef(\sr__s__ambisonic9, {
-    arg route=20, outbus=0, gate=1, rel=1,
-        azimuth= -0.5pi, elevation=0, elevClip=0.01pi, distance=0, depth=5,
-        speakerAzim= #[-0.25pi, -0.5pi, -0.75pi, 1pi, 0.75pi, 0.5pi, 0.25pi, 0.15pi, 0],
-        speakerElev= #[0, 0, 0, 0, 0, 0, 0, 0, 0],
-        speakerDist= #[2, 2, 2, 2, 2, 2, 2, 2, 2], maxDist=2;
     var w, x, y, z, r, s, t, u, v, scaleFlag=1,
         in, signal, out, room, mix;
     distance = distance.linlin(0, 2.sqrt, 0.01, depth);

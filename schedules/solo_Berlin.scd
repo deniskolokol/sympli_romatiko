@@ -28,15 +28,7 @@ var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
 //GLOBAL
-~sequence = (
-    title: "solo-B",
-    events: Dictionary.new,
-    marks: Dictionary.new,
-    tasks: Dictionary.new,
-    samples: List.new,
-    voices: List.new,
-    scales: List.new,
-);
+~sequence[\title] = "solo-B";
 
 // INITIAL
 //

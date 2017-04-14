@@ -4,40 +4,7 @@ var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
 //GLOBAL
-~sequence = (
-    title: "Sympli Romatiko: band in Traer World",
-
-    // step marks (numbered) and time marks (entitled)
-    // (
-    //     0: [(event0), (event1), ...],
-    //     1: [(eventN), (eventN+1), ...],
-    //     foo: [...]
-    // )
-    events: Dictionary.new,
-
-    // connector of time and time marks
-    // (
-    //     0_00: \foo,
-    //     1_12_354: \gee
-    // )
-    marks: Dictionary.new,
-
-    // descriptions of tasks
-    // (
-    //     taskX: Task({...}),
-    //     taskY: Task({...}),
-    // )
-    tasks: Dictionary.new,
-
-    // list of buffers
-    samples: List.new,
-
-    // list of buffers for voice samples
-    voices: List.new,
-
-    // list of buffers for scales
-    scales: List.new,
-);
+~sequence[\title] = "Sympli Romatiko: band in Traer World";
 
 // INITIAL
 //

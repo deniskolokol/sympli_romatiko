@@ -2,3 +2,5 @@
 *.wav
 *.aiff
 *.aif
+
+sequences.conf

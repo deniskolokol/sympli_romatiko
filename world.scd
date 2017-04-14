@@ -257,8 +257,8 @@ trigSynth = (
 // convert trigCodes to dictionary for easier access
 trigCodes = Dictionary.newFrom(trigCodes);
 
-// Get only filenames from sequence paths.
 fileNames = { |paths|
+	// Get only filenames from sequence paths.
 	paths[..1] ++ paths[2..].collect({ |path|
 		PathName(path.asString.asAbsolutePath).fileName;
 	});
@@ -267,9 +267,9 @@ fileNames = { |paths|
 // Miscelaneous parameters for GUI elements controllable by MIDI.
 miscParams = Dictionary.new;
 
-// Updates value of a GUI element upon sending a message to the world.
-// Sets .value, not .valueAction, because the action is performed already.
 updateGui = { |params|
+	// Updates value of a GUI element upon sending a message to the world.
+	// Sets .value, not .valueAction, because the action is performed already.
     params.pairsDo { |parm, val|
         try { worldParams[parm][\gui].value_(val) }
     }
@@ -277,17 +277,16 @@ updateGui = { |params|
 
 // SEQUENCE
 //
-// Obtain the key next/prev to current.
 getKey = { |curr, next=1|
+	// Obtain the key next/prev to current.
     var k, c;
     k = ~sequence.events.keys.asArray.asInteger.sort;
     c = k.indexOf(curr) ? -1;
     k[c + next] ? k[0]; // Go back to beginning upon reaching the upper threshold.
 };
 
-
-// Converts all event's [\info] keys into info string.
 eventInfo = { |k=nil, lim=50|
+	// Converts all event's [\info] keys into info string.
     var infoStr, val, sF;
     val = ~sequence.events.atFail(k, {[]});
     sF = { |l| format(" %\n", if (l.size <= lim) {l} {l[..lim] ++ "..."})};
@@ -296,16 +295,16 @@ eventInfo = { |k=nil, lim=50|
     infoStr[..(infoStr.size-2)]; // cut last \n
 };
 
-// Sets a label to a button in a current state.
 updateButtonLabel = { |btn, label|
+	// Sets a label to a button in a current state.
     var states=btn.states;
     states[btn.value][0] = label;
     btn.states = states;
 };
 
-// Switches to the next or prev event in a sequence
-// and updates GUI.
 switchEvent = { |nxt=1|
+	// Switches to the next or prev event in a sequence
+	// and updates GUI.
     var wait;
     if (~sequence.isNil.not) {
         if (~sequence.size > 0) {
@@ -335,8 +334,8 @@ switchEvent = { |nxt=1|
     }
 };
 
-// Send World parameter(s).
 sendPhysics = { |params|
+	// Send World parameter(s).
     params = Dictionary.newFrom(params);
     params.keysValuesDo { |k, v|
         if (v == \default) { params[k] = worldParams[k][\default] }
@@ -346,8 +345,8 @@ sendPhysics = { |params|
     updateGui.(params)
 };
 
-// Run or stop task.
 taskPlay = { |task, play=false|
+	// Run or stop task.
     try {
         if (play) {
             task.play(doReset:true)
@@ -360,8 +359,8 @@ taskPlay = { |task, play=false|
 };
 
 // XXX - move this to envi.scd
-// Send synth to server.
 sendSNew = { |data|
+	// Send synth to server.
     var node;
     node = s.nextNodeID;
     try { // Ignore the case when doneAction = 2.
@@ -372,8 +371,8 @@ sendSNew = { |data|
     );
 };
 
-// Send \n_set message to server.
 sendNSet = { |data|
+	// Send \n_set message to server.
     ~scsynth.listSendMsg(["/n_set",
         synths.at(data[\synth].atFail(\id), {nil})]
         ++ data[\synth].atFail(\params, {[]})
@@ -384,8 +383,9 @@ groupNew = { |data, time=0.1|
     synths.put(data[\id], ~groupInitCustom.(data, time));
 };
 
-// Release all synths from group, wait until released, then remove group node from server.
 groupRemove = { |data|
+	// Release all synths from group, wait until released,
+	// then remove group node from server.
     var params=();
     try { params.putPairs(data.atFail(\params, {[]})) };
     ~groupFree.(synths[data[\id]], params.atFail(\release, {2}));
@@ -393,8 +393,8 @@ groupRemove = { |data|
 };
 
 
-// Process specific key from sequence.
 processEvents = { |key|
+	// Process specific key from sequence.
     ~sequence.events.atFail(key, {[]}).do { |d, l|
         d[\message].switch(
             \physics, {
@@ -562,10 +562,9 @@ ddSequence = dropdown.(viewTopLeft, "sequence",
     initVal: if (~seqPaths.size > 2) { 2 } { 0 },
     action: { |element|
         var val, path, top=2;
-
         animateSeq = false;
         case
-        { element.value == 1 } {
+        { element.value == 1 } { // open dialog to load sequence
             Dialog.openPanel({ |path|
                 removeAll.();
                 val = ~loadSequence.(path);
@@ -573,7 +572,7 @@ ddSequence = dropdown.(viewTopLeft, "sequence",
                 element.value = val;
             });
         }
-        { element.value > 1 } {
+        { element.value > 1 } { // load seqence from file
             removeAll.();
 			path = ~seqPaths[element.value].asString;
             postMsg.(format("Loading sequence %...\n",
@@ -782,8 +781,8 @@ miscParams[\intBuf] = (
 	})
 );
 
-// GUI: trigger objects keyboard
 keyboardFunc = { |synthName, params, spring=0, mass=1|
+	// GUI: trigger objects keyboard
     params = params ? [];
     worldParams[\internalBuf].booleanValue.postln;
     if (world[\internalBuf].booleanValue && params.includes(\bufnum).not) {
@@ -1287,9 +1286,8 @@ viewWorld.drawFunc = { |view|
     physics.tick;
 };
 
-
-// Handle collisions with World boundaries.
 handleBoundaryCollisions = { |p|
+	// Handle collisions with World boundaries.
     if (p.position.x < 0 or:{p.position.x > world.width}) {
         p.velocity.set(-0.9 * p.velocity.x, p.velocity.y, p.velocity.z);
     };
@@ -1305,9 +1303,9 @@ handleBoundaryCollisions = { |p|
         p.position.z.clip(0, world.depth));
 };
 
-
-// Returns display of a particle "role" (a Star, a skeleton's joint or an ordinary particle).
 decodeParticle = { |particle|
+	// Returns display of a particle "role" (a Star,
+	// a skeleton's joint or an ordinary particle).
     var result;
     if (particle == star) {
         result = "Star"
@@ -1324,9 +1322,8 @@ decodeParticle = { |particle|
     result
 };
 
-
-// Register individual spring in the global dictionary.
 registerSpring = { |spring|
+	// Register individual spring in the global dictionary.
     var endA, endB;
     if (spring.isNil.not) {
         #endA, endB = [spring.a, spring.b];
@@ -1340,41 +1337,36 @@ registerSpring = { |spring|
     }
 };
 
-
-//
 getParticlesSkelVis = {
+	//
     all {: v[k], v <- skeleton.values, k <- v.keys,
         jointVisible.includes(k)
     } ? []
 };
 
-
-//
 getParticlesHidden = {
+	//
     all {: v[k], v <- skeleton.values, k <- v.keys,
         jointVisible.includes(k).not
     } ? []
 };
 
-
-//
 getParticlesOnSprings = {
-    (
+	//
+	(
         all {: [g.a, g.b], g <- physics.springs} ? []
     ).flatten
 };
 
-
-// Registers all springs from List in the global dictionary.
 registerSprings = { |springsList|
+	// Registers all springs from List in the global dictionary.
     springsList.do { |spring|
         registerSpring.(spring)
     }
 };
 
-
-// Translates spring end from joint name to particle.
 resolveSpringEnd = { |end|
+	// Translates spring end from joint name to particle.
 	try {
 		skeleton[skeleton.keys.asArray[0]][end]
 	} { |error|
@@ -1382,9 +1374,8 @@ resolveSpringEnd = { |end|
 	};
 };
 
-
-// Finds spring connected by any of its ends to a given particle.
 getSpringForParticle = { |particle|
+	// Finds spring connected by any of its ends to a given particle.
     var spring;
     physics.springs.do { |sp|
         if ([sp.a, sp.b].includes(particle)) { spring = sp }
@@ -1392,10 +1383,9 @@ getSpringForParticle = { |particle|
     spring
 };
 
-
-// Figures out full synth name in a form "\sr__%__%"
-// based on its short name, or a node, or a living particle.
 getSynthName = { |shortName, node, particle|
+	// Figures out full synth name in a form "\sr__%__%"
+	// based on its short name, or a node, or a living particle.
     var synthName="", checkNames;
     if (particle.isNil.not) {
         shortName = particles[particle][\synth]
@@ -1415,9 +1405,8 @@ getSynthName = { |shortName, node, particle|
     synthName.asSymbol
 };
 
-
-// Sets worlds parameters to spring.
 setSpringProp = { |spring, particle|
+	// Sets worlds parameters to spring.
     if (spring.isNil) {
         spring = getSpringForParticle.(particle)
     };
@@ -1426,9 +1415,8 @@ setSpringProp = { |spring, particle|
     spring.setStrength(world.springStrength);
 };
 
-
-// Apply spring: choose a source and connect particle to it.
 applySpring = { |particle, src, ks, d, r|
+	// Apply spring: choose a source and connect particle to it.
     var spring, source;
     source = resolveSpringEnd.(src);
 	if (source.isNil) { source = defineSource.() };
@@ -1439,12 +1427,12 @@ applySpring = { |particle, src, ks, d, r|
     spring
 };
 
-
-// Apply forces:
-// - skeleton's hands ALWAYS attracts all particles, including Star, regardless of the `mutual` state
-// - Star ALWAYS attract all objects, excluding skeleton's hands
-// - ordinary objects attract each other only if `mutual` is true
 applyAttractions = { |particle, mutual=false|
+	// Apply forces:
+	// - skeleton's hands ALWAYS attracts all particles,
+	//   including Star, regardless of the `mutual` state
+	// - Star ALWAYS attract all objects, excluding skeleton's hands
+	// - ordinary objects attract each other only if `mutual` is true
     var skeletonParticles=List.new, excludeParticles=List.new;
     List.newFrom(physics.attractions).do { |attr|
         if ((attr.a == particle) || (attr.b == particle)) {
@@ -1493,9 +1481,8 @@ applyAttractions = { |particle, mutual=false|
     };
 };
 
-
-// Choose a source (skeleton with the "lightest" hand).
 chooseSource = {
+	// Choose a source (skeleton with the "lightest" hand).
     var mass, sources = IdentityDictionary.new;
     skeleton.keysValuesDo { |num, skel|
         springSrcSkel.do { |joint|
@@ -1516,9 +1503,8 @@ chooseSource = {
     skeleton.choose[springSrcSkel.choose]
 };
 
-
-// Select source of force depending on the presence of skeleton.
 defineSource = { |starAllowed=false|
+	// Select source of force depending on the presence of skeleton.
     if (skeleton.keys.size > 0) {
         chooseSource.()
     } {
@@ -1526,9 +1512,8 @@ defineSource = { |starAllowed=false|
     }
 };
 
-
-// Define guide (where obj appears) depending on objects velocity.
 defineGuide = {
+	// Define guide (where obj appears) depending on objects velocity.
     var guides = IdentityDictionary[star -> mag3D.(star.velocity)];
     skeleton.keysValuesDo { |skel, joints|
         springSrcSkel.do { |jt|
@@ -1544,8 +1529,8 @@ defineGuide = {
     guides.findKeyForValue(guides.values.wchoose(guides.values.exp.normalizeSum))
 };
 
-// Get object's guide, if any.
 getGuide = { |particle|
+	// Get object's guide, if any.
     var spring, guide;
     spring = getSpringForParticle.(particle);
     if (spring.isNil.not) {
@@ -1554,9 +1539,8 @@ getGuide = { |particle|
     guide
 };
 
-
-// Init new particle.
 initParticle = { |mass, x, y, z, age, vel|
+	// Init new particle.
     var particle, guide;
     if ([x, y, z].any({ |i| i < 0 })) { // negative coordinates ask for guide
         guide = defineGuide.();
@@ -1577,9 +1561,8 @@ initParticle = { |mass, x, y, z, age, vel|
     particle
 };
 
-
-// Particle system.
 particleSystem = { |guide|
+	// Particle system.
     var vel, prob;
     // probability of the birth of particle depends on the guide's velocity
     vel = guide.velocity;
@@ -1597,22 +1580,19 @@ particleSystem = { |guide|
     }
 };
 
-
-// Remove spring.
 removeSpring = { |spring|
+	//
     springs.removeAt(spring.identityHash);
     physics.removeSpring(spring);
 };
 
-
-// Remove attraction.
 removeAttraction = { |attraction|
+	//
     physics.removeAttraction(attraction);
 };
 
-
-// Remove a particle.
 removeParticle = { |particle|
+	//
     // remove springs
     physics.springs.do { |spring|
         if ([spring.a, spring.b].includes(particle)) {
@@ -1634,22 +1614,20 @@ removeParticle = { |particle|
     physics.removeParticle(particle);
 };
 
-
-// Remove all particles from the world and stop all synths.
 removeAll = {
+	// Remove all particles from the world and stop all synths.
     particles.keys.do { |p, i|
         unregisterParticle.(particles[p][\node]);
         removeParticle.(p);
     }
 };
 
-
-// Register and unregister particle are separate functions
-// from init and remove to support the case when an existing
-// particle is being re-attached to a different node on the server.
-//
-// Register particle in the dictionary along with Server nodeId.
 registerParticle = { |particle, nodeId|
+	// Register and unregister particle are separate functions
+	// from init and remove to support the case when an existing
+	// particle is being re-attached to a different node on the server.
+	//
+	// Register particle in the dictionary along with Server nodeId.
     var taskSendMsg, keys=[];
     particles.put(particle, (node: nodeId));
     taskSendMsg = Task({
@@ -1664,9 +1642,8 @@ registerParticle = { |particle, nodeId|
     }).start;
 };
 
-
-// Removes particle record from the dictionary.
 unregisterParticle = { |nodeId|
+	// Removes particle record from the dictionary.
     var particle;
     particles.keysValuesDo { |part, dict|
         if (dict[\node] == nodeId) { particle = part }
@@ -1679,8 +1656,8 @@ unregisterParticle = { |nodeId|
 
 // SKELETON
 //
-// Creates a particle for each joint of the skeleton.
 skeletonParticles = { |id, joint, x, y, z|
+	// Creates a particle for each joint of the skeleton.
     var part;
     if (skeleton.keys.includes(id).not) {
         if (skeleton.keys.asArray.size < skel.limit) {
@@ -1700,9 +1677,9 @@ skeletonParticles = { |id, joint, x, y, z|
     };
 };
 
-
-// Removes skeleton particles (cannot be removed as ordinary particles).
 skeletonRemove = { |id|
+	// Removes skeleton particles (cannot be removed
+	// as ordinary particles).
     var springsPhysical;
     skeleton[id].do { |p|
         List.newFrom(physics.springs).do { |spring|
@@ -1723,11 +1700,12 @@ skeletonRemove = { |id|
 
 // HELPER FUNCTIONS
 //
-// 3-d vector(s) magnitude.
-// `vec` can be either dictionary-like object (x:x, y:y, z:z), in which case
-// a siggle float value of the magnitude is returned, or a collection of such
-// objects, which result in a collection of magnitudes.
 mag3D = { |vec|
+	// 3-d vector(s) magnitude.
+	// `vec` can be either dictionary-like object (x:x, y:y, z:z), in which case
+	// a siggle float value of the magnitude is returned, or a collection of such
+	// objects, which result in a collection of magnitudes.
+
     // XXX Profile the following functions: which one is the fastest and the least memory greedy
     var func = { |vector| (vector.x.sumsqr(vector.y) + vector.z.pow(2)).sqrt};
     // var func = { |vector| (vector.x.pow(2) + vector.y.pow(2) + vector.z.pow(2)).sqrt};
@@ -1743,15 +1721,15 @@ mag3D = { |vec|
     result
 };
 
+sigmoid = { |ratio, value|
+	//
+	1 / (1 + exp((ratio * value).neg))
+};
 
-// Simple sigmoid function.
-sigmoid = { |ratio, value| 1 / (1 + exp((ratio * value).neg))};
-
-
-// Project 3D coordinates on the plane.
-// pos = Dictionary[x, y, z]
-// space = Dictionary[width, height, depth]
 xyz2plane = { arg pos, space, scale=1, focal=0.5;
+	// Project 3D coordinates on the plane.
+	// pos = Dictionary[x, y, z]
+	// space = Dictionary[width, height, depth]
     var x, y, z, ox, oy;
     z = space.depth - pos.z / (space.depth * scale);
     z = z.linlin(0, space.depth, focal, 1);
@@ -1762,9 +1740,8 @@ xyz2plane = { arg pos, space, scale=1, focal=0.5;
     [ox, oy]
 };
 
-
-// Returns azimuth, distance and elevation for a position defined as [x, y, z]
 xyz2ade = { |position|
+	// Returns azimuth, distance and elevation for a position defined as [x, y, z]
     var pos, elev;
     pos = Complex(
         position.x.linlin(0, world.width, 1, -1), // y
@@ -1778,9 +1755,8 @@ xyz2ade = { |position|
     ]
 };
 
-
-// Converts (azimuth, distance, elevation) to (x, y, z)
 ade2xyz = { |position, maxDist|
+	// Converts (azimuth, distance, elevation) to (x, y, z)
     var pos, distAdj;
     var mC = 2.sqrt; // max in Cartesian plane (from center to wall)
     distAdj = position.dist.linlin(0, maxDist, 0, mC); // adjust distance on [0, maxDist]
@@ -1792,9 +1768,8 @@ ade2xyz = { |position, maxDist|
     )
 };
 
-
-// Returns x, y and z in required format.
 xyz = { |position|
+	// Returns x, y and z in required format.
     [
         position.x / world.width,
         position.y / world.height,
@@ -1802,10 +1777,9 @@ xyz = { |position|
     ]
 };
 
-
 // XXX - change this with re-directing all POST messages
-// post message to local listener
 postMsg = { |msg|
+	// post message to local listener
     msg = msg.asString;
     if (msg.endsWith("\n").not) { msg = msg ++ "\n" };
     {
@@ -2022,8 +1996,8 @@ oscInternalOutLevels = OSCFunc({ |msg, time, addr, recvPort|
     }.defer;
 }, '/internalOutLevels');
 
-// Remove all OSC functions.
 oscRemoveFunc = {
+	// Remove all OSC functions.
     oscParticle.free;
     oscSkeletonNew.free;
     oscSkeletonLost.free;
@@ -2099,8 +2073,8 @@ MIDIIn.connectAll;
     }
 };
 
-// clean everything on exit
 clean = {
+	// clean everything on exit
     oscRemoveFunc.();
     removeAll.();
     win.close;

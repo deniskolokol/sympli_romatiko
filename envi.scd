@@ -13,6 +13,28 @@ var harmonics, numHarmonics, numWavetables;
 var scsynthOnBoot;
 var ar__ROOT_NODE, kr__ROOT_NODE; // root IDs for synths
 
+var cleanPaths = { |paths|
+	// Converts each element from `paths` to absolute path,
+	// and returns unique paths.
+	var lines="";
+	paths.do { |path|
+		path = path.absolutePath;
+		if (PathName(path).isFile) {
+			if (lines.contains(path).not) {
+				lines = lines ++ format("%\n", path)
+			}
+		} {
+			postf("WARNING: Skipping path % (not a file).\n", path);
+		}
+	};
+	lines
+};
+
+var loadPaths = { |lines|
+	// Converts paths separated by "\n" to List.
+	lines.split($\n).reject({ |line| line.size == 0});
+};
+
 // ENVIRONMENT
 //
 "Loading environment...".postln;
@@ -30,10 +52,12 @@ try { // to load from conf file
 seqPathsFile = currentDir +/+ "conf/sequences.conf";
 seqPaths = ["", "Load..."];
 try { // to load from settings file
-    seqPaths = seqPaths ++ File(seqPathsFile, "r").readAllString.interpret;
+	seqPaths = seqPaths ++ loadPaths.(
+		File(seqPathsFile, "r").readAllString
+	);
     postf("OK\n\n");
 } { |err|
-	"Cannot load file with sequences!".postln;
+	postf("WARNING: Problem loading sequences, cannot access file %\n", seqPathsFile);
 };
 seqPaths = seqPaths.asList;
 
@@ -64,12 +88,47 @@ srEnv = Environment.make {
         collectElev: { |self| all{: sp.elev, sp <- self.items} },
         removeSpeaker: { |self, index|
             if ((self.items.size - 1) < 2) {
-                postf("WARNING! Cannot remove speaker %! At least two speakers should be defined!", index+1);
+                postf("WARNING: cannot remove speaker %! At least two speakers should be defined!", index+1);
             } {
                 self.items.pop(index);
             }
         }
     );
+
+	~sequence = ( // default empty sequence
+		title: "<none>",
+
+		// step marks (numbered) and time marks (entitled)
+		// (
+		//     0: [(event0), (event1), ...],
+		//     1: [(eventN), (eventN+1), ...],
+		//     foo: [...]
+		// )
+		events: Dictionary.new,
+
+		// connector of time and time marks
+		// (
+		//     0_00: \foo,
+		//     1_12_354: \gee
+		// )
+		marks: Dictionary.new,
+
+		// descriptions of tasks
+		// (
+		//     taskX: Task({...}),
+		//     taskY: Task({...}),
+		// )
+		tasks: Dictionary.new,
+
+		// list of buffers
+		samples: List.new,
+
+		// list of buffers for voice samples
+		voices: List.new,
+
+		// list of buffers for scales
+		scales: List.new,
+	);
 
     ~synths = (
         sr__e__wasp: (
@@ -191,8 +250,12 @@ srEnv = Environment.make {
         \sr__e__perc: (
             key: 47, // \?
             attenuate: 0.5,
-        )
+        ),
+        \sr__e__buzz: (
+            attenuate: 0.3,
+        ),
     );
+
     ~clipInc = {
         // Increments `in` until `in + step` reaches `hi`, then resets to `lo`.
         arg in=0, step=1, lo=0, hi=inf;
@@ -372,8 +435,8 @@ srEnv = Environment.make {
         buff
     };
 
-    // Converts timecode to readable format.
     ~convertTime = { |timecode|
+		// Converts timecode to readable format.
         var sec=0, min=0, minstring="00", secstring="00";
         if(timecode >= 60) {
             min = trunc(timecode / 60);
@@ -387,9 +450,9 @@ srEnv = Environment.make {
         format("%:%", minstring, secstring);
     };
 
-    // Obtains index of val in container (list, array, etc.)
-    // WARNING! Quick and dirty, not universal!
     ~getIndex = { |container, val|
+		// Obtains index of val in container (list, array, etc.)
+		// WARNING! Quick and dirty, not universal!
         var ind;
         if (val.class == String) {
             container.do { |el, i| if (el == val) { ind = i } };
@@ -433,8 +496,8 @@ srEnv = Environment.make {
         };
     };
 
-    // Loads sequence from file.
     ~loadSequence = { |path|
+		// Loads sequence from file.
         if (path.isNil) { path = ~seqPaths[2] };
         postf("Loading sequence %...\n", PathName.new(path).fileName);
         path = path.absolutePath;
@@ -461,8 +524,8 @@ srEnv = Environment.make {
         dirname
     };
 
-    // Generates the next filename for recording.
     ~setRecPath = {
+		// Generates the next filename for recording.
         var dirname, numbers=List.new;
         dirname = ~ensureRecDir.();
         PathName(dirname).filesDo { |fname|
@@ -479,8 +542,8 @@ srEnv = Environment.make {
         );
     };
 
-    // Records to a multichannel AIFF file set by ~recPath.
     ~recordAudio = { |start|
+		// Records to a multichannel AIFF file set by ~recPath.
         var filename, msg;
         if (start.booleanValue) {
             ~setRecPath.();
@@ -624,10 +687,14 @@ CmdPeriod.doOnce({
     confFile.write(conf.asCompileString);
     confFile.close;
 
-    "Saving sequences...".postln;
-    seqPathsFile = File.new(seqPathsFile, "w");
-    seqPathsFile.write(seqPaths[2..].asCompileString); // drop ["", "Load.."]
-    seqPathsFile.close;
+	// Omit the first 2 items of seqPaths are [<empty>, "Load..."],
+	// save paths to sequences only if there are some.
+	if (seqPaths.size > 2) {
+		"Saving paths to sequences...".postln;
+		seqPathsFile = File.new(seqPathsFile, "w");
+		seqPathsFile.write(cleanPaths.(seqPaths[2..]));
+		seqPathsFile.close;
+	};
 
     postf("OK\n\n");
 });

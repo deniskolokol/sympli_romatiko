@@ -42,7 +42,6 @@ SynthDef(\Output, {|gain=0.2, revsize=5, revtime=3, revdamp=0.5, revdry=1|
 	Out.ar([0,1], output*0.5);
 
 }).send(s);
-
 Synth(\Bank1).autogui(window:w, step:50, vOff: 0, hOff:0, scopeOn:true) ;
 Synth(\Rate, addAction:\addToHead).autogui(window:w, step:50, vOff: 0, hOff:830, scopeOn:false) ;
 Synth(\Bank2, addAction:\addToTail).autogui(window:w, step:50, vOff: 200, hOff:0, scopeOn:false) ;

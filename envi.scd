@@ -6,11 +6,11 @@
 (
 var srEnv;
 var currentDir;
-var key, subkey;
 var conf, confFile, confKeys;
 var seqPathsFile, seqPaths;
 var harmonics, numHarmonics, numWavetables;
-var scsynthOnBoot;
+var loadComponents, loadCommonComponents, loadComponents__test;
+var doTest;
 var ar__ROOT_NODE, kr__ROOT_NODE; // root IDs for synths
 
 var cleanPaths = { |paths|
@@ -571,84 +571,6 @@ srEnv = Environment.make {
 };
 currentEnvironment = srEnv;
 
-
-// MODULES
-//
-
-scsynthOnBoot = {
-    // initial server groups
-    ar__ROOT_NODE = ~scsynth.nextNodeID;
-    kr__ROOT_NODE = ~scsynth.nextNodeID;
-    ~scsynth.sendMsg("/g_new", ar__ROOT_NODE, 0, 1);
-    ~scsynth.sendMsg("/g_new", kr__ROOT_NODE, 0, 1);
-
-    "Loading wavetables...".postln;
-    numHarmonics = 1024;
-    numWavetables = 8;
-    numWavetables.do { |i| // allocate and fill tables
-        ~scsynth.sendMsg(\b_alloc, i, numHarmonics);
-        harmonics = Harmonics(numHarmonics).formant(12,
-            (i**2).linlin(0, numWavetables**2, 1, numHarmonics).ceil
-        );
-        ~scsynth.performList(\sendMsg, \b_gen, i, \sine1, n, harmonics);
-    };
-
-    // default scale buffer
-    ~defaultBuff = Buffer.sendCollection(~scsynth, Scale.ahirbhairav.degrees, 1, 0.2);
-
-    // internal buffer
-    ~internalBuff = Buffer.alloc(~scsynth, ~scsynth.sampleRate, 1); // 1 seconds 1 channel
-
-    "Loading synth definitions...".postln;
-    if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
-        postf("OK\n\n")
-    };
-
-    "Loading world...".postln;
-    if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
-        postf("OK\n\n")
-    };
-
-    "Initiating audio-through synth".postln;
-    ~nodeAudioThrough = ~groupInit.(\sr__r__authro);
-
-    // // XXX - in progress
-    // "Loading control matrix...".postln;
-    // if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
-    //     postf("OK\n\n")
-    // };
-};
-
-if (~scsynth == Server.internal) {
-    s = ~scsynth; // default server
-
-    s.options.numInputBusChannels = 4;
-    s.options.numOutputBusChannels = 12; // 10 outputs on the interface + one aux stereo output
-    s.options.memSize = 262144;
-    s.options.blockSize = 512;
-
-    s.boot;
-    ~scsynth.waitForBoot(scsynthOnBoot);
-} {
-    {
-        try {
-            ~scsynth.addr.connect;
-            s = ~scsynth; // default server
-
-            postf("Connected to Server % at %...\n", ~scsynth.name, ~scsynth.addr.ip);
-            ~scsynth.notify;
-            ~scsynth.initTree;
-            ~scsynth.meter;
-            ~scsynth.queryAllNodes;
-
-            scsynthOnBoot.()
-        } { |error|
-            postf("Server % at % is not running!\n", ~scsynth.name, ~scsynth.addr.ip);
-            error.postln;
-        }
-    }.defer(1);
-};
-
 CmdPeriod.doOnce({
     "Freeing buffers...".postln;
     ~wavetable.do(_.free);
@@ -698,4 +620,130 @@ CmdPeriod.doOnce({
 
     postf("OK\n\n");
 });
+
+
+// MODULES
+//
+loadCommonComponents = {
+    // initial server groups
+    ar__ROOT_NODE = ~scsynth.nextNodeID;
+    kr__ROOT_NODE = ~scsynth.nextNodeID;
+    ~scsynth.sendMsg("/g_new", ar__ROOT_NODE, 0, 1);
+    ~scsynth.sendMsg("/g_new", kr__ROOT_NODE, 0, 1);
+
+    // default scale buffer
+    ~defaultBuff = Buffer.sendCollection(~scsynth, Scale.ahirbhairav.degrees, 1, 0.2);
+
+    // internal buffer
+    ~internalBuff = Buffer.alloc(~scsynth, ~scsynth.sampleRate, 1); // 1 seconds 1 channel
+
+    "Loading synth definitions...".postln;
+    if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
+        postf("OK\n\n")
+    };
+
+    "Initiating audio-through synth".postln;
+    ~nodeAudioThrough = ~groupInit.(\sr__r__authro);
+};
+
+loadComponents = {
+	loadCommonComponents.();
+
+    "Loading wavetables... in progress".postln;
+    numHarmonics = 1024;
+    numWavetables = 8;
+    numWavetables.do { |i| // allocate and fill tables
+        ~scsynth.sendMsg(\b_alloc, i, numHarmonics);
+        harmonics = Harmonics(numHarmonics).formant(12,
+            (i**2).linlin(0, numWavetables**2, 1, numHarmonics).ceil
+        );
+        ~scsynth.performList(\sendMsg, \b_gen, i, \sine1, n, harmonics);
+    };
+
+	"Loading world...".postln;
+	if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
+		postf("OK\n\n")
+	};
+
+	"Loading control matrix... in progress".postln;
+	// XXX
+	// if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
+	//     postf("OK\n\n")
+	// };
+};
+
+loadComponents__test = {
+	loadCommonComponents.();
+	doTest.();
+};
+
+
+if (thisProcess.argv.includesEqual("test").not) {
+	// ORDINARY START
+	if (~scsynth == Server.internal) {
+		s = ~scsynth; // default server
+		s.options.numInputBusChannels = 4;
+		s.options.numOutputBusChannels = 12; // 10 outputs on the interface + one aux stereo output
+		s.options.memSize = 262144;
+		s.options.blockSize = 512;
+		s.latency = 0.05;
+		s.boot;
+		~scsynth.waitForBoot(loadComponents);
+	} {
+		{
+			try {
+				~scsynth.addr.connect;
+				s = ~scsynth; // default server
+				postf("Connected to Server % at %...\n", ~scsynth.name, ~scsynth.addr.ip);
+				~scsynth.notify;
+				~scsynth.initTree;
+				~scsynth.meter;
+				~scsynth.queryAllNodes;
+				loadComponents.()
+			} { |error|
+				postf("ERROR: server % at % is not running!\n", ~scsynth.name, ~scsynth.addr.ip);
+				error.postln;
+			}
+		}.defer(1);
+	};
+} {
+	// UNIT-TESTING
+	~scsynth = s = Server.internal;
+	s.boot;
+	~scsynth.waitForBoot(loadComponents__test);
+};
+
+doTest = {
+	// Unit tests:
+	// $sclang /path/to/envi.scd test
+	var testDir;
+	postf("\n------------\nUnit testing\n------------\n");
+
+	// --------
+	// test_cleanPaths
+	testDir = PathName(thisProcess.nowExecutingPath).pathOnly +/+ "test";
+	testDir.mkdir;
+	["kraut.scd", "buzz.scd", "solo.scd", "band.scd"].do { |name|
+		File.new(testDir +/+ name, "w").close;
+	};
+	a = List[
+		testDir +/+ "kraut.scd",
+		"test/kraut.scd",
+		"test/buzz.scd",
+		"test/solo.scd",
+		"test/band.scd",
+		testDir +/+ "solo.scd",
+		testDir +/+ "band.scd",
+		testDir
+	];
+	c = cleanPaths.(a).split($\n);
+	UnitTest.new.assertEquals(c.size, 5, "cleanPaths: size");
+	UnitTest.new.assertEquals(c[4], "", "cleanPaths: last item empty");
+	UnitTest.new.assert(c[..3].every(_.beginsWith("/")), "cleanPaths: absolute path");
+	testDir
+	// --------
+
+	// exit after testing is done
+	0.exit;
+};
 )

@@ -1705,11 +1705,7 @@ mag3D = { |vec|
 	// `vec` can be either dictionary-like object (x:x, y:y, z:z), in which case
 	// a siggle float value of the magnitude is returned, or a collection of such
 	// objects, which result in a collection of magnitudes.
-
-    // XXX Profile the following functions: which one is the fastest and the least memory greedy
     var func = { |vector| (vector.x.sumsqr(vector.y) + vector.z.pow(2)).sqrt};
-    // var func = { |vector| (vector.x.pow(2) + vector.y.pow(2) + vector.z.pow(2)).sqrt};
-    // var func = { |vector| [vector.x.pow(2), vector.y.pow(2), vector.z.pow(2)].sum.sqrt};
     var result = 0;
     try {
         result = func.(vec)
@@ -2078,7 +2074,7 @@ clean = {
     oscRemoveFunc.();
     removeAll.();
     win.close;
-    MIDIIn.disconnect;
+    MIDIIn.disconnectAll;
 };
 
 CmdPeriod.doOnce({

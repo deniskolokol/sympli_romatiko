@@ -121,8 +121,6 @@ sendSNew = { |data|
 };
 
 // Sends bundle to server, places everything mentioned to the top level group.
-// This is different from ~groupInit by allowing for an arbitrary number of
-// synths and flexible group's structure.
 groupNew = { |data, time=0.1|
     var node, messages;
     node = s.nextNodeID;

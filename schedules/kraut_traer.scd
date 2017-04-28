@@ -24,10 +24,14 @@ dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 
 samplesDir = "~/Music/Sympli_Romatiko/samples/";
 PathName.new(samplesDir +/+ "test").entries.do { |f, i|
-    try { ~sequence.samples.add(Buffer.readChannel(s, f.fullPath, channels: [0])) }
+    try {
+		~sequence.samples.add(Buffer.readChannel(~scsynth, f.fullPath, channels: [0]))
+	}
 };
-guideBuff = Buffer.readChannel(s,
-    PathName(samplesDir +/+ "drums/drumguide.wav").fullPath, channels: [0]
+guideBuff = Buffer.readChannel(
+	~scsynth,
+    PathName(samplesDir +/+ "drums/drumguide.wav").fullPath,
+	channels: [0]
 );
 
 [
@@ -67,71 +71,73 @@ guideBuff = Buffer.readChannel(s,
 	// ],
     2: [
         (
-            info: "2 heavy __growls",
-			wait: 60,
+            info: "2 heavy <pole>",
+			wait: 120,
             message: \particle,
-            synth: (name: \sr__e__growl,
-                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 120, \rel, 5, \offset, 36]),
+			synth: (name: "pole",
+                params: [\bufnum, ~sequence.scales[0].bufnum, \attack, 120, \release, 0.5, \amp, 0.5, \offset, 12]),
 			particle: (mass: 1, spring: 1, source: \l_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__growl,
-                params: [\bufnum, ~sequence.scales[0].bufnum, \att, 120, \rel, 5, \offset, 36]),
+            synth: (name: "pole",
+                params: [\bufnum, ~sequence.scales[0].bufnum, \attack, 120, \release, 0.5, \amp, 0.5, \offset, 12]),
 			particle: (mass: 1, spring: 1, source: \r_hand)
         ),
     ],
-    3: [
+    6: [
         (
-            info: "2 heavy __perc",
+            info: "2 heavy <kick>",
             message: \particle,
-            synth: (name: \sr__e__perc,
-				params: [\att, 5.0.rand, \rel, 8, \amp, 0.1, \bufnum, ~sequence.scales[1].bufnum]),
+			synth: (name: "kick",
+				params: [\amp, 0.1, \freq, 24.midicps]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__perc,
-				params: [\att, 5.0.rand, \rel, 8, \amp, 0.1, \bufnum, ~sequence.scales[1].bufnum]),
+			synth: (name: "kick",
+				params: [\amp, 0.1, \freq, 24.midicps]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         )
     ],
-    4: [
+    7: [
         (
-            info: "heavy __lowe",
+            info: "heavy <lowe>",
             message: \particle,
-            synth: (name: \sr__e__lowe,
-				params: [\att, 10.rand, \att, 12, \rel, 1]),
+			synth: (name: "lowe",
+				// XXX - play with \freq (~800 -> noisy and sharp)
+				// XXX - add it to 2 __entro later to achieve some sort of "melodicity"
+				params: [\attack, 10, \attack, 12, \release, 0.5]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
         (
-            info: "heavy __noisy",
+            info: "heavy <wind>",
             message: \particle,
-            synth: (name: \sr__e__noisy,
-				params: [\att, 5.0.rand, \att, 12, \rel, 1, \amp, 0.7]),
+            synth: (name: "wind",
+				params: [\attack, 5, \attack, 12, \release, 0.5, \amp, 0.7]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
         )
     ],
-    5: [
+    8: [
 		(
 			message: \action,  params: [\remove, \all]
 		),
         (
-            info: "heavy __lowe",
+            info: "heavy <lowe>",
             message: \particle,
-            synth: (name: \sr__e__lowe,
-				params: [\att, 10.rand, \att, 10, \rel, 1]),
+			synth: (name: "lowe",
+				params: [\attack, 0.5, \attack, 10, \release, 1]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
         (
-            info: "heavy __noisy",
+            info: "heavy <wind>",
             message: \particle,
-            synth: (name: \sr__e__noisy,
-				params: [\att, 5.0.rand, \att, 10, \rel, 1, \amp, 0.7]),
+			synth: (name: "wind",
+				params: [\attack, 0.5, \attack, 10, \release, 1, \amp, 0.7]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
         )
     ],
-    6: [
+    9: [
 		(
             message: \action,  params: [\remove, \all]
         ),
@@ -144,14 +150,14 @@ guideBuff = Buffer.readChannel(s,
 			message: \physics, params: [\springDamp, 0.32]
 		),
         (
-            info: "2 heavy __radio",
+            info: "2 heavy <komar>",
             message: \particle,
-            synth: (name: \sr__e__radio, params: [\att, 15]),
+			synth: (name: "komar", params: [\attack, 15]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__radio, params: [\att, 15]),
+			synth: (name: "komar", params: [\attack, 15]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         )
     ],
@@ -168,21 +174,21 @@ guideBuff = Buffer.readChannel(s,
 			message: \physics, params: [\springDamp, \default]
 		),
         (
-            info: "2 heavy __neural",
+            info: "2 heavy <neural>",
             message: \particle,
-            synth: (name: \sr__e__neural, params: [\att, 15]),
+			synth: (name: "neural", params: [\attack, 15, \cutoff, 1]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__neural, params: [\att, 15]),
+			synth: (name: "neural", params: [\attack, 15, \cutoff, 1]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
         (
-            info: "heavy __lowe",
+            info: "heavy <lowe>",
             message: \particle,
-            synth: (name: \sr__e__lowe,
-				params: [\att, 5.0.rand, \rel, 8]),
+			synth: (name: "lowe",
+				params: [\attack, 5.0.rand, \release, 8]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
     ],
@@ -199,14 +205,14 @@ guideBuff = Buffer.readChannel(s,
 			message: \physics, params: [\springDamp, 0.32]
 		),
         (
-            info: "2 heavy __radio",
+            info: "2 heavy <komar>",
             message: \particle,
-            synth: (name: \sr__e__radio, params: [\att, 15]),
+			synth: (name: "komar", params: [\attack, 15]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__radio, params: [\att, 15]),
+			synth: (name: "komar", params: [\attack, 15]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         )
     ],
@@ -223,14 +229,14 @@ guideBuff = Buffer.readChannel(s,
 			message: \physics, params: [\springDamp, \default]
 		),
         (
-            info: "2 heavy __neural",
+            info: "2 heavy <neural>",
             message: \particle,
-            synth: (name: \sr__e__neural, params: [\att, 15]),
+			synth: (name: "neural", params: [\attack, 15]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__neural, params: [\att, 15]),
+			synth: (name: "neural", params: [\attack, 15]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
     ],
@@ -239,14 +245,14 @@ guideBuff = Buffer.readChannel(s,
             message: \action,  params: [\remove, \all]
         ),
         (
-            info: "2 heavy __buzz",
+            info: "2 heavy <entro>",
             message: \particle,
-            synth: (name: \sr__e__buzz, params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+12]),
+			synth: (name: "entro", params: [\attack, 0.1, \amp, 0.5]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__buzz, params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+12]),
+			synth: (name: "entro", params: [\attack, 0.1, \amp, 0.5]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
     ],
@@ -258,7 +264,7 @@ guideBuff = Buffer.readChannel(s,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
                 ["/s_new", \sr__e__analog, \next_node_id, 0, \group_id, // add synth to new group's head
                     \route, ~audioThruBus[0], // feeding into the bus designated for audio through
-                    \velocity, 0.5, \att, 40, \bufnum, ~sequence.scales[0].bufnum,
+                    \velocity, 0.5, \attack, 40, \bufnum, ~sequence.scales[0].bufnum,
                     \amp, 0.5 // attenuate not to overshout main synth
                 ],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \outbus, 0],
@@ -276,7 +282,7 @@ guideBuff = Buffer.readChannel(s,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
                 ["/s_new", \sr__e__analog, \next_node_id, 0, \group_id, // add synth to new group's head
                     \route, ~audioThruBus[1],
-                    \velocity, 0.5, \att, 40, \bufnum, ~sequence.scales[0].bufnum,
+                    \velocity, 0.5, \attack, 40, \bufnum, ~sequence.scales[0].bufnum,
                     \amp, 0.5 // attenuate not to overshout main synth
                 ],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \outbus, 2],
@@ -291,15 +297,15 @@ guideBuff = Buffer.readChannel(s,
             info: "2 heavy __authro",
             message: \particle,
             synth: (name: \sr__r__authro,
-                params: [\inbus, ~audioThruBus[0],
-                    \att, 2+1.0.rand2, \rel, 5, \threshold, 0.5]),
+                params: [\in, ~audioThruBus[0],
+                    \attack, 2+1.0.rand2, \release, 5, \threshold, 0.5]),
             particle: (mass: 1, spring: 1, source: \l_hand)
         ),
         (
             message: \particle,
             synth: (name: \sr__r__authro,
-                params: [\inbus, ~audioThruBus[1],
-                    \att, 2+1.0.rand2, \rel, 5, \threshold, 0.5]),
+                params: [\in, ~audioThruBus[1],
+                    \attack, 2+1.0.rand2, \release, 5, \threshold, 0.5]),
             particle: (mass: 1, spring: 1, source: \r_hand)
         ),
     ],
@@ -340,7 +346,7 @@ guideBuff = Buffer.readChannel(s,
             message: \physics, params: [audioIn: false]
         ),
         ( // remove intro group from server
-            message: \g_free, id: \feed_audiothrough, params: [\release, 30]
+            message: \g_free, id: \feed_audiothrough, params: [\releaseease, 30]
         ),
     ],
     99: [
@@ -365,7 +371,7 @@ guideBuff = Buffer.readChannel(s,
 	// 		coords[2] = coords[2] + 0.6; // offset
 	// 		~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
 	// 		i = i + 1;
-	// 		0.005.wait;
+	// 		0.002.wait;
 	// 	}
 	// }),
 
@@ -420,7 +426,7 @@ guideBuff = Buffer.readChannel(s,
                         particle: (mass:0.1, x:x, y:y, z:z, age:age, spring:0),
                         synth: (
                             name:\sr__g__scratch,
-                            params:[\att, 3, \bufnum, buff.bufnum]
+                            params:[\attack, 3, \bufnum, buff.bufnum]
                         )
                     );
                 };
@@ -431,7 +437,7 @@ guideBuff = Buffer.readChannel(s,
                 particle: (mass:0.2, x:x, y:y, z:z, age:age, spring:0),
                 synth: (
                     name:synth,
-                    params:[\att, 2, \bufnum, buff.bufnum]
+                    params:[\attack, 2, \bufnum, buff.bufnum]
                 )
             );
             (age + rand2(age * 0.5)).wait

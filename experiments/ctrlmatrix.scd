@@ -330,7 +330,7 @@ synthOnOff = { |arKr, pos, params|
                     parm[k] = v.asString.replace("kr_", "c").asSymbol
                 }
             };
-            node = ~groupInit.(def[\synthname],
+            node = ~initSynth.(def[\synthname],
                 inbus:def[\inbus],
                 outbus:def[\outbus],
                 params:parm.getPairs

@@ -31,15 +31,17 @@ var win, viewTop, viewTopLeft, viewTopCenter, viewTopRight,
     viewWorld, viewLeft, viewRight, viewBottom,
     paneWidth, paneHeight, compView, compViewFlow, panel,
     sText, dropdown, slider, button, buttonCheckbox, updateButtonLabel;
-var postListener, postMaxSize=1e+5;
+var postView, postMaxSize=25000;
+var srvTree, postSrvView;
 var scale, translate, focal;
 var paramsChanged;
 var stat, clean;
 var trigSynth, synthNames, trigCodes;
-var keyboardFunc, postMsg, fileNames;
+var keyboardFunc, fileNames;
+var postMsg, updatePostColors, getMsgColor, postColors=List.new;
 var eventInfo, switchEvent, processEvents, getKey;
 var groupNew, groupRemove, sendPhysics, sendSNew, sendNSet, taskPlay;
-var animateSeq, shade, current, next, count=0, blinked=0;
+var animateSeq, shade, current, next, count=0, blinked=0, tick=0;
 var ddSequence, btCurrNum, stCurrInfo, btNextNum, stNextInfo, timeLabel, updateGui;
 var internalInLevels, internalOutLevels,
     oscInternalInLevels, oscInternalOutLevels;
@@ -215,8 +217,8 @@ worldTrace = Dictionary.newFrom(world); // tracing changes of the world
 
 // dictionary of the synths symbolic IDs vs. server Nodes
 synths = Dictionary.new;
-sGroupId = s.nextNodeID; // Group for synths not connected to objects.
-s.sendMsg("/g_new", sGroupId);
+sGroupId = ~scsynth.nextNodeID; // Group for synths not connected to objects.
+~scsynth.sendMsg("/g_new", sGroupId);
 
 // skeletons
 skel = (waitBeforeRemove: 5, limit: 1);
@@ -311,6 +313,7 @@ switchEvent = { |nxt=1|
             current = getKey.(current, nxt);
             updateButtonLabel.(btCurrNum, current);
             stCurrInfo.string = eventInfo.(current);
+			if (current == 0) { count = 0 }; // reset clock
 
             next = getKey.(current, 1);
             updateButtonLabel.(btNextNum, next);
@@ -329,7 +332,7 @@ switchEvent = { |nxt=1|
             };
             // update waiting time until the next event
             waitNextEvent = wait.maxItem;
-            postMsg.(format("Waiting time for next event: %\n", waitNextEvent));
+			postMsg.(format("INFO: Waiting time for next event: %\n", waitNextEvent));
         }
     }
 };
@@ -354,7 +357,7 @@ taskPlay = { |task, play=false|
             task.stop.reset;
         }
     } { |err|
-        postMsg.(format("Error while trying to switch task % on or off:\n%\n", task, err));
+        postMsg.(format("ERROR: cannot switch task % on or off:\n%\n", task, err));
     };
 };
 
@@ -362,7 +365,7 @@ taskPlay = { |task, play=false|
 sendSNew = { |data|
 	// Send synth to server.
     var node;
-    node = s.nextNodeID;
+    node = ~scsynth.nextNodeID;
     try { // Ignore the case when doneAction = 2.
         synths.put(data[\synth][\id], node);
     };
@@ -380,7 +383,7 @@ sendNSet = { |data|
 };
 
 groupNew = { |data, time=0.1|
-    synths.put(data[\id], ~groupInitCustom.(data, time));
+    synths.put(data[\id], ~initGroup.(data, time));
 };
 
 groupRemove = { |data|
@@ -575,7 +578,7 @@ ddSequence = dropdown.(viewTopLeft, "sequence",
         { element.value > 1 } { // load seqence from file
             removeAll.();
 			path = ~seqPaths[element.value].asString;
-            postMsg.(format("Loading sequence %...\n",
+            postMsg.(format("INFO: Loading sequence %...\n",
                 PathName.new(path).fileName
             ));
             val = ~loadSequence.(path); // open from file
@@ -584,7 +587,7 @@ ddSequence = dropdown.(viewTopLeft, "sequence",
                 element.items = fileNames.(~seqPaths);
                 element.value = top;
             };
-            if (val == 0) {postMsg.("FAIL!")} {postMsg.("OK...")};
+            if (val == 0) {postMsg.("ERROR: Loading sequence has failed!")} {postMsg.("OK...")};
         };
         current = -1;
         updateButtonLabel.(btNextNum, getKey.(current, 1).asString);
@@ -598,7 +601,6 @@ button.(viewTopLeft,
 ).action_({ |bt|
     ~stopSequence.();
     animateSeq = false; // stop clock
-    count = 0; // reset clock
 });
 button.(viewTopLeft,
     "reload", bgColor:Color.grey(0.2), scaleW:0.6, scaleH:0.5
@@ -612,14 +614,14 @@ sText.(panel, "0", stringFont:fontSmall, scaleH:0.15, scaleW:0.8).align_(\right)
 sText.(panel, "", stringFont:fontSmall, scaleH:0.65, scaleW:1); // gap
 sText.(panel, "-80", stringFont:fontSmall, scaleH:0.2, scaleW:0.8).align_(\right);
 
-internalInLevels = Array.fill(s.options.numInputBusChannels, {nil});
-internalOutLevels = Array.fill(s.options.numOutputBusChannels, {nil});
+internalInLevels = Array.fill(~scsynth.options.numInputBusChannels, {nil});
+internalOutLevels = Array.fill(~scsynth.options.numOutputBusChannels, {nil});
 
-tmp = s.options.numInputBusChannels / (
-    s.options.numInputBusChannels + s.options.numOutputBusChannels
+tmp = ~scsynth.options.numInputBusChannels / (
+    ~scsynth.options.numInputBusChannels + ~scsynth.options.numOutputBusChannels
 );
 panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:tmp);
-s.options.numInputBusChannels.do { |j|
+~scsynth.options.numInputBusChannels.do { |j|
     internalInLevels[j] = LevelIndicator(panel, 19@(panel.bounds.height*0.8))
     .background_(Color.clear)
     .warning_(0.7)
@@ -629,12 +631,12 @@ s.options.numInputBusChannels.do { |j|
     .drawsPeak_(true)
 };
 sText.(panel, "inputs", stringFont:fontSmall, scaleH:0.15, scaleW:1);
-tmp = 0.85 * s.options.numOutputBusChannels / (
-    s.options.numInputBusChannels + s.options.numOutputBusChannels
+tmp = 0.85 * ~scsynth.options.numOutputBusChannels / (
+    ~scsynth.options.numInputBusChannels + ~scsynth.options.numOutputBusChannels
 );
 panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:tmp);
-s.options.numOutputBusChannels.do { |j|
-    var w = (panel.bounds.width / s.options.numOutputBusChannels)-3;
+~scsynth.options.numOutputBusChannels.do { |j|
+    var w = (panel.bounds.width / ~scsynth.options.numOutputBusChannels)-3;
     internalOutLevels[j] = LevelIndicator(panel, w@(panel.bounds.height*0.8))
     .background_(Color.clear)
     .warning_(-6.dbamp)
@@ -646,20 +648,30 @@ s.options.numOutputBusChannels.do { |j|
 sText.(panel, "outputs", stringFont:fontSmall, scaleH:0.15, scaleW:1);
 
 // GUI: post window
-panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.85);
-sText.(panel, "", scaleH:0.05, scaleW:1); // gap
-panel.decorator.nextLine;
-postListener = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.94))
+panel = compViewFlow.(viewLeft, margin:5@5, scaleH:0.35);
+srvTree = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.94))
    .editable_(false)
    .font_(fontSmall)
    .stringColor_(fontColor)
    .background_(transparent)
-   .hasVerticalScroller_(false)
+   .hasVerticalScroller_(true)
    .canFocus_(false);
+
+// GUI: Server post window
+panel = compViewFlow.(viewLeft, margin:5@5, scaleH:0.53);
+postSrvView = StatusBox(panel, (panel.bounds.width-15)@(panel.bounds.height*0.94))
+    .editable_(false)
+    .font_(fontSmall)
+    .stringColor_(fontColor)
+    .background_(transparent)
+    .hasVerticalScroller_(false)
+    .canFocus_(false)
+    .alwaysOnTop_(true);
+postSrvView.makeDefault;
 
 // GUI: stat panel
 stat = Dictionary.new;
-panel = compViewFlow.(viewRight, margin:5@5, scaleH:0.15);
+panel = compViewFlow.(viewRight, scaleH:0.12);
 [
     (label: "particles", func: { physics.particles.size }),
     (label: "springs", func: { physics.springs.size }),
@@ -681,7 +693,7 @@ panel = compViewFlow.(viewRight, margin:5@5, scaleH:0.15);
 };
 
 // slider controllers for physics params
-panel = compViewFlow.(viewRight, scaleH:0.5, margin:10@30);
+panel = compViewFlow.(viewRight, scaleH:0.405);
 [
     \drag, \repulsion, \starMass,
     \gravX, \gravY, \gravZ,
@@ -690,11 +702,11 @@ panel = compViewFlow.(viewRight, scaleH:0.5, margin:10@30);
     \partDefaultMass, \partAgeThresh, \partSigmoidRatio,
 ].do { |key, n|
     worldParams[key][\gui] = slider.(panel, key, worldParams[key]);
-    if ((n+1) % 3 == 0) { compViewFlow.(panel, scaleH:0.05)} // gap after every 3rd slider
+    if ((n+1) % 3 == 0) { compViewFlow.(panel, scaleH:0.03)} // gap after every 3rd slider
 };
 
 // slider controllers for misc params
-panel = compViewFlow.(viewRight, scaleH:0.15, margin:10@30);
+panel = compViewFlow.(viewRight, scaleH:0.09);
 miscParams[\serverVolume] = (
     midicc: 12,
 	spec: \db,
@@ -727,28 +739,31 @@ miscParams[\depth] = (
     })
 );
 
-panel = compViewFlow.(viewRight, scaleH:0.2, margin:30@30, gap:10@10);
+panel = compViewFlow.(viewRight, margin:5@5, gap:5@5, scaleH:0.08);
+// button based misc params
+miscParams[\removeall] = (
+    midinote: 70,
+    gui: button.(panel,
+        "X", bgColor:Color.black, scaleW:0.2, scaleH:0.5
+    ).action_({ |bt| removeAll.() })
+);
+sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
 // button based physics params
 [\particles, \mutualAttraction, \calibration].do { |key|
     worldParams[key][\gui] = buttonCheckbox.(
         panel,
         worldParams[key][\label],
-        bgColor:Color.black, scaleW:0.267, scaleH:0.2
+        bgColor:Color.black, scaleW:0.25, scaleH:0.5
     )
     .value_(worldParams[key][\default])
     .action_({ |bt| sendPhysics.([key, bt.value]) })
 };
-// button based misc params
-miscParams[\removeall] = (
-    midinote: 70,
-    gui: button.(panel,
-        "X", bgColor:Color.black, scaleW:0.267, scaleH:0.2
-    ).action_({ |bt| removeAll.() })
-);
+panel.decorator.nextLine;
+// reset physics params to defaults
 miscParams[\reset] = (
     midinote: 58,
     gui: button.(panel,
-        "RESET", bgColor:Color.black, scaleW:0.267, scaleH:0.2
+        "RESET", bgColor:Color.black, scaleW:0.2, scaleH:0.5
     ).action_({ |bt|
         worldParams.values.do { |element|
             if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
@@ -757,15 +772,15 @@ miscParams[\reset] = (
         }
     })
 );
-panel.decorator.nextLine;
+sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
 miscParams[\rec] = (
     gui: buttonCheckbox.(panel,
-        "REC.", labelColor: Color.red, bgColor:Color.black, scaleW:0.267, scaleH:0.2
+        "REC.", labelColor: Color.red, bgColor:Color.black, scaleW:0.375, scaleH:0.5
     ).action_({ |bt| postMsg.(~recordAudio.(bt.value)) })
 );
 miscParams[\intBuf] = (
     gui: buttonCheckbox.(panel,
-        "int buf", labelColor: Color.red, bgColor:Color.black, scaleW:0.267, scaleH:0.2
+        "int buf", labelColor: Color.red, bgColor:Color.black, scaleW:0.375, scaleH:0.5
     )
     .action_({ |bt|
 		var synthIn;
@@ -780,11 +795,19 @@ miscParams[\intBuf] = (
         sendPhysics.([\internalBuf, bt.value])
 	})
 );
+// GUI: post window
+panel = compViewFlow.(viewRight, margin:5@5, scaleH:0.35);
+postView = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.94))
+   .editable_(false)
+   .font_(fontSmall)
+   .stringColor_(fontColor)
+   .background_(transparent)
+   .hasVerticalScroller_(false)
+   .canFocus_(false);
 
 keyboardFunc = { |synthName, params, spring=0, mass=1|
 	// GUI: trigger objects keyboard
     params = params ? [];
-    worldParams[\internalBuf].booleanValue.postln;
     if (world[\internalBuf].booleanValue && params.includes(\bufnum).not) {
         params = params ++ [\bufnum, ~internalBuff.bufnum]
     };
@@ -892,7 +915,7 @@ viewWorld.mouseUpAction = {
 };
 
 win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
-    [view, char, modifiers, unicode, keycode].postln;
+	// [view, char, modifiers, unicode, keycode].postln;
     case
     { keycode == 8 } { // C
         if (modifiers == 262144) { // Ctrl + C
@@ -1185,7 +1208,7 @@ viewWorld.drawFunc = { |view|
                 #gx, gy, gz = [ax, ay, az];
                 #gAzimuth, gDistance, gElevation = [azimuth, distance, elevation];
             };
-            s.sendMsg("/n_set", particles[particle][\node],
+            ~scsynth.sendMsg("/n_set", particles[particle][\node],
                 // particle params
                 \ax, ax,
                 \ay, ay,
@@ -1193,7 +1216,7 @@ viewWorld.drawFunc = { |view|
                 \azimuth, azimuth,
                 \distance, distance,
                 \elevation, elevation,
-                \velocity, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
+                \momentum, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
                 \amp, (
                     particle.mass.clip(0.01, 0.8) // the main contributor to object's loudness is its mass
                     + (mag3D.(particle.velocity) * 0.01) // subtle "colors" due to velocity
@@ -1258,7 +1281,7 @@ viewWorld.drawFunc = { |view|
     };
     #ax, ay, az = xyz.(guide.position);
     #azimuth, distance, elevation = xyz2ade.(guide.position);
-    s.sendMsg("/n_set", ~nodeAudioThrough,
+    ~scsynth.sendMsg("/n_set", ~nodeAudioThrough,
         // particle params
         \ax, ax,
         \ay, ay,
@@ -1266,7 +1289,7 @@ viewWorld.drawFunc = { |view|
         \azimuth, azimuth,
         \distance, distance,
         \elevation, elevation,
-        \velocity, mag3D.(guide.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
+        \momentum, mag3D.(guide.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
         \amp, (0.9 // static guide's loudness
             + (mag3D.(guide.velocity) * 0.01) // subtle "colors" due to velocity
         ).clip(0, 1),
@@ -1575,7 +1598,7 @@ particleSystem = { |guide|
             initParticle.(0.2, guide.position.x, guide.position.y, guide.position.z,
                 world.partAgeThresh.logistic,
                 [vel.x, vel.y, vel.z].neg * world.partInitAccel.max(0.01)),
-            ~groupInit.(world.partSynth, params:[\att, 2.0.rand])
+            ~initSynth.(world.partSynth, params:[\att, 0.5.rand])
         );
     }
 };
@@ -1623,11 +1646,11 @@ removeAll = {
 };
 
 registerParticle = { |particle, nodeId|
+	// Register particle in the dictionary along with Server nodeId.
+	//
 	// Register and unregister particle are separate functions
 	// from init and remove to support the case when an existing
 	// particle is being re-attached to a different node on the server.
-	//
-	// Register particle in the dictionary along with Server nodeId.
     var taskSendMsg, keys=[];
     particles.put(particle, (node: nodeId));
     taskSendMsg = Task({
@@ -1636,8 +1659,8 @@ registerParticle = { |particle, nodeId|
             if ((keys.includes("synth")) || (j >= 20)) { // wait 2sec
                 taskSendMsg.stop;
             };
-            s.sendMsg("/g_queryTree", nodeId); // to fill out synth name
-            0.1.wait;
+			~scsynth.sendMsg("/g_queryTree", ~rootAr); // to fill out synth name
+			0.1.wait;
         };
     }).start;
 };
@@ -1764,6 +1787,7 @@ ade2xyz = { |position, maxDist|
     )
 };
 
+
 xyz = { |position|
 	// Returns x, y and z in required format.
     [
@@ -1773,20 +1797,47 @@ xyz = { |position|
     ]
 };
 
+
+updatePostColors = { |colors, start|
+	// Updates post colors when postView size shrinks.
+	colors.size.do { |i|
+		colors[i][\start] = colors[i][\start] - start
+	};
+	all {: k, k <-colors, k[\start] > 0 };
+};
+
+getMsgColor = { |msg|
+	//
+	case
+	{ msg.beginsWith("INFO") } { Color.new255(11, 99, 218) }
+	{ msg.beginsWith("DEBUG") } { Color.new255(113, 138, 0) }
+	{ msg.beginsWith("WARNING") } { Color.new255(162, 120, 0) }
+	{ msg.beginsWith("ERROR") } { Color.new255(158, 33, 33) }
+	{ fontColor };
+};
+
+
 // XXX - change this with re-directing all POST messages
 postMsg = { |msg|
 	// post message to local listener
+	var msgColor, start, color;
     msg = msg.asString;
-    if (msg.endsWith("\n").not) { msg = msg ++ "\n" };
+	if (msg.endsWith("\n").not) { msg = msg ++ "\n" };
+	msgColor = getMsgColor.(msg);
     {
-        if (postListener.string.size > postMaxSize) { // do not grow too long
-            postListener.string = postListener.string[(postListener.string.size-postMaxSize)..]
-        };
-        postListener.string = postListener.string ++ msg ++ "\n";
-        postListener.stringColor_(fontColor);
-        postListener.select(postListener.string.size, 1); // autoscroll
+		// do not grow too long
+		if (postView.string.size > postMaxSize) {
+			start = postView.string.size - postMaxSize;
+			postView.string = postView.string[start..];
+			postColors = updatePostColors.(postColors, start);
+		};
+		postColors.add((start: postView.string.size, num: msg.size, color: msgColor));
+		postView.string = postView.string ++ msg;
+		postColors.do { |c|
+			postView.setStringColor(c[\color], c[\start], c[\num]);
+		};
+		postView.select(postView.string.size, 1); // autoscroll
     }.defer;
-    msg.post;
 };
 
 
@@ -1795,7 +1846,7 @@ postMsg = { |msg|
 // Catch messages related to particles.
 oscParticle = OSCFunc({ |msg, time, addr, recvPort|
     var particle, node, age, source, mass, x, y, z, spring, registered;
-	postMsg.(format("from % received %\n", addr, msg));
+	postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
     node = msg[2];
     msg[1].switch(
         1, { // create particle
@@ -1828,8 +1879,7 @@ oscParticle = OSCFunc({ |msg, time, addr, recvPort|
 // Catch messages related to physics.
 oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
     var x, y, z;
-    // postf("from % received %\n", addr, msg);
-    postMsg.(format("from % received %\n", addr, msg));
+    postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
     msg[1].switch(
         \gravity, {
             #x, y, z = msg[2..].asFloat;
@@ -1873,8 +1923,7 @@ oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
 // Catch action messages.
 oscAction = OSCFunc({ |msg, time, addr, recvPort|
     var data, synthId;
-    // postf("from % received %\n", addr, msg);
-    postMsg.(format("from % received %\n", addr, msg));
+    postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
     msg[1].switch(
         \remove, {
             if (msg[2] == \all) {
@@ -1915,15 +1964,13 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
 
 // Catch messages related to skeleton.
 oscSkeletonLost = OSCFunc({ |msg, time, addr, recvPort|
-    // postf("from % received %\n", addr, msg);
-    postMsg.(format("from % received %\n", addr, msg));
+    postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
     skeletonRemove.(msg[1]);
 }, '/lost_skel');
 
 
 oscSkeletonNew = OSCFunc({ |msg, time, addr, recvPort|
-    // postf("from % received %\n", addr, msg);
-    postMsg.(format("from % received %\n", addr, msg));
+    postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
     skeletonParticles.(msg[1]);
 }, '/new_skel');
 
@@ -1954,21 +2001,26 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
     skeletonParticles.(id, joint, x, y, z);
 }, '/joint');
 
-
 oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
-    var synth, i=0, node=msg[2].asInteger;
-    // postf("from % received %\n", addr, msg);
-    { synth.isNil }.while({
-        i = i + 1;
-        if ("sr__(e|g|p)__".matchRegexp(msg[i].asString)) {
-            synth = msg[i].asString.stripWhiteSpace;
-            synth = synth[7..]; // only synth type and name
-        };
-        if ((i >= msg.size) && (synth.isNil)) { synth = node.asString };
-    });
-    particles.keysValuesDo { |part, dict|
-        if (dict[\node] == node) { dict[\synth] = synth }
-    };
+	//[ /g_queryTree.reply, 0, 1008, 2, 1014, -1, bass__a2, 1010, 2, 1012, -1, atru__a2, ... ]
+    var name, part;
+	// postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
+	part = particles.select { |p| p.at(\synth).isNil };
+    part.keysValuesDo { |p, dict|
+		try {
+			name = msg[msg.indexOf(dict[\node])+2];
+			name = name.asString.split($_);
+			dict[\synth] = name[0];
+		}
+	};
+	// fill srvTree
+	if (msg[2] == 0) {
+		{
+			srvTree.string = ~formatSrvTree.(msg);
+			srvTree.stringColor = fontColor;
+			srvTree.setStringColor(Color.green, 0, 6);
+		}.defer
+	};
 }, '/g_queryTree.reply');
 
 // XXX - GET msgs from remote server!
@@ -2019,8 +2071,15 @@ viewWorld.animate = true;
 
 { // GLOBAL APP CLOCK. Resolution: 100 milliseconds (0.1 of a second)
     while {win.isClosed.not} {
+		tick = tick + 1;
+		if (tick > 1e+6) { tick = 0 };
+		// fill out srvTree
+		if (tick % 10 == 0) { ~scsynth.sendMsg("/g_queryTree", 0) };
+		// make sure messages in server popst window are visible
+		postSrvView.stringColor = fontColor;
+
         if (animateSeq) {
-            count = count + 1;
+			count = count + 1;
             shade = (count % 8) * 0.1;
             if (blinked < 24) { // = 8 * 3times
                 // blinking next event info AFTER switch
@@ -2042,7 +2101,7 @@ viewWorld.animate = true;
             waitNextEvent = waitNextEvent - 0.1;
             if ((waitNextEvent <= 0.0) && (waitNextEvent > -0.2)) {
                 ~sendMessage.('/action', [\event, 1]);
-            }
+            };
         };
         0.1.wait;
     }
@@ -2073,6 +2132,7 @@ clean = {
 	// clean everything on exit
     oscRemoveFunc.();
     removeAll.();
+	StatusBox.clearDefault;
     win.close;
     MIDIIn.disconnectAll;
 };

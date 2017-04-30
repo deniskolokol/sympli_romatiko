@@ -149,7 +149,7 @@ srEnv = Environment.make {
         ),
         sr__e__entro: (
             key: 17, // t
-            attenuate: 0.1,
+            attenuate: 0.05,
         ),
         sr__e__noisy: (
             key: 16, // y
@@ -252,7 +252,7 @@ srEnv = Environment.make {
             attenuate: 0.5,
         ),
         \sr__e__buzz: (
-            attenuate: 0.3,
+            attenuate: 0.5,
         ),
     );
 
@@ -740,7 +740,6 @@ doTest = {
 	UnitTest.new.assertEquals(c.size, 5, "cleanPaths: size");
 	UnitTest.new.assertEquals(c[4], "", "cleanPaths: last item empty");
 	UnitTest.new.assert(c[..3].every(_.beginsWith("/")), "cleanPaths: absolute path");
-	testDir
 	// --------
 
 	// exit after testing is done

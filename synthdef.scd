@@ -762,7 +762,7 @@ SynthDef(\sr__e__noisy, {
 
 SynthDef(\sr__e__entro, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
-        amp=1, attenuate=0.1, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.01, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0;
     var freq, shift, rq, in, out, signal;
@@ -979,20 +979,15 @@ SynthDef(\sr__e__therem, {
 
 SynthDef(\sr__e__buzz, {
     arg bufnum=0, inbus=30, route=20, trigID=80,
-        amp=1, attenuate=0.07, gate=1, att=1, rel=1, ca=3, cr= -3,
+        amp=1, attenuate=0.5, gate=1, att=1, rel=1, ca=3, cr= -3,
         ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.5, velocity=0.5,
         offset=36, cutoff=0, threshold=0.4, scope=12;
     var note, in, out, signal;
     // Conversion.
     note = (
-		SelectX.kr(BinaryOpUGen('<', az, threshold) * 2,
-			[   // Go melodic above height threshold.
-				DegreeToKey.kr(bufnum, az.linlin(threshold, 1, 0, scope), 12, 1, offset),
-				az.linlin(0, threshold, (offset-6), offset) // bottom to middle change continuously
-			]
-		)
-		+ LFNoise1.kr([3, 3], 0.04) // add some low freq stereo detuning
-	).midicps;
+        DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 15), 12, 1, offset)
+        + LFNoise1.kr([3,3], 0.04)    // add some low freq stereo detuning
+    ).midicps;
     // Synthesis.
 	in = attenuate * (
 		LFSaw.ar(

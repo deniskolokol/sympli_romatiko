@@ -3,10 +3,10 @@ var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
-// // XXX - remove after test
-// var skelData;
-// postf("Reading skeleton simulation data\n");
-// skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
+// XXX - remove after test
+var skelData;
+postf("Reading skeleton simulation data\n");
+skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
 
 ~sequence[\title] = "Sympli Romatiko: kraut Traer World";
 
@@ -58,13 +58,13 @@ guideBuff = Buffer.readChannel(s,
         (message: \physics, params: [\audioIn, true])
     ],
 
-	// // XXX - remove after test
-	// 1: [
-	// 	(
-	// 		info: "Skeleton simulation",
-	// 		message: \task, name: \skelSimulation, act: 1
-	// 	),
-	// ],
+	// XXX - remove after test
+	1: [
+		(
+			info: "Skeleton simulation",
+			message: \task, name: \skelSimulation, act: 1
+		),
+	],
     2: [
         (
             info: "2 heavy __growls",
@@ -241,16 +241,27 @@ guideBuff = Buffer.readChannel(s,
         (
             info: "2 heavy __buzz",
             message: \particle,
-            synth: (name: \sr__e__buzz, params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+12]),
+            synth: (name: \sr__e__buzz, params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.5]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__buzz, params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+12]),
+            synth: (name: \sr__e__buzz, params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.5]),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+		(
+            info: "add 2 heavy __entro",
+            message: \particle,
+            synth: (name: \sr__e__entro, params: [\att, 0.1]),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        ),
+        (
+            message: \particle,
+            synth: (name: \sr__e__entro, params: [\att, 0.1]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
     ],
-    15: [
+    16: [
         (
             info: "__analog 1 for audio through, .kr buses",
             message: \g_new,
@@ -268,7 +279,7 @@ guideBuff = Buffer.readChannel(s,
             ]
         )
     ],
-    16: [
+    17: [
         (
             info: "__analog 2 for audio through, .kr buses",
             message: \g_new,
@@ -286,7 +297,7 @@ guideBuff = Buffer.readChannel(s,
             ]
         )
     ],
-    17: [
+    18: [
         (
             info: "2 heavy __authro",
             message: \particle,
@@ -327,11 +338,11 @@ guideBuff = Buffer.readChannel(s,
             message: \task, name: \randomParticles, act: 0
         ),
 
-		// // XXX - remove after test
-		// (
-		// 	info: "stop skeleton simulation",
-		// 	message: \task, name: \skelSimulation, act: 0
-		// ),
+		// XXX - remove after test
+		(
+			info: "stop skeleton simulation",
+			message: \task, name: \skelSimulation, act: 0
+		),
         (
             info: "stop random particles",
             message: \task, name: \storm, act: 0
@@ -355,19 +366,19 @@ guideBuff = Buffer.readChannel(s,
 //
 ~sequence.tasks = (
 
-	// // XXX - remove after test
-	// skelSimulation: Task({
-	// 	var i=0, coords;
-	// 	inf.do {
-	// 		// process
-	// 		if (i == skelData.size) {i = 0};
-	// 		coords = skelData[i][1..];
-	// 		coords[2] = coords[2] + 0.6; // offset
-	// 		~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
-	// 		i = i + 1;
-	// 		0.005.wait;
-	// 	}
-	// }),
+	// XXX - remove after test
+	skelSimulation: Task({
+		var i=0, coords;
+		inf.do {
+			// process
+			if (i == skelData.size) {i = 0};
+			coords = skelData[i][1..];
+			coords[2] = coords[2] + 0.6; // offset
+			~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
+			i = i + 1;
+			0.001.wait;
+		}
+	}),
 
     randomParticles: Task({
         var key, next;

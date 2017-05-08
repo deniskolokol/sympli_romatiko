@@ -3,9 +3,8 @@
 // ---------------
 (
 var world, worldTrace, center, skel;
-var worldParams, miscParams;
+var miscParams;
 var star, physics, particles, springs, position;
-var synths, sGroupId;
 var oscParticle, oscPhysics, oscAction,
     oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
     oscRemoveFunc, oscGroupTree;
@@ -51,18 +50,21 @@ var transparent=Color.grey(alpha:0.01),
     fontLarge=Font("Monaco", 14),
     fontLarge1=Font("Monaco", 18),
     fontGiant=Font("Monaco", 24),
-    fontColor=Color.gray(0.8);
+    fontColor=Color.gray(0.7);
 var waitNextEvent= -1;
 var tmp;
 
 // INITIAL
 //
+// dictionary of the synths symbolic IDs vs. server Nodes
+var synths = Dictionary.new;
+
 // XXX - re-factor
 // `physics` -> `world`::`EnTraerWorld`(TraerParticleSystem) // EnTraer == Entropia of Traer Physics
 // all functions that work with particles and springs -> methods of `world`
 //
 //
-worldParams = (
+var worldParams = (
     drag: (
         label: "drag",
         minval: 0.000,
@@ -205,7 +207,6 @@ worldParams = (
 );
 
 // The World is a cube.
-world = Dictionary.new;
 world = (
     width: Window.screenBounds.height*0.82,
     height: Window.screenBounds.height*0.82,
@@ -214,11 +215,6 @@ world = (
 worldParams.keysValuesDo { |k, v| world[k] = v[\default] }; // set default params
 
 worldTrace = Dictionary.newFrom(world); // tracing changes of the world
-
-// dictionary of the synths symbolic IDs vs. server Nodes
-synths = Dictionary.new;
-sGroupId = ~scsynth.nextNodeID; // Group for synths not connected to objects.
-~scsynth.sendMsg("/g_new", sGroupId);
 
 // skeletons
 skel = (waitBeforeRemove: 5, limit: 1);
@@ -361,21 +357,16 @@ taskPlay = { |task, play=false|
     };
 };
 
-// XXX - move this to envi.scd
+
 sendSNew = { |data|
-	// Send synth to server.
-    var node;
-    node = ~scsynth.nextNodeID;
-    try { // Ignore the case when doneAction = 2.
-        synths.put(data[\synth][\id], node);
-    };
-    ~scsynth.listSendMsg(["/s_new", data[\synth][\name], node, 0, sGroupId]
-        ++ data[\synth].atFail(\params, {[]})
-    );
+	// Sends synth to server, registers node in `synths`.
+	var node = ~initSynth.(data[\name], params: data[\params]);
+	synths.put(data[\id], node);
 };
 
+
 sendNSet = { |data|
-	// Send \n_set message to server.
+	// Sends \n_set message to server.
     ~scsynth.listSendMsg(["/n_set",
         synths.at(data[\synth].atFail(\id), {nil})]
         ++ data[\synth].atFail(\params, {[]})
@@ -383,7 +374,9 @@ sendNSet = { |data|
 };
 
 groupNew = { |data, time=0.1|
-    synths.put(data[\id], ~initGroup.(data, time));
+	// Sends group to server, registers node in `synths`.
+	var node = ~initGroup.(data, time);
+    synths.put(data[\id], node);
 };
 
 groupRemove = { |data|
@@ -391,7 +384,7 @@ groupRemove = { |data|
 	// then remove group node from server.
     var params=();
     try { params.putPairs(data.atFail(\params, {[]})) };
-    ~groupFree.(synths[data[\id]], params.atFail(\release, {2}));
+    ~groupFree.(synths[data[\id]], params.atFail(\release, { 1 }));
     synths.removeAt(data[\id]);
 };
 
@@ -412,7 +405,7 @@ processEvents = { |key|
             \task, {
                 taskPlay.(~sequence.tasks[d[\name]], d[\act].booleanValue)
             },
-            \s_new, { sendSNew.(d) },
+			\s_new, { sendSNew.(d) },
             \n_set, { sendNSet.(d) },
             \g_new, { groupNew.(d) },
             \g_free, { groupRemove.(d) },
@@ -599,6 +592,8 @@ ddSequence = dropdown.(viewTopLeft, "sequence",
 button.(viewTopLeft,
     "stop", bgColor:Color.grey(0.2), scaleW:0.41, scaleH:0.5
 ).action_({ |bt|
+	"INFO: removing custom groups / synths".postln;
+	synths.keys.do { |k| groupRemove.((id: k)) };
     ~stopSequence.();
     animateSeq = false; // stop clock
 });
@@ -1811,7 +1806,7 @@ getMsgColor = { |msg|
 	case
 	{ msg.beginsWith("INFO") } { Color.new255(11, 99, 218) }
 	{ msg.beginsWith("DEBUG") } { Color.new255(113, 138, 0) }
-	{ msg.beginsWith("WARNING") } { Color.new255(162, 120, 0) }
+	{ msg.beginsWith("WARNING") } { Color.white }
 	{ msg.beginsWith("ERROR") } { Color.new255(158, 33, 33) }
 	{ fontColor };
 };
@@ -1846,7 +1841,7 @@ postMsg = { |msg|
 // Catch messages related to particles.
 oscParticle = OSCFunc({ |msg, time, addr, recvPort|
     var particle, node, age, source, mass, x, y, z, spring, registered;
-	postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
+	postMsg.(format("%:%: %\n", addr.ip, addr.port, msg[0]));
     node = msg[2];
     msg[1].switch(
         1, { // create particle
@@ -1856,6 +1851,10 @@ oscParticle = OSCFunc({ |msg, time, addr, recvPort|
             } {
                 #x, y, z, age, source = nil ! 5
             };
+			postMsg.(format(
+				"    create node:%\n    pos(x, y, z): %, %, %\n    mass: %\n    age: %\n    source: %\n    spring: %\n\n",
+				node, x, y, z, mass, age, source, msg[3].booleanValue
+			));
             particle = initParticle.(mass, x, y, z, age);
             registerParticle.(particle, node);
             if (msg[3].booleanValue) {
@@ -1865,10 +1864,12 @@ oscParticle = OSCFunc({ |msg, time, addr, recvPort|
             if (msg[3].booleanValue.not || registered.isNil) {
                 // "spring" can be specified, but failed
                 // in this case apply attractions
+				postMsg.("WARNING: spring requested but failed, applying attractions");
                 applyAttractions.(particle, world.mutualAttraction)
             };
         },
         0, { // remove particle
+			postMsg.(format("    remove node:%\n", node));
             particle = unregisterParticle.(node);
             removeParticle.(particle);
         }
@@ -1878,52 +1879,26 @@ oscParticle = OSCFunc({ |msg, time, addr, recvPort|
 
 // Catch messages related to physics.
 oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
-    var x, y, z;
-    postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
-    msg[1].switch(
-        \gravity, {
-            #x, y, z = msg[2..].asFloat;
-            world.gravX = x;
-            world.gravY = y;
-            world.gravZ = z;
-        },
-        \gravX, { world.gravX = msg[2].asFloat },
-        \gravY, { world.gravY = msg[2].asFloat },
-        \gravZ, { world.gravZ = msg[2].asFloat },
-        \drag, { world.drag = msg[2].asFloat },
-        \repulsion, { world.repulsion = msg[2].asFloat },
-        \mutualAttraction, { world.mutualAttraction = msg[2].asInteger },
-        \particles, { world.particles = msg[2].asInteger },
-        \star, {
-            msg[2].switch(
-                \fixed, { star.makeFixed },
-                \free, { star.makeFree },
-                \mass, {
-                    try {
-                        world.starMass = msg[3].asFloat
-                    }
-                },
-                \pos, {
-                    try {
-                        #x, y, z = msg[3..].asFloat
-                    } {
-                        #x, y, z = [world.width.rand, world.height.rand, world.depth.rand]
-                    };
-                    star.position.set(x, y, z);
-                }
-            );
-        },
-        { // default action
-            try { world[msg[1]] = msg[2]};
-        }
-    );
+	postMsg.(format("%:%: %\n", addr.ip, addr.port, msg[0]));
+	msg[1..].pairsDo { |key, val|
+		postMsg.(format("    %: %\n", key, val));
+		if (key == \star) {
+			val.switch(
+				\fixed, { star.makeFixed },
+				\free, { star.makeFree },
+			)
+		} {
+			try { world[key] = val }
+		}
+	};
+	postMsg.("\n");
 }, '/physics');
 
 
 // Catch action messages.
 oscAction = OSCFunc({ |msg, time, addr, recvPort|
     var data, synthId;
-    postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
+    postMsg.(format("%:%: %\n    %: %\n\n", addr.ip, addr.port, msg[0], msg[1], msg[2..]));
     msg[1].switch(
         \remove, {
             if (msg[2] == \all) {

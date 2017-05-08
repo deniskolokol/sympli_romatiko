@@ -3,10 +3,10 @@ var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
-// // XXX - remove after test
-// var skelData;
-// postf("Reading skeleton simulation data\n");
-// skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
+// ZZZ - skeleton: remove after test
+var skelData;
+postf("Reading skeleton simulation data\n");
+skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
 
 ~sequence[\title] = "Sympli Romatiko: kraut Traer World";
 
@@ -47,41 +47,43 @@ guideBuff = Buffer.readChannel(
     0: [
         (message: \action,  params: [\remove, \all],
             info: "Remove all before start\n Apply initial settings"),
-        (message: \physics, params: [\gravX, \default]),
-        (message: \physics, params: [\gravY, \default]),
-        (message: \physics, params: [\gravZ, \default]),
-        (message: \physics, params: [\drag, 0.5]),
-        (message: \physics, params: [\repulsion, 10]),
-        (message: \physics, params: [\maxVel, 150]),
-        (message: \physics, params: [\starMass, \default]),
-        (message: \physics, params: [\particles, \default]),
-        (message: \physics, params: [\springRestLen, \default]),
-        (message: \physics, params: [\springStrength, \default]),
-        (message: \physics, params: [\springDamp, \default]),
-        (message: \physics, params: [\mutualAttraction, \default]),
-        (message: \physics, params: [\audioIn, true])
+        (message: \physics, params: [
+			\gravX, \default,
+			\gravY, \default,
+			\gravZ, \default,
+			\drag, 0.5,
+			\repulsion, 10,
+			\starMass, \default,
+			\springRestLen, \default,
+			\springStrength, 1,
+			\springDamp, \default,
+			\maxVel, 150,
+			\particles, \default,
+			\mutualAttraction, \default,
+			\audioIn, true
+		])
     ],
 
-	// // XXX - remove after test
-	// 1: [
-	// 	(
-	// 		info: "Skeleton simulation",
-	// 		message: \task, name: \skelSimulation, act: 1
-	// 	),
-	// ],
+	// ZZZ - skeleton: remove after test
+	1: [
+		(
+			info: "ZZZ - Skeleton simulation",
+			message: \task, name: \skelSimulation, act: 1
+		),
+	],
     2: [
         (
             info: "2 heavy <pole>",
 			wait: 120,
             message: \particle,
 			synth: (name: "pole",
-                params: [\bufnum, ~sequence.scales[0].bufnum, \attack, 120, \release, 0.5, \amp, 0.5, \offset, 12]),
+                params: [\bufnum, ~sequence.scales[0].bufnum, \attack, 120, \release, 0.5, \amp, 0.5, \offset, 38]),
 			particle: (mass: 1, spring: 1, source: \l_hand)
         ),
         (
             message: \particle,
             synth: (name: "pole",
-                params: [\bufnum, ~sequence.scales[0].bufnum, \attack, 120, \release, 0.5, \amp, 0.5, \offset, 12]),
+                params: [\bufnum, ~sequence.scales[0].bufnum, \attack, 120, \release, 0.5, \amp, 0.5, \offset, 38]),
 			particle: (mass: 1, spring: 1, source: \r_hand)
         ),
     ],
@@ -90,13 +92,13 @@ guideBuff = Buffer.readChannel(
             info: "2 heavy <kick>",
             message: \particle,
 			synth: (name: "kick",
-				params: [\amp, 0.1, \freq, 24.midicps]),
+				params: [\amp, 0.1, \freq, 36.midicps]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
 			synth: (name: "kick",
-				params: [\amp, 0.1, \freq, 24.midicps]),
+				params: [\amp, 0.1, \freq, 36.midicps]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         )
     ],
@@ -126,15 +128,23 @@ guideBuff = Buffer.readChannel(
             info: "heavy <lowe>",
             message: \particle,
 			synth: (name: "lowe",
-				params: [\attack, 0.5, \attack, 10, \release, 1]),
-            particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
+				params: [\attack, 0.1, \release, 1]),
+            particle: (age: inf, mass: 0.9, spring: 1,
+				// should appear close to the source to minimize
+				// the effect of environment on sound
+				source: \r_hand, x: 330, y: 370, z: 350
+			)
         ),
         (
             info: "heavy <wind>",
             message: \particle,
 			synth: (name: "wind",
-				params: [\attack, 0.5, \attack, 10, \release, 1, \amp, 0.7]),
-            particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
+				params: [\attack, 0.1, \release, 1, \amp, 0.7]),
+            particle: (age: inf, mass: 0.9, spring: 1,
+				// should appear close to the source to minimize
+				// the effect of environment on sound
+				source: \l_hand, x: 370, y: 370, z: 350
+			)
         )
     ],
     9: [
@@ -142,22 +152,18 @@ guideBuff = Buffer.readChannel(
             message: \action,  params: [\remove, \all]
         ),
         (
-			info: "Adjust spring strength for",
-			message: \physics,
-			params: [\springStrength, 2]
-		),
-        (
-			message: \physics, params: [\springDamp, 0.32]
+			info: "Adjust spring params",
+			message: \physics, params: [\springStrength, 2, \springDamp, 0.32]
 		),
         (
             info: "2 heavy <komar>",
             message: \particle,
-			synth: (name: "komar", params: [\attack, 15]),
+			synth: (name: "komar", params: [\attack, 0.5]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-			synth: (name: "komar", params: [\attack, 15]),
+			synth: (name: "komar", params: [\attack, 0.5]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         )
     ],
@@ -166,12 +172,8 @@ guideBuff = Buffer.readChannel(
             message: \action,  params: [\remove, \all]
         ),
         (
-			info: "Set spring params to default",
-			message: \physics,
-			params: [\springStrength, \default]
-		),
-        (
-			message: \physics, params: [\springDamp, \default]
+			info: "Spring params to defaults",
+			message: \physics, params: [\springStrength, 1, \springDamp, \default]
 		),
         (
             info: "2 heavy <neural>",
@@ -192,54 +194,6 @@ guideBuff = Buffer.readChannel(
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
     ],
-	12: [
-		(
-            message: \action,  params: [\remove, \all]
-        ),
-        (
-			info: "Adjust spring strength for",
-			message: \physics,
-			params: [\springStrength, 2]
-		),
-        (
-			message: \physics, params: [\springDamp, 0.32]
-		),
-        (
-            info: "2 heavy <komar>",
-            message: \particle,
-			synth: (name: "komar", params: [\attack, 15]),
-            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
-        ),
-        (
-            message: \particle,
-			synth: (name: "komar", params: [\attack, 15]),
-            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
-        )
-    ],
-    13: [
-		(
-            message: \action,  params: [\remove, \all]
-        ),
-        (
-			info: "Set spring params to default",
-			message: \physics,
-			params: [\springStrength, \default]
-		),
-        (
-			message: \physics, params: [\springDamp, \default]
-		),
-        (
-            info: "2 heavy <neural>",
-            message: \particle,
-			synth: (name: "neural", params: [\attack, 15]),
-            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
-        ),
-        (
-            message: \particle,
-			synth: (name: "neural", params: [\attack, 15]),
-            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
-        ),
-    ],
     14: [
 		(
             message: \action,  params: [\remove, \all]
@@ -253,6 +207,17 @@ guideBuff = Buffer.readChannel(
         (
             message: \particle,
 			synth: (name: "entro", params: [\attack, 0.1, \amp, 0.5]),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+        (
+            info: "2 heavy <buzz>",
+            message: \particle,
+			synth: (name: "buzz", params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.05]),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        ),
+        (
+            message: \particle,
+			synth: (name: "buzz", params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.05]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
     ],
@@ -333,11 +298,11 @@ guideBuff = Buffer.readChannel(
             message: \task, name: \randomParticles, act: 0
         ),
 
-		// // XXX - remove after test
-		// (
-		// 	info: "stop skeleton simulation",
-		// 	message: \task, name: \skelSimulation, act: 0
-		// ),
+		// ZZZ - skeleton: remove after test
+		(
+			info: "stop skeleton simulation",
+			message: \task, name: \skelSimulation, act: 0
+		),
         (
             info: "stop random particles",
             message: \task, name: \storm, act: 0
@@ -361,19 +326,19 @@ guideBuff = Buffer.readChannel(
 //
 ~sequence.tasks = (
 
-	// // XXX - remove after test
-	// skelSimulation: Task({
-	// 	var i=0, coords;
-	// 	inf.do {
-	// 		// process
-	// 		if (i == skelData.size) {i = 0};
-	// 		coords = skelData[i][1..];
-	// 		coords[2] = coords[2] + 0.6; // offset
-	// 		~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
-	// 		i = i + 1;
-	// 		0.002.wait;
-	// 	}
-	// }),
+	// ZZZ - skeleton: remove after test
+	skelSimulation: Task({
+		var i=0, coords;
+		inf.do {
+			// process
+			if (i == skelData.size) {i = 0};
+			coords = skelData[i][1..];
+			coords[2] = coords[2] + 0.6; // offset
+			~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
+			i = i + 1;
+			0.002.wait;
+		}
+	}),
 
     randomParticles: Task({
         var key, next;

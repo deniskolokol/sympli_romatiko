@@ -90,6 +90,374 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 	}).add;
 
 
+	// XXX former \sr__g__scratch
+	// ~ chunks of sound
+	SynthDef("scratch__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi;
+		var ds = distance/3.44;
+		var rate = momentum.clip(0.1, 1.9);
+		var pos = gx * BufDur.kr(bufnum); // gx for finer control (instead of ax)
+		var signal = BufRd.ar(
+			1, bufnum, Lag.ar(K2A.ar(BufFrames.ir(bufnum) * pos), 4), 1
+		) * amp;
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
+	// XXX former \sr__g__reg
+	SynthDef("greg__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi;
+		var ds = distance/3.44;
+		var rate = az.linlin(0, 1, 0.8, 1.2);
+		var tRate = az.linlin(0, 1, 100, 0.2);
+		var tDur = 4 / tRate;
+		var clk = Dust.kr(tRate);
+		var pos = Integrator.kr(BrownNoise.kr(ds));
+		var raw = TGrains.ar(2, clk, bufnum, BufRateScale.kr(bufnum) * rate, pos, tDur);
+		var signal = Mix.ar(raw) * amp;
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
+	// XXX former \sr__g__drone
+	SynthDef("drone__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi;
+		var ds = distance/3.44;
+		var rate = az.linlin(0, 1, 0.2, 2);
+		var tRate = SinOsc.kr(0.016, 0, 21, 20); //1-40, 0.016 - once a minute;
+		var tDur = 12 / tRate;
+		var clk = Impulse.kr(tRate);
+		var pos = ax * BufDur.kr(bufnum);
+		var raw = TGrains.ar(
+			2, clk, bufnum, BufRateScale.kr(bufnum) * rate, pos + TRand.kr(0, 0.01, clk), tDur
+		);
+		var signal = Mix.ar(in) * amp;
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
+	// XXX former \sr__g__unst
+	SynthDef("unst__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi,
+		    pos=0, rate=1;
+		var ds = distance/3.44;
+		var raw = PlayBuf.ar(1,
+			bufnum,
+			TWChoose.kr(
+				Dust.kr(0.01),
+				[
+					BufRateScale.kr(bufnum) * TRand.kr(0.8, 1.1, Dust.kr(2)),
+					BufRateScale.kr(bufnum) * TRand.kr(-0.8, -1.1, Dust.kr(2)),
+				],
+				[0.6, 0.4]),
+			Dust.kr(0.2),
+			TRand.kr(0, BufFrames.ir(bufnum), Dust.kr(0.2))
+		);
+		var signal = RLPF.ar(
+			FreeVerb.ar(raw, distance.clip(0.01, 1), ds),
+			distance.linlin(0, 2.sqrt, 10000, 1000),
+			0.5
+		) * amp;
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
+	// XXX former \sr__g__loopdel
+	SynthDef("loopdel__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi,
+		    pos=0, rate=1;
+		var ds = distance/3.44;
+		var raw = PlayBuf.ar(1,
+			bufnum,
+			// slight disturbances of rate
+			BufRateScale.kr(bufnum) * (rate + LFNoise1.kr(LFNoise1.ar(1.4, 1, 1.6), 0.15)),
+			Impulse.ar(BufDur.kr(bufnum).reciprocal),
+			BufFrames.ir(bufnum) * pos
+		);
+		var signal = DelayL.ar(raw, 0.3, ds) * amp;
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
+	// XXX former \sr__g__loop
+	SynthDef("loop__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi,
+		    pos=0, rate=1;
+		var ds = distance/3.44;
+		var signal = PlayBuf.ar(1,
+			bufnum,
+			// slight disturbances of rate
+			BufRateScale.kr(bufnum) * (rate + LFNoise1.kr(LFNoise1.ar(1.4, 1, 1.6), 0.15)),
+			Impulse.ar(BufDur.kr(bufnum).reciprocal),
+			BufFrames.ir(bufnum) * pos
+		) * amp;
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
+	// ~ gusts of wind
+	// XXX former \sr__g__gust
+	SynthDef("gust__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi;
+		var ds = distance/3.44;
+		var tPos = (distance * 0.19 + 0.1).round(0.01);
+		var trate = az.linlin(0, 1, 0.1, 20);
+		var clk = Impulse.ar(trate);
+		var d = {Dwhite(0.1, 0.2, 1)};
+		var zz = {Drand([Dgeom(0.1, 1 + d.value, Diwhite(20, 40)), Dgeom(1, 1 - d.value, Diwhite(20, 40))])};
+		var raw = TGrains.ar(2, clk, bufnum,
+			rate: Dseq([1, 1, zz.value, 0.5, 0.5, 0.2, 0.1, 0.1, 0.1, 0.1], inf) * tPos + 1,
+			centerPos: Dseq(zz.dup(8), inf) / tPos,
+			dur: Dseq([1, d.value, 1, zz.value, 0.5, 0.5, 0.1, zz.value] * 2, inf) / trate,
+			amp: Dseq([1, 0, zz.value.min(1.3), 0, 0.6, 0.3, 1, 0.1, 0.1], inf)
+		);
+		var signal = Mix.ar(in) * amp; // XXX - add Compander to smooth out violent dynamics!
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).send(s);
+
+
+	// XXX former \sr__e__gauss
+	SynthDef("gauss__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi;
+		var signal;
+		var cutOff = distance.linexp(0.0, 1.0, 10000, 200); // different from arg cutoff!
+		var rq = distance.linexp(0, 2.sqrt, 1, 0.2);
+		var tDur = SinOsc.ar(LinExp.kr(az, 0.001, 1, 0.05, 5000) * [1, 1.1]).range(0.0006, 0.01);
+		var width = SinOsc.ar(0.5 * [1, 1.1]).range(0.01, 0.3);
+		var lag = momentum.lincurve(0, 1, 0.5, 0.05, -4);
+		var rate = momentum.linlin(0, 1, 2, 4).round;
+		var trig = Impulse.kr(0) + Dust2.kr(rate);
+		var raw = (
+			LFGauss.ar(tDur, width)
+			+ SinOsc.ar(az.linexp(0, 1, 0.01, 5000) * [1, 1.1])
+		)
+		* amp
+		// amp controlled by momentum, when "behind the back"
+		* SelectX.kr(BinaryOpUGen('<', ay, 0.5),
+			[
+				(az.clip(0, 1) * momentum).sqrt, // sqrt boosts mul
+				Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2))
+			]
+		);
+		raw = Limiter.ar(
+			in: MidEQ.ar(Mix.fill(10, raw), 14000, momentum.lincurve(0, 1, 0.8, 0.1, 2), 8),
+			level: 0.2
+		);
+		signal = RLPF.ar(RLPF.ar(Mix.ar(raw), cutOff, rq), cutOff, rq); // XXX profile this contruct: RLPF(RLPF) w/same params
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
+	// XXX former \sr__e__probe
+	SynthDef("probe__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi,
+		    offset=36, scope=12; // XXX =- move this to LFO synth (modulator with DegreeToKey)
+		var signal;
+		// XXX
+		// some params should be functions of [ax, ay, az], but some
+		// of [gx, gy, gz], ideally this will create a feeleing of "flow",
+		// in which aX changes come slower than gX
+		// can also be applied to voices!
+		var rate = (momentum*5).max(0.1) * exprand(3, 8);
+		var note = DegreeToKey.kr(bufnum, az * scope, 12, 1, offset);
+		// Synthesis.
+		var raw = LPZ2.ar(
+			LFPulse.ar(
+				note.midicps, 2pi.rand, 0.1,
+				(
+					Mix.ar(SinOsc.ar(rate * [rrand(0.7, 1.3), 1], [2pi.rand, 2pi.rand], 0.04)).max(0)
+					* Mix.ar(SinOsc.ar(exprand(6,24) * [rrand(0.7, 1.3), 1], [2pi.rand, 2pi.rand])).abs
+				)
+			)
+		);
+		2.do({ raw = AllpassN.ar(raw, 0.05, [0.01, 0.05], 3.0.rand, amp) });
+		signal = Limiter.ar(MidEQ.ar(Mix(raw), 1400, 0.7, 8), 0.8);
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
+	// Theremin
+	// XXX - former \sr__e__therem
+	SynthDef("therem__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi;
+		var signal, raw;
+		var baseFreq=50000;
+		// XXX - do not re-assign param \freq, solve it with modulator!
+		freq = az.linexp(0.5, 1, baseFreq, baseFreq + 5000);
+		raw = BPF.ar(
+			(SinOsc.ar(baseFreq, 0, amp) * SinOsc.ar(freq)),
+			freq - (baseFreq - 50),
+			0.3
+		);
+		raw = MidEQ.ar(raw, freq-38500, 0.7, -60);
+		signal = FreeVerb.ar(raw, 0.65, 0.65, 0.5, (amp*1.5).clip(0, 1));
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
+	// XXX former \sr__e__pulse
+	SynthDef("pulse__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi,
+		    offset=36;
+		var signal;
+		var azThresh=0.7;
+		var cutOff = distance.linexp(0.0, 1.0, 200, 10000); // different from arg!
+		var rq = distance.linlin(0, 2.sqrt, 0.5, 1);
+		var note = SelectX.kr(BinaryOpUGen('<', az, azThresh) * 2,
+			[ // go melodic above height threshold
+				DegreeToKey.kr(bufnum, (az - azThresh).linlin(0, 1 - azThresh, 0, 12), 12, 1, offset).midicps,
+				momentum.linlin(0, 1, 5, 150) // continuos change at the bottom
+			]
+		);
+		var raw = Blip.ar(SinOsc.kr(0.5, 0, LFDNoise1.kr(1.5), note), 100, 0.2);
+		raw = RLPF.ar(RLPF.ar(Mix.fill(10, raw), cutOff, rq), cutOff, rq);
+		raw = Limiter.ar(MidEQ.ar(raw, [200, 1400], 0.7, 8), amp * 0.1);
+		signal = Mix.ar(raw);
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
+	// CMB => "Cosmic Backgroud Radiation"
+	// XXX former \sr__e__cmb
+	SynthDef("cmb__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi;
+		var raw, signal;
+		var rate=1, delayL, delayR, pos=0.0, pulse, mix, n=8;
+		rate = az.linlin(0, 1, 2, 0.2);
+		delayL = az.linlin(0, 1, 0.01, 0.05);
+		delayR = ax.linlin(0, 1, 0.01, 0.05);
+		pulse = LFNoise0.kr(rrand(0.2,1.0), 1,1).squared * rate;
+		mix = Klank.ar(
+			`[Array.fill(n, {exprand(1.0,20.0)}),
+				nil,
+				Array.fill(n, {0.2.rand})
+			],
+			Blip.ar(pulse, [rrand(2,5), rrand(2,5)], 0.1)
+		).fold2(0.2).cubed * 12;
+		raw = Mix.fill(3, {CombL.ar(mix, 0.1, 0.03.linrand, 4.0.linrand)});
+		raw = raw.distort * 0.5;
+		6.do({ raw= AllpassN.ar(raw, 0.05, [0.05.rand, 0.05.rand], 3) });
+		signal = LeakDC.ar(raw * 0.5);
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
+	// XXX former sr__e__melo
+	SynthDef("melo__" ++ name, {
+		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+		    depth=5, elevClip=0.01pi,
+		    offset=36;
+		var note, raw, signal;
+		note = (
+			DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 24), 12, 1, offset)
+			+ LFNoise1.kr([3,3], 0.04)    // add some low freq stereo detuning
+		).midicps;
+		raw = RLPF.ar(
+			LFSaw.ar(note)
+			+ Impulse.ar(XLine.kr(note, note + 100, 1.5), 0.0)
+			+ Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
+				LFNoise0.kr(1.0.rand, 2, 10), r: LFNoise0.kr(1.0.rand, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
+			LFNoise0.kr(0.2, 38, 115).midicps, 0.1,
+			mul:(amp * momentum * 0.5).scurve // sigmoid: the faster, the more present
+			// mul:momentum // simply the faster the louder
+		);
+		raw = [raw, DelayN.ar(raw, 0.04, 0.04)];
+		4.do({raw = AllpassN.ar(raw, 0.05, [0.05.rand, 0.05.rand], 4)});
+		signal = Mix.ar(raw);
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
+
+
 	SynthDef("humm__" ++ name, {
 		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
 		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
@@ -111,13 +479,14 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 	}).add;
 
 
+	// "Entropia"
+	// XXX former \sr__e__entro
 	SynthDef("entro__" ++ name, {
 		arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
 		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
 		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
 		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
 		    depth=5, elevClip=0.01pi;
-		var signal;
 		var rq = distance.linlin(0, 2.sqrt, 0.2, 1);
 		// XXX - old (allowing for more)
 		// var shift = ((momentum ** 0.2 * 30) ** 3).lag(0.5); // boost momentum
@@ -131,15 +500,7 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 			momentum.scurve),
 			Saw.ar((1..15) * LFNoise0.kr(5, 10, 50) + SinOsc.ar((6..2) * 0.5))
 		]);
-		signal = RLPF.ar(RLPF.ar(Mix.ar(raw)*momentum*amp*0.1, shift, rq), shift, rq);
-		// signal = BPeakEQ.ar(
-		// 	RLPF.ar(
-		// 		Mix.ar(raw), shift, rq
-		// 	),
-		// 	freq: az.linlin(0, 1, 36, 432),
-		// 	rq: az.linlin(0, 1, 0.1, 10),
-		// 	db: 6
-		// );
+		var signal = RLPF.ar(RLPF.ar(Mix.ar(raw)*momentum*amp*0.1, shift, rq), shift, rq);
 		outCodeFunc.value(
 			signal, out, trigID, azimuth, distance, elevation,
 		    gate, attack, sustain, release, ca, cr, depth, elevClip
@@ -157,7 +518,6 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
 		    depth=5, elevClip=0.01pi;
 		var signal;
-		// Conversion.
 		var mul = momentum.linlin(0, 1, 1850, 2350);
 		var add = distance.linlin(0, 1, 2250, 5800);
 		var trig = momentum > 0.33; // high momentum causes sharp switch
@@ -172,7 +532,6 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 			],
 			[0.1, 0.3, 0.6]
 		);
-		// Synthesis.
 		var raw = TermanWang.ar(
 			2.0 + SinOsc.ar(az.linexp(0.01, 1, 10, 10000), 0, az.linexp(0.01, 1, 0.1, 100.0)),
 			Impulse.kr(distance.linexp(0.01, 1, 1, 10000)),
@@ -199,7 +558,6 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		    offset=36; // XXX - let modulator control offset
 		var baseFreq; // XXX - remove baseFreq, let modulator control \freq
 		var trig, timer, cutoff, raw, signal;
-		// Conversion.
 		baseFreq = (az * (36..72)).midicps;
 		trig = momentum > 0.3;
 		timer = Timer.kr(trig);
@@ -207,7 +565,6 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 			LFDClipNoise.ar(az, 450, 650),
 			LFNoise2.ar(TRand.kr(trig: Delay2.kr(Dust.kr(0.2))), 450, 550)
 		]);
-		// Synthesis.
 		raw = (
 			LFSaw.ar(baseFreq, mul:momentum)
 			+ Impulse.ar(SinOsc.ar(cutoff).exprange(48, 10000), mul:momentum)
@@ -235,13 +592,11 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
 		    depth=5, elevClip=0.01pi;
 		var raw, signal;
-		var fbase, shift;
-		// Conversion.
-		fbase = distance.linexp(0, 1, 10, 40);
+		var baseFreq, shift;
+		baseFreq = distance.linexp(0, 1, 10, 40);
 		shift = ((momentum * 30) ** 3).lag(0.01);
-		// Synthesis.
 		raw = Formlet.ar(
-			WhiteNoise.ar(SinOsc.ar(fbase, shift, 0.5, 1)).min(1) + SinOsc.ar(fbase, shift),
+			WhiteNoise.ar(SinOsc.ar(baseFreq, shift, 0.5, 1)).min(1) + SinOsc.ar(baseFreq, shift),
 			LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(0.5))), 2450, 2550), 0.01, 0.1
 		).softclip;
 		raw = [raw, DelayN.ar(raw, 0.04, 0.4)];
@@ -265,14 +620,12 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		    depth=5, elevClip=0.01pi;
 		var signal;
 		var q=0.1, a=2pi, b=400, c=0, dir=[1, 0], frate=1, xx=(1..5)*20;
-		// Conversion.
 		dir = dir.put(1, az.linlin(0, 1, -pi, pi));
 		dir = dir.put(0, ax.linlin(0, 1, -pi, pi));
 		q = dir[1].atan2(dir[0]) + pi;
 		a = frate.linlin(0,2, 2pi, 0);
 		b = dir[1].hypot(dir[0]) * 400 + 200;
 		c = momentum.linlin(0, 1, 50, 150);
-		// Synthesis.
 		signal = SinOsc.ar(c, BPF.ar(BPF.ar(LFSaw.ar(freq * xx, 0, a), b), xx, q), amp);
 		signal = RLPF.ar(Limiter.ar(Mix.ar(signal)), distance.linlin(0, 2.sqrt, 500, 10000), 0.5);
 		outCodeFunc.value(
@@ -288,12 +641,11 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		    gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
 		    depth=5, elevClip=0.01pi;
 		var signal;
-		// Synthesis.
 		signal = Mix.new([
 			LFSaw.ar((1..5) * freq, abs(momentum * 2)),
 			Impulse.ar((0..4) + SinOsc.ar((4..8) * freq).exprange(0.3, 300))
-		]);
-		signal = RLPF.ar(signal, LinLin.kr(momentum, 0, 1, 80, 30).midicps, momentum, amp);
+		]) * amp * 0.07;
+		signal = RLPF.ar(signal, LinLin.kr(momentum, 0, 1, 80, 30).midicps, momentum);
 		outCodeFunc.value(
 			signal, out, trigID, azimuth, distance, elevation,
 		    gate, attack, sustain, release, ca, cr, depth, elevClip
@@ -312,7 +664,6 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		var mix, room, signal, output;
 		var cutoff, rq, rate, pitches, trig, mul, add, detune, lag,
 		    tones=10, noOfSynths=20, note;
-		// Conversion.
 		rq = momentum.lincurve(0, 1, 0.6, 0.01, 4);
 		mul = momentum.lincurve(0, 1, 400, 2000, 4);
 		add = momentum.lincurve(0, 1, 600, 10000, 4);
@@ -321,10 +672,9 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		trig = Impulse.kr(0) + Dust2.kr(rate);
 		lag = momentum.lincurve(0, 1, 0.5, 0.05, -4);
 		detune = momentum.lincurve(0, 1, 0.1, 0.5, 4);
-		// XXX - del;ete this in new version
+		// XXX - delete this in new version
 		// guide params for fine control of pitch and threshold
 		note = DegreeToKey.kr(bufnum, gz.linlin(0, 1, 0, 15), 12, 1, offset).min(124);
-		// Synthesis.
 		signal = Mix.fill(tones,
 			{ |index|
 				pitches = Lag.kr(
@@ -390,7 +740,6 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		var note, signal;
 		var rq;
 		var baseFreq, trig, timer, mul, add;
-		// Conversion.
 		mul = momentum.linlin(0, 1, 1850, 2350);
 		add = momentum.linlin(0, 1, 2250, 2800);
 		trig = momentum > 0.33; // high momentum causes sharp switch
@@ -421,7 +770,6 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 				az.linlin(0, threshold, (offset-6), offset) // bottom to middle change continuously
 			]
 		);
-		// Synthesis.
 		signal = Mix.fill(8, { LFSaw.ar((note + 0.1.rand2).midicps) * 0.05 });
 		signal = RLPF.ar(RLPF.ar(signal, cutoff, rq), cutoff, rq, amp);
 		outCodeFunc.value(
@@ -438,9 +786,7 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
 		    depth=5, elevClip=0.01pi;
 		var signal, ds;
-		// Conversion.
 		ds = distance/3.44;
-		// Synthesis.
 		signal = RLPF.ar(
 			DelayL.ar(
 				FreeVerb.ar(

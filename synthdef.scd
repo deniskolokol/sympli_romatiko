@@ -130,7 +130,6 @@ SynthDef(\sr__g__slic, { // slicing
 
 SynthDef(\sr__g__scratch, { // ~ chunks of sound
     arg bufnum=0, inbus=30, route=20, trigID=80,
-    // bookmark
         ax=0, ay=0, az=0, gx=0.1, gy=0.1, gz=0.1, velocity=10, distance=0.5,
         amp=1, attenuate=1, gate=1, att=1, rel=1, ca=3, cr= -3;
     var in, signal, out;

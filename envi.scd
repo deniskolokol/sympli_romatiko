@@ -142,65 +142,17 @@ srEnv = Environment.make {
             key: 12, // q
             attenuate: 0.02,
         ),
-        sr__e__gauss: (
-            key: 15, // r
-            attenuate: 0.2,
-        ),
-        sr__e__probe: (
-            key: 32, // u
-            attenuate: 0.8,
-        ),
-        sr__e__cmb: (
-            key: 34, // i
-            attenuate: 0.5,
-        ),
-        sr__e__melo: (
-            key: 35, // p
-            attenuate: 0.5,
-        ),
         sr__e__ringz: (
             key: 33, // [
             attenuate: 0.2,
-        ),
-        sr__e__pulse: (
-            key: 30, // ]
-            attenuate: 0.1,
-        ),
-        \sr__g__reg: (
-            key: 1, // s
-            attenuate: 1,
-        ),
-        \sr__g__drone: (
-            key: 2, // d
-            attenuate: 1,
-        ),
-        \sr__g__gust: (
-            key: 3, // f
-            attenuate: 1,
         ),
         \sr__g__slic: (
             key: 5, // g
             attenuate: 1,
         ),
-        \sr__g__loop: (
-            key: 4, // h
-            attenuate: 1,
-        ),
-        \sr__g__scratch: (
-            key: 38, // j
-            attenuate: 1,
-        ),
-        \sr__g__unst: (
-            key: 40, // k
-            attenuate: 1,
-        ),
         \sr__g__chunk: (
             key: nil,
             attenuate: 1,
-        ),
-        \sr__e__therem: (
-            key: nil,
-            attenuate: 1.5,
         ),
         \sr__e__tbl: (
             key: nil,
@@ -268,6 +220,58 @@ srEnv = Environment.make {
             key: 14, // e
             attenuate: 0.1,
         ),
+        \melo: (
+            key: 35, // p
+            attenuate: 0.5,
+        ),
+        \cmb: (
+            key: 34, // i
+            attenuate: 0.5,
+        ),
+        \probe: (
+            key: 32, // u
+            attenuate: 0.8,
+        ),
+        \pulse: (
+            key: 30, // ]
+            attenuate: 0.1,
+        ),
+        \therem: (
+            key: nil,
+            attenuate: 1.5,
+        ),
+        \gauss: (
+            key: 15, // r
+            attenuate: 0.2,
+        ),
+        \loop: (
+            key: 4, // h
+            attenuate: 1,
+        ),
+        \loopdel: (
+            key: nil,
+            attenuate: 1,
+        ),
+        \drone: (
+            key: 2, // d
+            attenuate: 1,
+        ),
+        \greg: (
+            key: 1, // s
+            attenuate: 1,
+        ),
+        \scratch: (
+            key: 38, // j
+            attenuate: 1,
+        ),
+        \unst: (
+            key: 40, // k
+            attenuate: 1,
+        ),
+        \gust: (
+            key: 3, // f
+            attenuate: 1,
+        ),
     );
 
     ~clipInc = {
@@ -295,7 +299,8 @@ srEnv = Environment.make {
         };
 		synth = format("%__%", synth, (spatial ? ~spatial.()));
         message = [
-            "/s_new", synth, node, 0, ~rootAr, // synth goes to the root group's head
+			// each new synth goes to the root group's tail
+            "/s_new", synth, node, 1, ~rootAr,
 			\depth, ~depth,
 			\maxDist, ~speakers.maxDist
         ]
@@ -333,9 +338,8 @@ srEnv = Environment.make {
         // Sends bundle to server, places everything mentioned to the top level group.
         // This allows for an arbitrary number of synths and flexible structure.
 		// Returns node for registration purposes.
-        var node, messages;
-        node = ~scsynth.nextNodeID;
-        messages = data[\params];
+        var node = ~scsynth.nextNodeID;
+        var messages = data[\params];
         messages.do { |l, i|
             l.do { |m, j| // replace keywords with node ids
                 m.switch(
@@ -344,8 +348,14 @@ srEnv = Environment.make {
                 )
             }
         };
-        messages = [["/g_new", node, 0, ~rootAr]] ++ messages; // add group creation
+		// add group creation (tail)
+        messages = [["/g_new", node, 1, ~rootAr]] ++ messages;
 		~scsynth.listSendBundle(time, messages);
+		// report it
+		postf("~initGroup: %\n", node);
+		messages.do { |m| postf("    %\n", m) };
+		"\n".postln;
+		// return group nodce id
         node
     };
 
@@ -459,27 +469,27 @@ srEnv = Environment.make {
         // Stops sequence and all its events.
         // Warning! Order matters!
         fork {
-            "[...] STOPPING SEQUENCE: stopping / resetting tasks.".postln;
+            "INFO: stopping / resetting tasks".postln;
             ~sequence.tasks.keys.do { |taskName|
                 ~sequence.tasks[taskName].stop;
             };
             0.5.wait;
-            "[...] STOPPING SEQUENCE: removing objects.".postln;
+            "INFO: removing objects".postln;
             ~sendMessage.(\action, [\remove, \all]);
             0.5.wait;
-			"[...] STOPPING SEQUENCE: removing modulators.".postln;
+			"INFO: removing modulators".postln;
 			~scsynth.listSendMsg(["/n_set", ~rootKr, \rel, 0.2, \gate, 0]);
             0.5.wait;
             ~scsynth.listSendMsg(["/g_deepFree", ~rootKr]);
             0.5.wait;
             ~scsynth.listSendMsg(["/g_freeAll", ~rootKr]);
             0.5.wait;
-            "[...] STOPPING SEQUENCE: freeing buffers".postln;
+            "INFO: freeing buffers".postln;
             try { ~sequence.samples.do { |buff| buff.free}};
             try { ~sequence.voices.do { |buff| buff.free}};
             try { ~sequence.scales.do { |buff| buff.free}};
             0.5.wait;
-            "[...] STOPPING SEQUENCE: done".postln;
+            "INFO: done stopping sequence".postln;
         };
     };
 

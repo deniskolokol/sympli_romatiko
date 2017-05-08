@@ -3,10 +3,10 @@ var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
-// XXX - remove after test
-var skelData;
-postf("Reading skeleton simulation data\n");
-skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
+// // XXX - remove after test
+// var skelData;
+// postf("Reading skeleton simulation data\n");
+// skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
 
 ~sequence[\title] = "Sympli Romatiko: kraut Traer World";
 
@@ -58,13 +58,13 @@ guideBuff = Buffer.readChannel(s,
         (message: \physics, params: [\audioIn, true])
     ],
 
-	// XXX - remove after test
-	1: [
-		(
-			info: "Skeleton simulation",
-			message: \task, name: \skelSimulation, act: 1
-		),
-	],
+	// // XXX - remove after test
+	// 1: [
+	// 	(
+	// 		info: "Skeleton simulation",
+	// 		message: \task, name: \skelSimulation, act: 1
+	// 	),
+	// ],
     2: [
         (
             info: "2 heavy __growls",
@@ -86,13 +86,13 @@ guideBuff = Buffer.readChannel(s,
             info: "2 heavy __perc",
             message: \particle,
             synth: (name: \sr__e__perc,
-				params: [\att, 5.0.rand, \rel, 8, \amp, 0.1, \bufnum, ~sequence.scales[1].bufnum]),
+				params: [\att, 5.0.rand, \rel, 8, \amp, 0.1, \bufnum, ~sequence.scales[1].bufnum, \offset, 36]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
             synth: (name: \sr__e__perc,
-				params: [\att, 5.0.rand, \rel, 8, \amp, 0.1, \bufnum, ~sequence.scales[1].bufnum]),
+				params: [\att, 5.0.rand, \rel, 8, \amp, 0.1, \bufnum, ~sequence.scales[1].bufnum, \offset, 36]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         )
     ],
@@ -101,14 +101,14 @@ guideBuff = Buffer.readChannel(s,
             info: "heavy __lowe",
             message: \particle,
             synth: (name: \sr__e__lowe,
-				params: [\att, 10.rand, \att, 12, \rel, 1]),
+				params: [\att, 12, \rel, 0.1]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
         (
             info: "heavy __noisy",
             message: \particle,
             synth: (name: \sr__e__noisy,
-				params: [\att, 5.0.rand, \att, 12, \rel, 1, \amp, 0.7]),
+				params: [\att, 12, \rel, 0.1, \amp, 0.7]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
         )
     ],
@@ -120,14 +120,14 @@ guideBuff = Buffer.readChannel(s,
             info: "heavy __lowe",
             message: \particle,
             synth: (name: \sr__e__lowe,
-				params: [\att, 10.rand, \att, 10, \rel, 1]),
+				params: [\att, 0.5, \rel, 1]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
         (
             info: "heavy __noisy",
             message: \particle,
             synth: (name: \sr__e__noisy,
-				params: [\att, 5.0.rand, \att, 10, \rel, 1, \amp, 0.7]),
+				params: [\att, 0.5, \rel, 1, \amp, 0.7]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
         )
     ],
@@ -238,26 +238,28 @@ guideBuff = Buffer.readChannel(s,
 		(
             message: \action,  params: [\remove, \all]
         ),
-        (
-            info: "2 heavy __buzz",
+		(
+            info: "2 heavy __entro",
             message: \particle,
-            synth: (name: \sr__e__buzz, params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.5]),
+            synth: (name: \sr__e__entro, params: [\att, 0.1]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__buzz, params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.5]),
+            synth: (name: \sr__e__entro, params: [\att, 0.1]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
-		(
-            info: "add 2 heavy __entro",
+    ],
+    15: [
+        (
+            info: "add 2 heavy __buzz",
             message: \particle,
-            synth: (name: \sr__e__entro, params: [\att, 0.1]),
+            synth: (name: \sr__e__buzz, params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.5]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__e__entro, params: [\att, 0.1]),
+            synth: (name: \sr__e__buzz, params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.5]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
     ],
@@ -338,11 +340,11 @@ guideBuff = Buffer.readChannel(s,
             message: \task, name: \randomParticles, act: 0
         ),
 
-		// XXX - remove after test
-		(
-			info: "stop skeleton simulation",
-			message: \task, name: \skelSimulation, act: 0
-		),
+		// // XXX - remove after test
+		// (
+		// 	info: "stop skeleton simulation",
+		// 	message: \task, name: \skelSimulation, act: 0
+		// ),
         (
             info: "stop random particles",
             message: \task, name: \storm, act: 0
@@ -366,19 +368,19 @@ guideBuff = Buffer.readChannel(s,
 //
 ~sequence.tasks = (
 
-	// XXX - remove after test
-	skelSimulation: Task({
-		var i=0, coords;
-		inf.do {
-			// process
-			if (i == skelData.size) {i = 0};
-			coords = skelData[i][1..];
-			coords[2] = coords[2] + 0.6; // offset
-			~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
-			i = i + 1;
-			0.001.wait;
-		}
-	}),
+	// // XXX - remove after test
+	// skelSimulation: Task({
+	// 	var i=0, coords;
+	// 	inf.do {
+	// 		// process
+	// 		if (i == skelData.size) {i = 0};
+	// 		coords = skelData[i][1..];
+	// 		coords[2] = coords[2] + 0.6; // offset
+	// 		~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
+	// 		i = i + 1;
+	// 		0.001.wait;
+	// 	}
+	// }),
 
     randomParticles: Task({
         var key, next;

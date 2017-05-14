@@ -7,7 +7,7 @@ var miscParams;
 var star, physics, particles, springs, position;
 var oscParticle, oscPhysics, oscAction,
     oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
-    oscRemoveFunc, oscGroupTree;
+    oscGroupTree;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
@@ -27,26 +27,25 @@ var attractionsPhysical, springsPhysical, springMissed,
     partColor, partSize;
 var listenerPos, currSpeaker, getSynthName;
 var win, viewTop, viewTopLeft, viewTopCenter, viewTopRight,
-    viewWorld, viewLeft, viewRight, viewBottom,
+    viewWorld, viewLeft, viewRight, viewBottom, worldPanel,
     paneWidth, paneHeight, compView, compViewFlow, panel,
     sText, dropdown, slider, button, buttonCheckbox, updateButtonLabel;
+var winSrv, palette, meterView, srvTreeView;
 var postView, postMaxSize=25000;
-var srvTree, postSrvView;
 var scale, translate, focal;
 var paramsChanged;
-var stat, clean;
+var stat, cleanExit;
 var trigSynth, synthNames, trigCodes;
-var keyboardFunc, fileNames;
+var fileNames;
 var postMsg, updatePostColors, getMsgColor, postColors=List.new;
 var eventInfo, switchEvent, processEvents, getKey;
 var groupNew, groupRemove, sendPhysics, sendSNew, sendNSet, taskPlay;
 var animateSeq, shade, current, next, count=0, blinked=0, tick=0;
 var ddSequence, btCurrNum, stCurrInfo, btNextNum, stNextInfo, timeLabel, updateGui;
-var internalInLevels, internalOutLevels,
-    oscInternalInLevels, oscInternalOutLevels;
 var transparent=Color.grey(alpha:0.01),
     font=Font("Monaco", 14),
     fontSmall=Font("Monaco", 10),
+    fontMedium=Font("Monaco", 12),
     fontLarge=Font("Monaco", 14),
     fontLarge1=Font("Monaco", 18),
     fontGiant=Font("Monaco", 24),
@@ -208,9 +207,9 @@ var worldParams = (
 
 // The World is a cube.
 world = (
-    width: Window.screenBounds.height*0.82,
-    height: Window.screenBounds.height*0.82,
-    depth: Window.screenBounds.height*0.82
+    width: Window.screenBounds.height*0.56,
+    height: Window.screenBounds.height*0.56,
+    depth: Window.screenBounds.height*0.56
 );
 worldParams.keysValuesDo { |k, v| world[k] = v[\default] }; // set default params
 
@@ -416,7 +415,6 @@ processEvents = { |key|
 
 
 // GUI: elements
-//
 paneWidth = { |par, scale=1| (par.bounds.width * scale - 6).floor };
 paneHeight = { |par, scale=1| (par.bounds.height * scale - 6).floor };
 compView = { |par, color, scaleW=1, scaleH=1|
@@ -469,7 +467,7 @@ dropdown = { |par, label, items, action, initVal=0, initAction=false, scale=1|
 button = { |par, label, labelColor, bgColor, scaleH=1, scaleW=1|
     Button(par, paneWidth.(par, scaleW)@paneHeight.(par, scaleH))
     .states_([[label, labelColor ? fontColor, bgColor ? transparent]])
-    .font_(font)
+    .font_(fontMedium)
     .canFocus_(false)
 };
 buttonCheckbox = { |par, label, labelColor, bgColor, scaleH=1, scaleW=1|
@@ -478,7 +476,7 @@ buttonCheckbox = { |par, label, labelColor, bgColor, scaleH=1, scaleW=1|
         [label, labelColor ? fontColor, bgColor ? transparent],
         [label, bgColor ? transparent, labelColor ? fontColor]
     ])
-    .font_(font)
+    .font_(fontMedium)
     .canFocus_(false)
 };
 slider = { |par, name, val, layout='horz', scale=1|
@@ -501,33 +499,115 @@ slider = { |par, name, val, layout='horz', scale=1|
 };
 
 
-// GUI: Window
-win = Window("world", Window.screenBounds.width@Window.screenBounds.height, false);
+// GUI: Server window
+winSrv = Window.new(
+	~scsynth.name ++ " levels (dBFS)",
+	Rect(0, Window.screenBounds.height-200, 591, 660),
+	resizable: false, border: false
+);
+winSrv.view.decorator = FlowLayout(winSrv.view.bounds, 1@1, 1@1);
+palette = QPalette.dark;
+palette.setColor(Color.black, \window);
+winSrv.view.palette = palette;
+// internal levels
+panel = compViewFlow.(winSrv, scaleH:0.3, scaleW:0.63);
+meterView = EntroServerMeterView(~scsynth, panel, 0@0, 210);
+// GUI: stat panel
+panel = compViewFlow.(winSrv, gap:1@5, margin:1@20, scaleH:0.3, scaleW:0.36);
+stat = Dictionary.new;
+[
+    (label: "particles", func: { physics.particles.size }),
+    (label: "springs", func: { physics.springs.size }),
+    (label: "attractions", func: { physics.attractions.size }),
+    (label: "entropy", func: {
+        (
+            1.38065e-23 * log( // XXX - find and manage a proper formula!
+                physics.particles.size.max(1)*
+                physics.springs.size.max(1)*
+                physics.attractions.size.max(1)
+            )
+        ).round(0.00001)
+    }),
+    (label: "skeletons", func: { format("% %", skeleton.size, skeleton.keys.asArray) }),
+].do { |item|
+    var key;
+    sText.(panel, item.label, scaleW:0.7).font_(fontMedium);
+    item[\gui] = sText.(panel, "0", scaleW:0.3).font_(fontMedium);
+    key = item.label.asString.toLower.replace(" ", "_").asSymbol;
+    stat[key] = item;
+};
+miscParams[\rec] = (
+    gui: buttonCheckbox.(panel,
+        "REC.", labelColor: Color.red, bgColor:Color.black, scaleW:0.5, scaleH:0.2
+    ).action_({ |bt| postMsg.(~recordAudio.(bt.value)) })
+);
+miscParams[\intBuf] = (
+    gui: buttonCheckbox.(panel,
+        "int buf", labelColor: Color.red, bgColor:Color.black, scaleW:0.5, scaleH:0.2
+    )
+    .action_({ |bt|
+		var synthIn;
+		if(bt.value == 1, {
+            //recording synth
+			synthIn = Synth(\sr__r__buffloop, [
+                \bufnum, ~internalBuff.bufnum,  \busnum, ~inbus,
+                \volIn, 1, \loop, 1, \gate, 1, \dur, 1]);
+		}, {
+			synthIn.free;
+		});
+        sendPhysics.([\internalBuf, bt.value])
+	})
+);
+
+// world params panel
+// Warning: filled out later!
+worldPanel = compViewFlow.(winSrv, 2@2, scaleH:0.72, scaleW:0.52);
+
+// server tree panel
+panel = compViewFlow.(winSrv, scaleH:0.7, scaleW:0.48);
+panel.addFlowLayout(0@0, 4@4);
+srvTreeView = TextView(panel, panel.bounds.width@panel.bounds.height)
+    .editable_(false)
+    .font_(Font("Monaco", 10).boldVariant)
+    .stringColor_(Color.gray(0.7))
+    .background_(Color.grey(alpha:0.01))
+    .hasVerticalScroller_(true)
+    .canFocus_(false);
+winSrv.front;
+
+
+// GUI: World window
+win = Window("world",
+    Rect(winSrv.bounds.width, 22,
+        Window.screenBounds.width-winSrv.bounds.width,
+        Window.screenBounds.height-22
+    ),
+    resizable:false, border:false
+);
 win.view.decorator = FlowLayout(win.view.bounds, 1@1, 1@1);
 win.background = Color.black;
 
 // GUI: Top-level layout
-viewTop = compViewFlow.(win, scaleH:0.07);
 viewLeft = compViewFlow.(win,
-    scaleW:(0.5*(win.bounds.width-world.width)/win.bounds.width),
-    scaleH:world.height/win.bounds.height
+    // viewLeft is a container for world and internal post window
+    scaleW: (world.width/win.bounds.width)
 );
-viewWorld = UserView(win, world.width@world.height);
-viewRight = compViewFlow.(win,
-    scaleW:(0.5*(win.bounds.width-world.width)/win.bounds.width),
-    scaleH:world.height/win.bounds.height
-);
-viewBottom = compViewFlow.(win,
+viewTop = compViewFlow.(viewLeft, scaleH:0.07);
+viewWorld = UserView(viewLeft, world.width@world.height);
+viewBottom = compViewFlow.(viewLeft,
     scaleH:(win.bounds.height-(viewWorld.bounds.height+viewTop.bounds.height))/win.bounds.height
 );
+viewRight = compViewFlow.(win,
+    scaleW:(win.bounds.width-viewLeft.bounds.width)/win.bounds.width,
+);
 
-// GUI: scheduler
-viewTopLeft = compViewFlow.(viewTop, scaleW:0.16);
-viewTopCenter = compViewFlow.(viewTop, gap:8@4, scaleW:0.7);
-viewTopRight = compViewFlow.(viewTop, scaleW:0.14);
+// GUI: sequenced
+viewTopLeft = compViewFlow.(viewTop, scaleW:0.2);
+viewTopCenter = compViewFlow.(viewTop, gap:8@4, scaleW:0.68);
+viewTopRight = compViewFlow.(viewTop, margin:5@5, gap:5@5, scaleW:0.12);
 
 // current event number and info
-stCurrInfo = sText.(viewTopCenter, "...", stringFont:fontLarge1, scaleW:0.44, scaleH:1);
+stCurrInfo = sText.(viewTopCenter, "...", stringFont:fontLarge, scaleW:0.44, scaleH:1);
 stCurrInfo.align = \right;
 btCurrNum = button.(viewTopCenter, ">>",
     bgColor:Color.gray(0.15), scaleW:0.05
@@ -546,14 +626,13 @@ miscParams[\next] = (
     midinote: 43,
     gui: btNextNum
 );
-stNextInfo = sText.(viewTopCenter, "", stringFont:fontLarge1, scaleW:0.44, scaleH:1);
+stNextInfo = sText.(viewTopCenter, "", stringFont:fontLarge, scaleW:0.44, scaleH:1);
 
 // time elapsed since the start
-timeLabel = sText.(viewTopRight, ~convertTime.(0), stringFont:fontGiant, scaleW:1);
-timeLabel.align = \right;
+timeLabel = sText.(viewTopRight, ~convertTime.(0), stringFont:fontGiant, scaleW:1, scaleH:1);
 
 // open file with sequence
-ddSequence = dropdown.(viewTopLeft, "sequence",
+ddSequence = dropdown.(viewTopLeft, "seq",
     items: fileNames.(~seqPaths),
     initVal: if (~seqPaths.size > 2) { 2 } { 0 },
     action: { |element|
@@ -590,7 +669,7 @@ ddSequence = dropdown.(viewTopLeft, "sequence",
 );
 
 button.(viewTopLeft,
-    "stop", bgColor:Color.grey(0.2), scaleW:0.41, scaleH:0.5
+    "stop", bgColor:Color.grey(0.2), scaleW:0.41, scaleH:0.45
 ).action_({ |bt|
 	"INFO: removing custom groups / synths".postln;
 	synths.keys.do { |k| groupRemove.((id: k)) };
@@ -598,97 +677,13 @@ button.(viewTopLeft,
     animateSeq = false; // stop clock
 });
 button.(viewTopLeft,
-    "reload", bgColor:Color.grey(0.2), scaleW:0.6, scaleH:0.5
+    "reload", bgColor:Color.grey(0.2), scaleW:0.6, scaleH:0.45
 ).action_({ |bt|
     ddSequence.valueAction_(ddSequence.value);
 });
 
-// GUI: internal levels (dBFS)
-panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:0.1);
-sText.(panel, "0", stringFont:fontSmall, scaleH:0.15, scaleW:0.8).align_(\right);
-sText.(panel, "", stringFont:fontSmall, scaleH:0.65, scaleW:1); // gap
-sText.(panel, "-80", stringFont:fontSmall, scaleH:0.2, scaleW:0.8).align_(\right);
-
-internalInLevels = Array.fill(~scsynth.options.numInputBusChannels, {nil});
-internalOutLevels = Array.fill(~scsynth.options.numOutputBusChannels, {nil});
-
-tmp = ~scsynth.options.numInputBusChannels / (
-    ~scsynth.options.numInputBusChannels + ~scsynth.options.numOutputBusChannels
-);
-panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:tmp);
-~scsynth.options.numInputBusChannels.do { |j|
-    internalInLevels[j] = LevelIndicator(panel, 19@(panel.bounds.height*0.8))
-    .background_(Color.clear)
-    .warning_(0.7)
-    .critical_(0.9)
-    .numTicks_(11)
-    .numMajorTicks_(3)
-    .drawsPeak_(true)
-};
-sText.(panel, "inputs", stringFont:fontSmall, scaleH:0.15, scaleW:1);
-tmp = 0.85 * ~scsynth.options.numOutputBusChannels / (
-    ~scsynth.options.numInputBusChannels + ~scsynth.options.numOutputBusChannels
-);
-panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:tmp);
-~scsynth.options.numOutputBusChannels.do { |j|
-    var w = (panel.bounds.width / ~scsynth.options.numOutputBusChannels)-3;
-    internalOutLevels[j] = LevelIndicator(panel, w@(panel.bounds.height*0.8))
-    .background_(Color.clear)
-    .warning_(-6.dbamp)
-    .critical_(-3.dbamp)
-    .numTicks_(11)
-    .numMajorTicks_(3)
-    .drawsPeak_(true)
-};
-sText.(panel, "outputs", stringFont:fontSmall, scaleH:0.15, scaleW:1);
-
-// GUI: post window
-panel = compViewFlow.(viewLeft, margin:5@5, scaleH:0.35);
-srvTree = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.94))
-   .editable_(false)
-   .font_(fontSmall)
-   .stringColor_(fontColor)
-   .background_(transparent)
-   .hasVerticalScroller_(true)
-   .canFocus_(false);
-
-// GUI: Server post window
-panel = compViewFlow.(viewLeft, margin:5@5, scaleH:0.53);
-postSrvView = StatusBox(panel, (panel.bounds.width-15)@(panel.bounds.height*0.94))
-    .editable_(false)
-    .font_(fontSmall)
-    .stringColor_(fontColor)
-    .background_(transparent)
-    .hasVerticalScroller_(false)
-    .canFocus_(false)
-    .alwaysOnTop_(true);
-postSrvView.makeDefault;
-
-// GUI: stat panel
-stat = Dictionary.new;
-panel = compViewFlow.(viewRight, scaleH:0.12);
-[
-    (label: "particles", func: { physics.particles.size }),
-    (label: "springs", func: { physics.springs.size }),
-    (label: "attractions", func: { physics.attractions.size }),
-    // (label: "entropy", func: {
-    //     1.38065e-23 * log( // XXX - find and manage a proper formula!
-    //         physics.particles.size.max(1)*
-    //         physics.springs.size.max(1)*
-    //         physics.attractions.size.max(1)
-    //     )
-    // }),
-    (label: "skeletons", func: { format("% %", skeleton.size, skeleton.keys.asArray) }),
-].do { |item|
-    var key;
-    sText.(panel, format("\t%", item.label), scaleW:0.7);
-    item[\gui] = sText.(panel, "0", scaleW:0.3);
-    key = item.label.asString.toLower.replace(" ", "_").asSymbol;
-    stat[key] = item;
-};
-
 // slider controllers for physics params
-panel = compViewFlow.(viewRight, scaleH:0.405);
+panel = compViewFlow.(worldPanel, scaleH:0.78);
 [
     \drag, \repulsion, \starMass,
     \gravX, \gravY, \gravZ,
@@ -697,11 +692,11 @@ panel = compViewFlow.(viewRight, scaleH:0.405);
     \partDefaultMass, \partAgeThresh, \partSigmoidRatio,
 ].do { |key, n|
     worldParams[key][\gui] = slider.(panel, key, worldParams[key]);
-    if ((n+1) % 3 == 0) { compViewFlow.(panel, scaleH:0.03)} // gap after every 3rd slider
+    if ((n+1) % 3 == 0) { compViewFlow.(panel, scaleH:0.04)} // gap after every 3rd slider
 };
 
 // slider controllers for misc params
-panel = compViewFlow.(viewRight, scaleH:0.09);
+panel = compViewFlow.(worldPanel, scaleH:0.15);
 miscParams[\serverVolume] = (
     midicc: 12,
 	spec: \db,
@@ -734,31 +729,19 @@ miscParams[\depth] = (
     })
 );
 
-panel = compViewFlow.(viewRight, margin:5@5, gap:5@5, scaleH:0.08);
+panel = compViewFlow.(worldPanel, margin:5@5, gap:5@5, scaleH:0.12);
 // button based misc params
 miscParams[\removeall] = (
     midinote: 70,
     gui: button.(panel,
-        "X", bgColor:Color.black, scaleW:0.2, scaleH:0.5
+        "X", bgColor:Color.black, scaleW:0.19, scaleH:0.7
     ).action_({ |bt| removeAll.() })
 );
-sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
-// button based physics params
-[\particles, \mutualAttraction, \calibration].do { |key|
-    worldParams[key][\gui] = buttonCheckbox.(
-        panel,
-        worldParams[key][\label],
-        bgColor:Color.black, scaleW:0.25, scaleH:0.5
-    )
-    .value_(worldParams[key][\default])
-    .action_({ |bt| sendPhysics.([key, bt.value]) })
-};
-panel.decorator.nextLine;
 // reset physics params to defaults
 miscParams[\reset] = (
     midinote: 58,
     gui: button.(panel,
-        "RESET", bgColor:Color.black, scaleW:0.2, scaleH:0.5
+        "RESET", bgColor:Color.black, scaleW:0.19, scaleH:0.7
     ).action_({ |bt|
         worldParams.values.do { |element|
             if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
@@ -768,83 +751,45 @@ miscParams[\reset] = (
     })
 );
 sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
-miscParams[\rec] = (
-    gui: buttonCheckbox.(panel,
-        "REC.", labelColor: Color.red, bgColor:Color.black, scaleW:0.375, scaleH:0.5
-    ).action_({ |bt| postMsg.(~recordAudio.(bt.value)) })
-);
-miscParams[\intBuf] = (
-    gui: buttonCheckbox.(panel,
-        "int buf", labelColor: Color.red, bgColor:Color.black, scaleW:0.375, scaleH:0.5
+// button based physics params
+[\particles, \mutualAttraction, \calibration].do { |key|
+    worldParams[key][\gui] = buttonCheckbox.(
+        panel,
+        worldParams[key][\label],
+        bgColor:Color.black, scaleW:0.19, scaleH:0.7
     )
+    .value_(worldParams[key][\default])
+    .action_({ |bt| sendPhysics.([key, bt.value]) })
+};
+
+// start synth panel
+panel = compViewFlow.(viewRight, gap:2@2, margin:10@20, scaleH:0.3);
+~synths.keys.asArray.sort.do { |key|
+    var vw;
+    button.(panel,
+        key.asString,
+        bgColor:Color.black, scaleH:0.1, scaleW:0.2)
     .action_({ |bt|
-		var synthIn;
-		if(bt.value == 1, {
-            //recording synth
-			synthIn = Synth(\sr__r__buffloop, [
-                \bufnum, ~internalBuff.bufnum,  \busnum, ~inbus,
-                \volIn, 1, \loop, 1, \gate, 1, \dur, 1]);
-		}, {
-			synthIn.free;
-		});
-        sendPhysics.([\internalBuf, bt.value])
-	})
-);
+        var params=[];
+        if (world[\internalBuf].booleanValue) {
+            params = params ++ [\bufnum, ~internalBuff.bufnum]
+        };
+        ~sendParticle.(
+            particle:(spring:1, mass:1),
+            synth:(name: key, params: params)
+        )
+    });
+};
+
 // GUI: post window
-panel = compViewFlow.(viewRight, margin:5@5, scaleH:0.35);
-postView = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.94))
+panel = compViewFlow.(viewBottom);
+postView = TextView(panel, panel.bounds.width@panel.bounds.height)
    .editable_(false)
-   .font_(fontSmall)
+   .font_(fontMedium)
    .stringColor_(fontColor)
    .background_(transparent)
    .hasVerticalScroller_(false)
    .canFocus_(false);
-
-keyboardFunc = { |synthName, params, spring=0, mass=1|
-	// GUI: trigger objects keyboard
-    params = params ? [];
-    if (world[\internalBuf].booleanValue && params.includes(\bufnum).not) {
-        params = params ++ [\bufnum, ~internalBuff.bufnum]
-    };
-    ~sendParticle.(
-        particle:(spring:spring, mass:mass),
-        synth:(name: synthName, params: params)
-    )
-};
-panel = compViewFlow.(viewBottom, margin:5@10);
-trigSynth.do { |key, i|
-    var vw;
-    if (trigCodes[key].isNil.not) {
-        vw = compViewFlow.(panel, scaleW:synthNames.size.reciprocal);
-        vw.decorator = FlowLayout(vw.bounds);
-        sText.(vw,
-            synthNames[key].asString.replace("sr__e__", "").replace("sr__g__", ""),
-            scaleW:1
-        );
-        button.(vw, trigCodes[key].toUpper, bgColor:Color.black, scaleH:0.4)
-        .action_({ |bt|
-            keyboardFunc.(synthNames[key], spring:1)
-        });
-        NumberBox(vw, (vw.bounds.width*0.9)@20)
-            .clipLo_(0.01)
-            .clipHi_(2)
-            .step_(0.01)
-            .align_(\right)
-            .font_(font)
-            .normalColor_(fontColor)
-            .background_(Color.grey(alpha:0.5))
-            .action_({ |nb|
-                ~synths[synthNames[key]][\attenuate] = nb.value;
-            })
-            .value_(
-                ~synths.atFail(
-                        synthNames[key],
-                        {~synths[\sr__e__silent]}
-                )[\attenuate]
-            )
-    }
-};
-
 
 viewWorld.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
     var speakerPos, speakerSize, speakers2Remove, processed=false;
@@ -868,6 +813,7 @@ viewWorld.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
         };
 
         if (processed.not) { // process speakers only if no particles were processed
+            // XXX - add here sending updated speakers positions to all nodes in `synths`
             ~speakers.items.do { |speaker, i|
                 speakerPos = ade2xyz.(speaker, ~speakers.maxDist);
                 speakerSize = speakerPos.z.linlin(0, world.depth, 40, 15);
@@ -914,7 +860,7 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
     case
     { keycode == 8 } { // C
         if (modifiers == 262144) { // Ctrl + C
-            clean.();
+            cleanExit.();
         }
     }
     { keycode == 3 } { // F
@@ -1212,10 +1158,6 @@ viewWorld.drawFunc = { |view|
                 \distance, distance,
                 \elevation, elevation,
                 \momentum, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
-                \amp, (
-                    particle.mass.clip(0.01, 0.8) // the main contributor to object's loudness is its mass
-                    + (mag3D.(particle.velocity) * 0.01) // subtle "colors" due to velocity
-                ).clip(0, 1),
 
                 // guide params
                 \gx, gx,
@@ -1285,9 +1227,6 @@ viewWorld.drawFunc = { |view|
         \distance, distance,
         \elevation, elevation,
         \momentum, mag3D.(guide.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
-        \amp, (0.9 // static guide's loudness
-            + (mag3D.(guide.velocity) * 0.01) // subtle "colors" due to velocity
-        ).clip(0, 1),
 
         // guide params
         \gx, ax,
@@ -1804,7 +1743,7 @@ updatePostColors = { |colors, start|
 getMsgColor = { |msg|
 	//
 	case
-	{ msg.beginsWith("INFO") } { Color.new255(11, 99, 218) }
+	{ msg.beginsWith("INFO") } { Color.new255(11, 96, 224) }
 	{ msg.beginsWith("DEBUG") } { Color.new255(113, 138, 0) }
 	{ msg.beginsWith("WARNING") } { Color.white }
 	{ msg.beginsWith("ERROR") } { Color.new255(158, 33, 33) }
@@ -1977,7 +1916,9 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
 }, '/joint');
 
 oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
-	//[ /g_queryTree.reply, 0, 1008, 2, 1014, -1, bass__a2, 1010, 2, 1012, -1, atru__a2, ... ]
+	// Parses /g_queryTree.reply:
+	// [ /g_queryTree.reply, 0, 1008, 2, 1014, -1, bass__a2, 1010, 2, 1012, -1, atru__a2, ... ]
+	// and fills out synth name for a particle as well as formats server tree
     var name, part;
 	// postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
 	part = particles.select { |p| p.at(\synth).isNil };
@@ -1988,48 +1929,15 @@ oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
 			dict[\synth] = name[0];
 		}
 	};
-	// fill srvTree
+	// fill out srv tree
 	if (msg[2] == 0) {
 		{
-			srvTree.string = ~formatSrvTree.(msg);
-			srvTree.stringColor = fontColor;
-			srvTree.setStringColor(Color.green, 0, 6);
+			srvTreeView.string = ~formatSrvTree.(msg);
+			srvTreeView.stringColor = Color.gray(0.7);
+			srvTreeView.setStringColor(Color.green, 0, 6);
 		}.defer
 	};
 }, '/g_queryTree.reply');
-
-// XXX - GET msgs from remote server!
-oscInternalInLevels = OSCFunc({ |msg, time, addr, recvPort|
-    {
-        internalInLevels.do { |elem, j|
-            elem.peakLevel = msg[3+(j*2)].ampdb.linlin(-80, 0, 0, 1);
-            elem.value = msg[3+(j*2+1)].ampdb.linlin(-80, 0, 0, 1);
-        }
-    }.defer;
-}, '/internalInLevels');
-
-oscInternalOutLevels = OSCFunc({ |msg, time, addr, recvPort|
-    {
-        internalOutLevels.do { |elem, j|
-            try {
-                elem.peakLevel = msg[3+(j*2)].ampdb.linlin(-80, 0, 0, 1);
-                elem.value = msg[3+(j*2+1)].ampdb.linlin(-80, 0, 0, 1);
-            }
-        }
-    }.defer;
-}, '/internalOutLevels');
-
-oscRemoveFunc = {
-	// Remove all OSC functions.
-    oscParticle.free;
-    oscSkeletonNew.free;
-    oscSkeletonLost.free;
-    oscSkeletonJoint.free;
-    oscGroupTree.free;
-    oscInternalInLevels.free;
-    oscInternalOutLevels.free;
-};
-
 
 // PHYSICS
 //
@@ -2048,10 +1956,9 @@ viewWorld.animate = true;
     while {win.isClosed.not} {
 		tick = tick + 1;
 		if (tick > 1e+6) { tick = 0 };
+
 		// fill out srvTree
-		if (tick % 10 == 0) { ~scsynth.sendMsg("/g_queryTree", 0) };
-		// make sure messages in server popst window are visible
-		postSrvView.stringColor = fontColor;
+		if (tick % 20 == 0) { ~scsynth.sendMsg("/g_queryTree", 0) };
 
         if (animateSeq) {
 			count = count + 1;
@@ -2103,17 +2010,26 @@ MIDIIn.connectAll;
     }
 };
 
-clean = {
-	// clean everything on exit
-    oscRemoveFunc.();
+cleanExit = {
+	// clean world from particles
     removeAll.();
-	StatusBox.clearDefault;
+    // remove OSC functions
+    oscParticle.free;
+    oscSkeletonNew.free;
+    oscSkeletonLost.free;
+    oscSkeletonJoint.free;
+    oscGroupTree.free;
+    // stop meter view explicitly to remove synths for internal levels
+    meterView.stop;
+    // close all windows
     win.close;
+	winSrv.close;
+    // disconnect MIDI
     MIDIIn.disconnectAll;
 };
 
 CmdPeriod.doOnce({
-    clean.();
+    cleanExit.();
 });
 
 win.front;

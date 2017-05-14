@@ -109,7 +109,7 @@ guideBuff = Buffer.readChannel(
 			synth: (name: "lowe",
 				// XXX - play with \freq (~800 -> noisy and sharp)
 				// XXX - add it to 2 __entro later to achieve some sort of "melodicity"
-				params: [\attack, 10, \attack, 12, \release, 0.5]),
+				params: [\attack, 10, \attack, 12, \release, 0.5, \amp, 0.3]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
         (
@@ -128,7 +128,8 @@ guideBuff = Buffer.readChannel(
             info: "heavy <lowe>",
             message: \particle,
 			synth: (name: "lowe",
-				params: [\attack, 0.1, \release, 1]),
+                params: [\attack, 0.1, \release, 1, \amp, 0.3]
+            ),
             particle: (age: inf, mass: 0.9, spring: 1,
 				// should appear close to the source to minimize
 				// the effect of environment on sound
@@ -158,12 +159,12 @@ guideBuff = Buffer.readChannel(
         (
             info: "2 heavy <komar>",
             message: \particle,
-			synth: (name: "komar", params: [\attack, 0.5]),
+			synth: (name: "komar", params: [\attack, 0.5, \amp, 0.3]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-			synth: (name: "komar", params: [\attack, 0.5]),
+			synth: (name: "komar", params: [\attack, 0.5, \amp, 0.3]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         )
     ],
@@ -190,7 +191,7 @@ guideBuff = Buffer.readChannel(
             info: "heavy <lowe>",
             message: \particle,
 			synth: (name: "lowe",
-				params: [\attack, 5.0.rand, \release, 8]),
+				params: [\attack, 5.0.rand, \release, 8, \amp, 0.3]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
     ],
@@ -201,12 +202,12 @@ guideBuff = Buffer.readChannel(
         (
             info: "2 heavy <entro>",
             message: \particle,
-			synth: (name: "entro", params: [\attack, 0.1, \amp, 0.5]),
+			synth: (name: "entro", params: [\attack, 0.1, \amp, 0.3]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-			synth: (name: "entro", params: [\attack, 0.1, \amp, 0.5]),
+			synth: (name: "entro", params: [\attack, 0.1, \amp, 0.3]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
         (
@@ -227,13 +228,13 @@ guideBuff = Buffer.readChannel(
             message: \g_new,
             id: \feed_audiothrough1,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
-                ["/s_new", \sr__e__analog, \next_node_id, 0, \group_id, // add synth to new group's head
-                    \route, ~audioThruBus[0], // feeding into the bus designated for audio through
-                    \velocity, 0.5, \attack, 40, \bufnum, ~sequence.scales[0].bufnum,
+                ["/s_new", "moog", \next_node_id, 0, \group_id, // add synth to new group's head
+                    \out, ~audioThruBus[0], // feeding into the bus designated for audio through
+                    \momentum, 0.5, \attack, 40, \bufnum, ~sequence.scales[0].bufnum,
                     \amp, 0.5 // attenuate not to overshout main synth
                 ],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \outbus, 0],
-                ["/n_map", \group_id, \velocity, 0],
+                ["/n_map", \group_id, \momentum, 0],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.2, \add, 0.2, \outbus, 1],
                 ["/n_map", \group_id, \az, 1]
             ]
@@ -245,13 +246,13 @@ guideBuff = Buffer.readChannel(
             message: \g_new,
             id: \feed_audiothrough2,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
-                ["/s_new", \sr__e__analog, \next_node_id, 0, \group_id, // add synth to new group's head
-                    \route, ~audioThruBus[1],
-                    \velocity, 0.5, \attack, 40, \bufnum, ~sequence.scales[0].bufnum,
+                ["/s_new", "moog", \next_node_id, 0, \group_id, // add synth to new group's head
+                    \out, ~audioThruBus[1],
+                    \momentum, 0.5, \attack, 40, \bufnum, ~sequence.scales[0].bufnum,
                     \amp, 0.5 // attenuate not to overshout main synth
                 ],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \outbus, 2],
-                ["/n_map", \group_id, \velocity, 2],
+                ["/n_map", \group_id, \momentum, 2],
                 ["/s_new", \sr__k__lfnoise1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.2, \add, 0.2, \outbus, 3],
                 ["/n_map", \group_id, \az, 3]
             ]
@@ -261,14 +262,14 @@ guideBuff = Buffer.readChannel(
         (
             info: "2 heavy __authro",
             message: \particle,
-            synth: (name: \sr__r__authro,
+            synth: (name: "atru",
                 params: [\in, ~audioThruBus[0],
                     \attack, 2+1.0.rand2, \release, 5, \threshold, 0.5]),
             particle: (mass: 1, spring: 1, source: \l_hand)
         ),
         (
             message: \particle,
-            synth: (name: \sr__r__authro,
+            synth: (name: "atru",
                 params: [\in, ~audioThruBus[1],
                     \attack, 2+1.0.rand2, \release, 5, \threshold, 0.5]),
             particle: (mass: 1, spring: 1, source: \r_hand)

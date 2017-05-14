@@ -63,7 +63,8 @@ var makeSynthDefPerc = { |name, outCodeFunc|
 		var gt = (timer > lag) * trig;
 		var signal = Pulse.ar(freq,
 			width: PinkNoise.kr((ExpRand(0.009, momentum*0.9)*amp).min(0.45), 0.45),
-			mul: FSinOsc.ar(LinRand(9, 99*freq).round(9), 0, LinRand(0.09, 0.999-momentum), amp));
+			mul: FSinOsc.ar(LinRand(9, 99*freq).round(9), 0, LinRand(0.09, 0.999-momentum), amp)
+        ) * 0.5;
 		signal = RLPF.ar(signal,
 			freq: (freq*9*momentum).max(freq*4.5),
 			rq: LinRand(0.09, 4.5)
@@ -89,6 +90,28 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		);
 	}).add;
 
+	// audio-through
+	// XXX - former \sr__r__authro
+	SynthDef("atru__" ++ name, {
+		arg bufnum=0, in=0, out=0, trigID=80, amp=1,
+		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+		    depth=5, elevClip=0.01pi;
+		var signal, ds;
+		ds = distance/3.44;
+		signal = RLPF.ar(
+			DelayL.ar(
+				FreeVerb.ar(
+					InFeedback.ar(in, 1),
+					distance.clip(0.01, 1), ds, 0.2
+				), 0.3, ds
+			), distance.linlin(0, 2.sqrt, 10000, 1000), 0.5
+		);
+		outCodeFunc.value(
+			signal, out, trigID, azimuth, distance, elevation,
+		    gate, attack, sustain, release, ca, cr, depth, elevClip
+		);
+	}).add;
 
 	// XXX former \sr__g__scratch
 	// ~ chunks of sound
@@ -494,10 +517,18 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		var trig = momentum > 0.2;
 		var timer = Timer.kr(trig);
 		var raw = TChoose.ar((timer > 0.25) * trig, [
-			RLPF.ar(Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
-				LFNoise0.kr(1, 2, 10), r: LFNoise0.kr(1, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
-			LFPulse.kr(LFSaw.ar(0.2).exp.cubed, 0.5, 2500, 3500),
-			momentum.scurve),
+			RLPF.ar(
+                Normalizer.ar(
+                    LorenzL.ar(
+                        freq: az.linlin(0, 1, 10, SampleRate.ir),
+                        s: LFNoise0.kr(1, 2, 10),
+                        r: LFNoise0.kr(1, 20, 38),
+                        b: LFSaw.kr(0.2).exp.cubed
+                    )
+                ),
+                LFPulse.kr(LFSaw.ar(0.2).exp.cubed, 0.5, 2500, 3500),
+                momentum.scurve
+            ),
 			Saw.ar((1..15) * LFNoise0.kr(5, 10, 50) + SinOsc.ar((6..2) * 0.5))
 		]);
 		var signal = RLPF.ar(RLPF.ar(Mix.ar(raw)*momentum*amp*0.1, shift, rq), shift, rq);
@@ -715,9 +746,11 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		var trig, timer, lag=0.25;
 		trig = momentum > 0.2;
 		timer = Timer.kr(trig);
-		signal = Pulse.ar(freq,
+		signal = Pulse.ar(
+			freq,
 			width: PinkNoise.kr((ExpRand(0.009, momentum*0.9)*amp).min(0.45), 0.45),
-			mul: FSinOsc.ar(LinRand(9, 99*freq).round(9), 0, LinRand(0.09, 0.999-momentum), amp));
+			mul: FSinOsc.ar(LinRand(9, 99*freq).round(9), 0, LinRand(0.09, 0.999-momentum), amp)
+		) * 0.5;
 		signal = RLPF.ar(signal,
 			freq: (freq*9*momentum).max(freq*4.5),
 			rq: LinRand(0.09, 4.5)
@@ -772,29 +805,6 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 		);
 		signal = Mix.fill(8, { LFSaw.ar((note + 0.1.rand2).midicps) * 0.05 });
 		signal = RLPF.ar(RLPF.ar(signal, cutoff, rq), cutoff, rq, amp);
-		outCodeFunc.value(
-			signal, out, trigID, azimuth, distance, elevation,
-		    gate, attack, sustain, release, ca, cr, depth, elevClip
-		);
-	}).add;
-
-	// audio-through
-	// XXX - former \sr__r__authro
-	SynthDef("atru__" ++ name, {
-		arg bufnum=0, in=0, out=0, trigID=80, amp=1,
-		    gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
-		    ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
-		    depth=5, elevClip=0.01pi;
-		var signal, ds;
-		ds = distance/3.44;
-		signal = RLPF.ar(
-			DelayL.ar(
-				FreeVerb.ar(
-					InFeedback.ar(in, 1),
-					distance.clip(0.01, 1), ds, 0.2
-				), 0.3, ds
-			), distance.linlin(0, 2.sqrt, 10000, 1000), 0.5
-		);
 		outCodeFunc.value(
 			signal, out, trigID, azimuth, distance, elevation,
 		    gate, attack, sustain, release, ca, cr, depth, elevClip

@@ -6,6 +6,7 @@
 (
 var srEnv;
 var loadComponents, loadCommonComponents;
+var initAudioThrough;
 var doTest, loadComponents__test;
 var conf=Dictionary.new;
 var confKeys = [ // keys to save to conf file
@@ -298,6 +299,10 @@ srEnv = Environment.make {
 			params[\bufnum] = ~getDefaultBuffer.(synth).bufnum;
         };
 		synth = format("%__%", synth, (spatial ? ~spatial.()));
+        // report
+        postf("-> ~initSynth synth % at node %\n", synth, node);
+        params.keysValuesDo { |k,v| postf("\t%: %\n", k, v); };
+        // gather everything in place
         message = [
 			// each new synth goes to the root group's tail
             "/s_new", synth, node, 1, ~rootAr,
@@ -308,6 +313,7 @@ srEnv = Environment.make {
 		++ [\azim, $[] ++ ~speakers.collectAzim() ++ [$]]
         ++ [\dist, $[] ++ ~speakers.collectDist() ++ [$]]
         ++ [\elev, $[] ++ ~speakers.collectElev() ++ [$]];
+        // send
 		~scsynth.listSendMsg(message);
         node
     };
@@ -323,6 +329,9 @@ srEnv = Environment.make {
         };
         if (outbus.isNil.not) {
             params = params ++ [\outbus, outbus];
+            // report
+            postf("INFO: init LFO % at node %\n", synth, node);
+            Dictionary.newFrom(params).keysValuesDo { |k,v| postf("\t%: %\n", k, v); };
             messages = [
                 ["/s_new", synth, node, 0, ~rootKr],
                 ["/n_set", node] ++ (params ? [])
@@ -352,9 +361,8 @@ srEnv = Environment.make {
         messages = [["/g_new", node, 1, ~rootAr]] ++ messages;
 		~scsynth.listSendBundle(time, messages);
 		// report it
-		postf("~initGroup: %\n", node);
-		messages.do { |m| postf("    %\n", m) };
-		"\n".postln;
+		postf("-> ~initGroup: %\n", node);
+		messages.do { |m| postf("\t%\n", m) };
 		// return group nodce id
         node
     };
@@ -662,6 +670,34 @@ CmdPeriod.doOnce({
 });
 
 
+initAudioThrough = Task({
+    // Tries to init audio through synth, waits for half a second,
+    // then sends g_queryTree until.
+    // Repeats that for 4 times, unless the synth is loaded,
+    // in which case it stops the task and frees responder.
+    var done=false;
+    var responder = OSCFunc({ |msg|
+        done = msg.includes(("atru__" ++ ~spatial.()).asSymbol);
+    }, '/g_queryTree.reply');
+
+    4.do { |j|
+        ~nodeAudioThrough = ~initSynth.(\atru);
+        0.5.wait;
+        ~scsynth.sendMsg("/g_queryTree", ~rootAr);
+        1.5.wait;
+        if (done) {
+            postf("OK\n\n");
+            responder.free;
+            initAudioThrough.stop;
+        };
+        0.5.wait
+    };
+    if (done.not) {
+        "ERROR: cannot start audio through synth, timeout 10 sec."
+    }
+});
+
+
 // MODULES
 //
 loadCommonComponents = {
@@ -687,15 +723,11 @@ loadCommonComponents = {
         postf("OK\n\n")
     };
 
-	t = Task({
-		"Initiating audio-through synth".post;
-        10.do { |j|
-			".".post;
-			0.1.wait;
-        };
-		~nodeAudioThrough = ~initSynth.(\atru);
-		postf("OK\n\n")
-    }).start;
+    AppClock.sched(2.0, {
+        "Initiating audio-through synth...".postln;
+        initAudioThrough.start;
+        nil // do not repeat it
+    });
 };
 
 loadComponents = {

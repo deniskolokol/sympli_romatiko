@@ -3,10 +3,10 @@ var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
-// ZZZ - skeleton: remove after test
-var skelData;
-postf("Reading skeleton simulation data\n");
-skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
+// // ZZZ - skeleton: remove after test
+// var skelData;
+// postf("Reading skeleton simulation data\n");
+// skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
 
 ~sequence[\title] = "Sympli Romatiko: kraut Traer World";
 
@@ -64,13 +64,13 @@ guideBuff = Buffer.readChannel(
 		])
     ],
 
-	// ZZZ - skeleton: remove after test
-	1: [
-		(
-			info: "ZZZ - Skeleton simulation",
-			message: \task, name: \skelSimulation, act: 1
-		),
-	],
+    // // ZZZ - skeleton: remove after test
+    // 1: [
+    //     (
+    //         info: "ZZZ - Skeleton simulation",
+    //         message: \task, name: \skelSimulation, act: 1
+    //     ),
+    // ],
     2: [
         (
             info: "2 heavy <pole>",
@@ -109,7 +109,7 @@ guideBuff = Buffer.readChannel(
 			synth: (name: "lowe",
 				// XXX - play with \freq (~800 -> noisy and sharp)
 				// XXX - add it to 2 __entro later to achieve some sort of "melodicity"
-				params: [\attack, 10, \attack, 12, \release, 0.5, \amp, 0.3]),
+				params: [\attack, 10, \attack, 12, \release, 0.5, \amp, 0.1]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
         (
@@ -128,7 +128,7 @@ guideBuff = Buffer.readChannel(
             info: "heavy <lowe>",
             message: \particle,
 			synth: (name: "lowe",
-                params: [\attack, 0.1, \release, 1, \amp, 0.3]
+                params: [\attack, 0.1, \release, 1, \amp, 0.1]
             ),
             particle: (age: inf, mass: 0.9, spring: 1,
 				// should appear close to the source to minimize
@@ -299,11 +299,11 @@ guideBuff = Buffer.readChannel(
             message: \task, name: \randomParticles, act: 0
         ),
 
-		// ZZZ - skeleton: remove after test
-		(
-			info: "stop skeleton simulation",
-			message: \task, name: \skelSimulation, act: 0
-		),
+        // // ZZZ - skeleton: remove after test
+        // (
+        //     info: "stop skeleton simulation",
+        //     message: \task, name: \skelSimulation, act: 0
+        // ),
         (
             info: "stop random particles",
             message: \task, name: \storm, act: 0
@@ -327,19 +327,19 @@ guideBuff = Buffer.readChannel(
 //
 ~sequence.tasks = (
 
-	// ZZZ - skeleton: remove after test
-	skelSimulation: Task({
-		var i=0, coords;
-		inf.do {
-			// process
-			if (i == skelData.size) {i = 0};
-			coords = skelData[i][1..];
-			coords[2] = coords[2] + 0.6; // offset
-			~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
-			i = i + 1;
-			0.002.wait;
-		}
-	}),
+    // // ZZZ - skeleton: remove after test
+    // skelSimulation: Task({
+    //     var i=0, coords;
+    //     inf.do {
+    //         // process
+    //         if (i == skelData.size) {i = 0};
+    //         coords = skelData[i][1..];
+    //         coords[2] = coords[2] + 0.6; // offset
+    //         ~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
+    //         i = i + 1;
+    //         0.002.wait;
+    //     }
+    // }),
 
     randomParticles: Task({
         var key, next;

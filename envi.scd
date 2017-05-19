@@ -139,44 +139,6 @@ srEnv = Environment.make {
 	);
 
     ~synths = (
-        sr__e__wasp: (
-            key: 12, // q
-            attenuate: 0.02,
-        ),
-        sr__e__ringz: (
-            key: 33, // [
-            attenuate: 0.2,
-        ),
-        \sr__g__slic: (
-            key: 5, // g
-            attenuate: 1,
-        ),
-        \sr__g__chunk: (
-            key: nil,
-            attenuate: 1,
-        ),
-        \sr__e__tbl: (
-            key: nil,
-            attenuate: 0.1,
-        ),
-        \sr__e__sawy: (
-            key: nil,
-            attenuate: 0.05,
-        ),
-        \sr__e__electro: (
-            key: nil,
-            attenuate: 0.05,
-        ),
-        \sr__e__wind: (
-            key: nil,
-            attenuate: 0.05,
-        ),
-        \sr__e__orbit: (
-            key: 122, // z
-            attenuate: 0.1,
-        ),
-
-		// XXX new synths
         \silent: (
             key: nil,
             attenuate: 1,
@@ -701,25 +663,20 @@ initAudioThrough = Task({
 // MODULES
 //
 loadCommonComponents = {
-	// initial server groups (root nodes for .ar and .kr synths)
+    "Initiating top level server groups for synths and modulators...".postln;
     ~rootAr = ~scsynth.nextNodeID;
     ~rootKr = ~scsynth.nextNodeID;
     ~scsynth.sendMsg("/g_new", ~rootAr, 0, 1);
     ~scsynth.sendMsg("/g_new", ~rootKr, 0, 1);
 
-    // default scale buffer
+    "Creating default scale buffer...".postln;
     ~defaultBuff = Buffer.sendCollection(~scsynth, Scale.ahirbhairav.degrees, 1, 0.2);
 
-    // internal buffer
-    ~internalBuff = Buffer.alloc(~scsynth, ~scsynth.sampleRate, 1); // 1 seconds 1 channel
+    "Creating internal buffer (1 seconds 1 channel)...".postln;
+    ~internalBuff = Buffer.alloc(~scsynth, ~scsynth.sampleRate, 1);
 
     "Loading synth definitions...".postln;
     if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
-        postf("OK\n\n")
-    };
-
-    "Loading synth definitions - NEW...".postln;
-    if (this.executeFile(~currentDir +/+ "synthdef_new.scd").isNil.not) {
         postf("OK\n\n")
     };
 
@@ -737,12 +694,6 @@ loadComponents = {
 	if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
 		postf("OK\n\n")
 	};
-
-	"Loading control matrix... in progress".postln;
-	// XXX
-	// if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
-	//     postf("OK\n\n")
-	// };
 };
 
 loadComponents__test = {

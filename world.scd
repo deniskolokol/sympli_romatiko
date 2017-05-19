@@ -26,10 +26,12 @@ var attractionsPhysical, springsPhysical, springMissed,
     particlesOnSprings, particlesSkelVis, particlesHidden,
     partColor, partSize;
 var listenerPos, currSpeaker, getSynthName;
-var win, viewTop, viewTopLeft, viewTopCenter, viewTopRight,
-    viewWorld, viewLeft, viewRight, viewBottom, worldPanel,
+var win, viewTop, viewSeqList, viewTopCenter, viewSeqTime,
+    viewWorld, viewLeft, viewRight, viewBottom,
+    winSrvBottomLeft, winSrvBottomRight, viewSeqEvents,
     paneWidth, paneHeight, compView, compViewFlow, panel,
-    sText, dropdown, slider, button, buttonCheckbox, updateButtonLabel;
+    sText, dropdown, slider, knob, button, buttonCheckbox,
+    updateButtonLabel;
 var winSrv, palette, meterView, srvTreeView;
 var postView, postMaxSize=25000;
 var scale, translate, focal;
@@ -205,12 +207,9 @@ var worldParams = (
     ),
 );
 
-// The World is a cube.
-world = (
-    width: Window.screenBounds.height*0.56,
-    height: Window.screenBounds.height*0.56,
-    depth: Window.screenBounds.height*0.56
-);
+// The World is a cube with measurements relative to the screen height.
+tmp = (Window.screenBounds.height*0.623).floor;
+world = (width: tmp, height: tmp, depth: tmp);
 worldParams.keysValuesDo { |k, v| world[k] = v[\default] }; // set default params
 
 worldTrace = Dictionary.newFrom(world); // tracing changes of the world
@@ -497,12 +496,21 @@ slider = { |par, name, val, layout='horz', scale=1|
         background:transparent
     );
 };
-
+knob = { |par, label, spec, action, initVal=0, layout='vert', scaleW=1, scaleH=1|
+    EZKnob(par,
+        paneWidth.(par, scaleW)@paneHeight.(par, scaleH),
+        label, spec,
+        { |ez| action.(ez.value) }, initVal,
+        layout: layout
+    )
+    .font_(fontSmall)
+    .setColors(subtract(par.background, par.background.alpha));
+};
 
 // GUI: Server window
 winSrv = Window.new(
 	~scsynth.name ++ " levels (dBFS)",
-	Rect(0, Window.screenBounds.height-200, 591, 660),
+	Rect(0, Window.screenBounds.height-200, 590, 660),
 	resizable: false, border: false
 );
 winSrv.view.decorator = FlowLayout(winSrv.view.bounds, 1@1, 1@1);
@@ -561,63 +569,24 @@ miscParams[\intBuf] = (
 
 // world params panel
 // Warning: filled out later!
-worldPanel = compViewFlow.(winSrv, 2@2, scaleH:0.72, scaleW:0.52);
+winSrvBottomLeft = compViewFlow.(winSrv, 2@2, scaleH:0.72, scaleW:0.52);
 
-// server tree panel
-panel = compViewFlow.(winSrv, scaleH:0.7, scaleW:0.48);
-panel.addFlowLayout(0@0, 4@4);
-srvTreeView = TextView(panel, panel.bounds.width@panel.bounds.height)
-    .editable_(false)
-    .font_(Font("Monaco", 10).boldVariant)
-    .stringColor_(Color.gray(0.7))
-    .background_(Color.grey(alpha:0.01))
-    .hasVerticalScroller_(true)
-    .canFocus_(false);
-winSrv.front;
-
-
-// GUI: World window
-win = Window("world",
-    Rect(winSrv.bounds.width, 22,
-        Window.screenBounds.width-winSrv.bounds.width,
-        Window.screenBounds.height-22
-    ),
-    resizable:false, border:false
-);
-win.view.decorator = FlowLayout(win.view.bounds, 1@1, 1@1);
-win.background = Color.black;
-
-// GUI: Top-level layout
-viewLeft = compViewFlow.(win,
-    // viewLeft is a container for world and internal post window
-    scaleW: (world.width/win.bounds.width)
-);
-viewTop = compViewFlow.(viewLeft, scaleH:0.07);
-viewWorld = UserView(viewLeft, world.width@world.height);
-viewBottom = compViewFlow.(viewLeft,
-    scaleH:(win.bounds.height-(viewWorld.bounds.height+viewTop.bounds.height))/win.bounds.height
-);
-viewRight = compViewFlow.(win,
-    scaleW:(win.bounds.width-viewLeft.bounds.width)/win.bounds.width,
-);
-
-// GUI: sequenced
-viewTopLeft = compViewFlow.(viewTop, scaleW:0.2);
-viewTopCenter = compViewFlow.(viewTop, gap:8@4, scaleW:0.68);
-viewTopRight = compViewFlow.(viewTop, margin:5@5, gap:5@5, scaleW:0.12);
-
+// GUI: sequence control
+winSrvBottomRight = compViewFlow.(winSrv, scaleH:0.75, scaleW:0.48);
+viewSeqList = compViewFlow.(winSrvBottomRight, scaleH:0.15, scaleW:0.6);
+viewSeqTime = compViewFlow.(winSrvBottomRight, margin:5@5, gap:5@5, scaleH:0.15, scaleW:0.4);
+viewSeqEvents = compViewFlow.(winSrvBottomRight, gap:8@4, scaleH:0.25);
+// time elapsed since the start
+timeLabel = sText.(viewSeqTime, ~convertTime.(0), stringFont:fontLarge1, scaleW:1, scaleH:0.7);
+timeLabel.align = \center;
 // current event number and info
-stCurrInfo = sText.(viewTopCenter, "...", stringFont:fontLarge, scaleW:0.44, scaleH:1);
-stCurrInfo.align = \right;
-btCurrNum = button.(viewTopCenter, ">>",
-    bgColor:Color.gray(0.15), scaleW:0.05
-).action_({ |bt| switchEvent.(-1)});
+btCurrNum = button.(viewSeqEvents, ">>", bgColor:Color.gray(0.15), scaleH: 0.5, scaleW: 0.15)
+    .action_({ |bt| switchEvent.(-1) });
+stCurrInfo = sText.(viewSeqEvents, "...", stringFont:fontLarge, scaleH:0.5, scaleW:0.85);
 // next (awaiting) event number and info
-btNextNum = button.(viewTopCenter, "<<",
-    bgColor:Color.gray(0.15), scaleW:0.05
-).action_({ |bt|
-    switchEvent.(1)
-});
+btNextNum = button.(viewSeqEvents, "<<", bgColor:Color.gray(0.15), scaleH: 0.5, scaleW: 0.15)
+    .action_({ |bt| switchEvent.(1) });
+stNextInfo = sText.(viewSeqEvents, "", stringFont:fontLarge, scaleH:0.5, scaleW:0.85);
 miscParams[\prev] = (
     midinote: 46,
     gui: btCurrNum
@@ -626,13 +595,10 @@ miscParams[\next] = (
     midinote: 43,
     gui: btNextNum
 );
-stNextInfo = sText.(viewTopCenter, "", stringFont:fontLarge, scaleW:0.44, scaleH:1);
-
-// time elapsed since the start
-timeLabel = sText.(viewTopRight, ~convertTime.(0), stringFont:fontGiant, scaleW:1, scaleH:1);
-
 // open file with sequence
-ddSequence = dropdown.(viewTopLeft, "seq",
+sText.(viewSeqList, "Sequence", stringFont:fontSmall, scaleW:1, scaleH:0.3);
+ddSequence = dropdown.(
+    viewSeqList,
     items: fileNames.(~seqPaths),
     initVal: if (~seqPaths.size > 2) { 2 } { 0 },
     action: { |element|
@@ -667,8 +633,7 @@ ddSequence = dropdown.(viewTopLeft, "seq",
     },
     initAction: true
 );
-
-button.(viewTopLeft,
+button.(viewSeqList,
     "stop", bgColor:Color.grey(0.2), scaleW:0.41, scaleH:0.45
 ).action_({ |bt|
 	"INFO: removing custom groups / synths".postln;
@@ -676,14 +641,51 @@ button.(viewTopLeft,
     ~stopSequence.();
     animateSeq = false; // stop clock
 });
-button.(viewTopLeft,
-    "reload", bgColor:Color.grey(0.2), scaleW:0.6, scaleH:0.45
+button.(viewSeqList,
+    "reload", bgColor:Color.grey(0.2), scaleW:0.63, scaleH:0.45
 ).action_({ |bt|
     ddSequence.valueAction_(ddSequence.value);
 });
 
-// slider controllers for physics params
-panel = compViewFlow.(worldPanel, scaleH:0.78);
+// server tree view
+srvTreeView = TextView(winSrvBottomRight,
+    winSrvBottomRight.bounds.width@(winSrvBottomRight.bounds.height*0.6)
+    )
+    .editable_(false)
+    .font_(Font("Monaco", 10).boldVariant)
+    .stringColor_(Color.gray(0.7))
+    .background_(transparent)
+    .hasVerticalScroller_(true)
+    .canFocus_(false);
+winSrv.front;
+
+
+// GUI: World window
+win = Window("world",
+    Rect(winSrv.bounds.width, 22,
+        Window.screenBounds.width-winSrv.bounds.width,
+        Window.screenBounds.height-22
+    ),
+    resizable:false, border:false
+);
+win.view.decorator = FlowLayout(win.view.bounds, 1@1, 1@1);
+win.background = Color.black;
+
+// GUI: Top-level layout
+//
+// viewLeft is a container for world and internal post window
+viewLeft = compViewFlow.(win, scaleW: (world.width+8)/win.bounds.width);
+viewTop = compViewFlow.(viewLeft, scaleH:0.001); // placeholder
+viewWorld = UserView(viewLeft, world.width@world.height);
+viewBottom = compViewFlow.(viewLeft,
+    scaleH:(win.bounds.height-(viewWorld.bounds.height+viewTop.bounds.height))/win.bounds.height
+);
+viewRight = compViewFlow.(win,
+    scaleW:(win.bounds.width-viewLeft.bounds.width)/win.bounds.width,
+);
+
+// GUI: slider controllers for physics params
+panel = compViewFlow.(winSrvBottomLeft, scaleH:0.78);
 [
     \drag, \repulsion, \starMass,
     \gravX, \gravY, \gravZ,
@@ -696,7 +698,7 @@ panel = compViewFlow.(worldPanel, scaleH:0.78);
 };
 
 // slider controllers for misc params
-panel = compViewFlow.(worldPanel, scaleH:0.15);
+panel = compViewFlow.(winSrvBottomLeft, scaleH:0.15);
 miscParams[\serverVolume] = (
     midicc: 12,
 	spec: \db,
@@ -729,7 +731,7 @@ miscParams[\depth] = (
     })
 );
 
-panel = compViewFlow.(worldPanel, margin:5@5, gap:5@5, scaleH:0.12);
+panel = compViewFlow.(winSrvBottomLeft, margin:5@5, gap:5@5, scaleH:0.12);
 // button based misc params
 miscParams[\removeall] = (
     midinote: 70,
@@ -762,8 +764,18 @@ sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
     .action_({ |bt| sendPhysics.([key, bt.value]) })
 };
 
+// GUI: local post window
+panel = compViewFlow.(viewBottom);
+postView = TextView(panel, panel.bounds.width@panel.bounds.height)
+   .editable_(false)
+   .font_(fontMedium)
+   .stringColor_(fontColor)
+   .background_(transparent)
+   .hasVerticalScroller_(false)
+   .canFocus_(false);
+
 // start synth panel
-panel = compViewFlow.(viewRight, gap:2@2, margin:10@20, scaleH:0.3);
+panel = compViewFlow.(viewRight, gap:2@2, margin:10@20, scaleH:0.5);
 ~synths.keys.asArray.sort.do { |key|
     var vw;
     button.(panel,
@@ -781,15 +793,99 @@ panel = compViewFlow.(viewRight, gap:2@2, margin:10@20, scaleH:0.3);
     });
 };
 
-// GUI: post window
-panel = compViewFlow.(viewBottom);
-postView = TextView(panel, panel.bounds.width@panel.bounds.height)
-   .editable_(false)
-   .font_(fontMedium)
-   .stringColor_(fontColor)
-   .background_(transparent)
-   .hasVerticalScroller_(false)
-   .canFocus_(false);
+// GUI: synths and connections
+//
+// current .ar synth controls
+// XXX tmp placeholders
+// 2.do {
+//     panel = compViewFlow.(viewRight, scaleH:0.08);
+//     sText.(panel, ~synths.keys.asArray.choose, stringFont:fontMedium, scaleW:0.25, scaleH: 0.5);
+//     ["Res", "CutOff", "RQ"].do { |key, i|
+//         // GUI elements for MIDI-controllable params
+//         knob.(panel, key,
+//             spec: [\bipolar, \unipolar].choose.asSpec,
+//             action: { |kn| kn.value.postln },
+//             layout: \line2, scaleW: 0.25, scaleH: 0.5
+//         )
+//     };
+//     dropdown.(panel, "In",
+//         items: (10..~scsynth.options.numAudioBusChannels-1),
+//         action: { |dd| dd.value.postln },
+//         scale: 0.1
+//     );
+//     dropdown.(panel, "O",
+//         items: (0..~scsynth.options.numAudioBusChannels-1),
+//         initVal: 0,
+//         action: { |dd| dd.value.postln },
+//         scale: 0.1
+//     );
+//     slider.(panel, "Offset", (
+//         label: "Offset",
+//         minval: 0,
+//         maxval: 126,
+//         default: 24,
+//         ),
+//         scale: 0.1
+//     );
+// };
+
+// GUI: synth params
+// XXX TODO
+panel = compViewFlow.(viewRight, scaleW: 0.6, scaleH: 0.5);
+2.do { |i|
+    var stripeWidth = (panel.bounds.width/2).round;
+    var pan, stSynth;
+    pan = compViewFlow.(panel, scaleW: 0.5);
+    stSynth = sText.(pan,
+        ~synths.keys.asArray.choose, // XXX
+        stringFont:fontMedium, scaleW:1, scaleH: 0.1
+    );
+    // knobs
+    6.do({ |j|
+        EZKnob(pan,
+            Rect(
+                (j/3).trunc*30+10,
+                stSynth.bounds.height+(j%3*90)+30,
+                stripeWidth*0.45,
+                stripeWidth*0.6
+            ),
+            " test ", \freq,
+            { |ez| ez.value.postln },
+            layout: \vert2
+        )
+        .font_(fontSmall)
+        .setColors(
+            stringBackground:transparent,
+            stringColor:fontColor,
+            numBackground:Color.grey(alpha:0.5),
+            numNormalColor:fontColor,
+            background:transparent,
+        );
+    });
+    // sliders
+    2.do { |j|
+        sText.(pan, "", scaleW:0.15, scaleH: 0.4);
+        EZSlider(pan,
+            Rect(
+                j%2*60+10,
+                (pan.bounds.height*0.55).trunc,
+                stripeWidth*0.3,
+                pan.bounds.height*0.4
+            ),
+            " Vol  ", \db.asSpec.step_(0.01),
+            { |ez| ez.value.postln },
+            unitWidth:30, numberWidth:60, layout:\vert
+        )
+        .font_(fontSmall)
+        .setColors(
+            stringColor:fontColor,
+            sliderBackground:Color.black,
+            numBackground:Color.grey(alpha:0.5),
+            numNormalColor:fontColor,
+            background:transparent
+        )
+    };
+};
 
 viewWorld.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
     var speakerPos, speakerSize, speakers2Remove, processed=false;

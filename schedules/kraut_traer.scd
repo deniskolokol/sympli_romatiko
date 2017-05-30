@@ -265,9 +265,9 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
                     \momentum, 0.5, \attack, 40, \bufnum, ~sequence.scales[0].bufnum,
                     \amp, 0.5 // attenuate not to overshout main synth
                 ],
-                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \outbus, 0],
+                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \out, 0],
                 ["/n_map", \group_id, \momentum, 0],
-                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.2, \add, 0.2, \outbus, 1],
+                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.2, \add, 0.2, \out, 1],
                 ["/n_map", \group_id, \az, 1]
             ]
         )
@@ -283,9 +283,9 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
                     \momentum, 0.5, \attack, 40, \bufnum, ~sequence.scales[0].bufnum,
                     \amp, 0.5 // attenuate not to overshout main synth
                 ],
-                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \outbus, 2],
+                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \out, 2],
                 ["/n_map", \group_id, \momentum, 2],
-                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.2, \add, 0.2, \outbus, 3],
+                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.2, \add, 0.2, \out, 3],
                 ["/n_map", \group_id, \az, 3]
             ]
         )

@@ -770,17 +770,18 @@ viewConn = UserView(viewRight, viewRight.bounds.width@viewWorld.bounds.height);
 // connections = {};
 viewConn.drawFunc = { |view|
     // TEST - 5 .ar synths, 3 .kr
-    var boxWidth, rect;
     // XXX TODO: `synths` should be the same format as `particles`!
     // XXX TODO: add key \connections to both `synths` and `particles`
     var synthsPart = (
         (hash: -2657291): (
             'node': 1023,
-            'synth': "humm"
+            'synth': "humm",
+            'params': (\freq: 450, \detune: \c2)
             ),
         (hash: 980355): (
             'node': 1012,
-            'synth': "wind"
+            'synth': "wind",
+            'params': (\cutoff: \c1, \rq: \c0)
             ),
         (hash: 717767): (
             'node': 1015,
@@ -794,57 +795,97 @@ viewConn.drawFunc = { |view|
     var synthsCust = (
         \intro_bic: (
             'node': 1015,
-            'synth': "buzz"
+            'synth': "buzz",
+            'params': (\cutoff: \c0, \rq: \c1, \delay: \c0, \room: \c2)
         )
     );
     var synthsLFO = (
         // XXX do we have to display kr bus number here?
         "6298284": (
             'node': 1023,
-            'synth': "ksine"
+            'synth': "ksine",
+            'params': (\out: 0)
             ),
         "8280242": (
             'node': 1012,
-            'synth': "keyscale"
+            'synth': "keyscale",
+            'params': (\out: 1, \in: \r_hand)
             ),
         "9600413": (
             'node': 1015,
-            'synth': "klfno0"
+            'synth': "klfno0",
+            'params': (\out: 2)
         ),
     );
     var reshape = { |src|
-        all {: (id: k, node: src[k][\node], synth: src[k][\synth]), k <- src.keys };
+        all {: (
+            id: k,
+            node: src[k][\node],
+            synth: src[k][\synth],
+            params: src[k][\params]
+        ),
+        k <- src.keys };
     };
-    var synthsAr = (reshape.(synthsPart) ++ reshape.(synthsCust)).sortBy('node');
-
-    // .ar
-    boxWidth = (view.bounds.width / (synthsPart.size + synthsCust.size)) - 5;
-    synthsAr.do { |syn, i|
-        rect = Rect(
-            i*(boxWidth+5),
-            view.bounds.height-50,
-            boxWidth,
-            45
-        );
+    var drawSynth = { |syn, oX, oY, boxWidth, parm, ctl|
+        // `parm`: params label (for example, "node [outbus]"), displayed under the synth name
+        // `ctl`: [mute, solo], each value is Boolean
+        var rect;
+        if (ctl.isNil) {ctl=[true, true]};
+        oX = oX * (boxWidth + 5); // adjust to the boxWidth
+        // main synth container
+        rect = Rect(oX, oY, boxWidth, 45);
         Pen.strokeColor = Color.white;
         if (syn['id'].class != Event) { // XXX - change to TraerParticle after testing!
-            // custom synth
+            // the background of custom synth differs from particle synth
             Pen.fillColor = Color.grey(0.15);
             Pen.fillRect(rect);
         };
         Pen.strokeRect(rect);
+        // synth name and node
+        Pen.color = fontColor;
+        Pen.stringAtPoint(syn[\synth].asString, [oX+5, oY+5].asPoint);
+        Pen.stringAtPoint(parm.asString, [oX+5, oY+25].asPoint);
+        // ctrl panel: "remove"
+        Pen.strokeRect(Rect(oX+(boxWidth-16), oY, 15, 15));
+        Pen.stringAtPoint("x", [oX+(boxWidth-12), oY].asPoint);
+        // ctrl panel: "mute"
+        if (ctl[0]) {
+            Pen.strokeRect(Rect(oX+(boxWidth-16), oY+15, 15, 15));
+            Pen.stringAtPoint("M", [oX+(boxWidth-12), oY+15].asPoint);
+        };
+        // ctrl panel: "solo"
+        if (ctl[1]) {
+            Pen.strokeRect(Rect(oX+(boxWidth-16), oY+30, 15, 15));
+            Pen.stringAtPoint("S", [oX+(boxWidth-12), oY+30].asPoint);
+        };
+    };
+    // all synths of a particular class sorted by node
+    var synthsAr = (reshape.(synthsPart) ++ reshape.(synthsCust)).sortBy('node');
+    var synthsKr = reshape.(synthsLFO).sortBy('node');
+
+    // set 'nerd-ish' font to the whole view
+    Pen.font_(Font("Andale Mono")).smoothing_(true);
+
+    // .ar
+    synthsAr.do { |syn, i|
+        drawSynth.(
+            syn, oX: i, oY: view.bounds.height-50,
+            boxWidth: (view.bounds.width/synthsAr.size)-5,
+            parm: syn[\node]
+        );
     };
 
     // .kr
-    boxWidth = (view.bounds.width / synthsLFO.size) - 5;
-    synthsLFO.do { |syn, i|
-        Pen.strokeColor = Color.white;
-		Pen.strokeRect(Rect(
-            i*(boxWidth+5),
-            5,
-            boxWidth,
-            45
-        ));
+    synthsKr.do { |syn, i|
+        drawSynth.(
+            syn, oX: i, oY: 5,
+            boxWidth: (view.bounds.width/synthsKr.size)-5,
+            parm: format("% [%]",
+                syn[\node],
+                syn[\params].atFail(\out, {~outbus})
+            ),
+            ctl: [false, false]
+        );
     }
 };
 

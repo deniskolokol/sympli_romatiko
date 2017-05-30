@@ -76,13 +76,13 @@ guideBuff = Buffer.readChannel(~scsynth,
                     \depth, ~depth,
                     \out, ~outbus
                 ],
-                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.2, \mul, 1pi, \outbus, 0],
+                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.2, \mul, 1pi, \out, 0],
                 ["/n_map", \group_id, \azimuth, 0],
-                ["/s_new", \kstepno, \next_node_id, 0, \group_id, \lfo, 0.08, \mul, 0.3, \add, 0.7, \outbus, 1],
+                ["/s_new", \kstepno, \next_node_id, 0, \group_id, \lfo, 0.08, \mul, 0.3, \add, 0.7, \out, 1],
                 ["/n_map", \group_id, \distance, 1],
-                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \outbus, 2],
+                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.1, \mul, 0.25, \add, 0.5, \out, 2],
                 ["/n_map", \group_id, \momentum, 2],
-                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.01, \mul, 0.1, \add, 0.1, \outbus, 3],
+                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \lfo, 0.01, \mul, 0.1, \add, 0.1, \out, 3],
                 ["/n_map", \group_id, \az, 3]
             ]
         )
@@ -124,11 +124,11 @@ guideBuff = Buffer.readChannel(~scsynth,
                     \depth, ~depth,
                     \out, ~outbus
                 ],
-                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \freq, 0.2, \mul, 1pi, \outbus, 4],
+                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \freq, 0.2, \mul, 1pi, \out, 4],
                 ["/n_map", \group_id, \azimuth, 4],
-                ["/s_new", \kstepno, \next_node_id, 0, \group_id, \freq, 0.08, \mul, 2.3, \add, 2.7, \outbus, 5],
+                ["/s_new", \kstepno, \next_node_id, 0, \group_id, \freq, 0.08, \mul, 2.3, \add, 2.7, \out, 5],
                 ["/n_map", \group_id, \distance, 5],
-                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \freq, 1, \mul, 0.2, \add, 0.6, \outbus, 6],
+                ["/s_new", \klfno1, \next_node_id, 0, \group_id, \freq, 1, \mul, 0.2, \add, 0.6, \out, 6],
                 ["/n_map", \group_id, \momentum, 6]
             ]
         )

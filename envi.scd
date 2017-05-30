@@ -311,10 +311,10 @@ srEnv = Environment.make {
         var messages, node = ~scsynth.nextNodeID;
         params = params ? [];
         if (inbus.isNil.not) {
-            params = params ++ [\inbus, inbus]
+            params = params ++ [\in, inbus]
         };
         if (outbus.isNil.not) {
-            params = params ++ [\outbus, outbus];
+            params = params ++ [\out, outbus];
             // report
             postf("INFO: init LFO % at node %\n", synth, node);
             Dictionary.newFrom(params).keysValuesDo { |k,v| postf("\t%: %\n", k, v); };

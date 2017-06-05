@@ -579,7 +579,7 @@ guideBuff = Buffer.readChannel(~scsynth,
         inf.do { |j|
             buff = ~sequence.voices[j % ~sequence.voices.size];
             age = buff.numFrames / buff.numChannels / buff.sampleRate;
-            #x, y, z = { rrand(~worldSize, ~worldSize * ([0.1, 0.9].choose)) } ! 3;
+            #x, y, z = { rrand(~worldSize, ~worldSize * ([0.2, 0.8].choose)) } ! 3;
 
             case
             // when voices are introduced, they should be clearly recognizable

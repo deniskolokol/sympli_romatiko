@@ -260,6 +260,13 @@ srEnv = Environment.make {
         \ksawmod: ( ),
         \keyscale: ( ),
     );
+    // fill default params if no parameters for a synth provided
+    ~synths.keys.do { |name|
+        if (~synths[name][\params].isNil) {~synths[name][\params] = ~defaultParams[\ar]};
+    };
+    ~lfos.keys.do { |name|
+        if (~lfos[name][\params].isNil) {~lfos[name][\params] = ~defaultParams[\kr]}
+    };
 
     ~clipInc = {
         // Increments `in` until `in + step` reaches `hi`, then resets to `lo`.

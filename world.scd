@@ -45,6 +45,7 @@ var groupNew, groupRemove, sendPhysics, sendSNew, sendNSet, taskPlay;
 var animateSeq, shade, current, next, count=0, blinked=0, tick=0;
 var ddSequence, btCurrNum, stCurrInfo, btNextNum, stNextInfo, timeLabel, updateGui;
 var transparent=Color.grey(alpha:0.01),
+    techColor=Color.green(0.5),
     font=Font("Monaco", 14),
     fontSmall=Font("Monaco", 10),
     fontMedium=Font("Monaco", 12),
@@ -206,6 +207,76 @@ var worldParams = (
         hint: "granular synths use internal buffer instead of samples",
     ),
 );
+
+    // TEST - 5 .ar synths, 3 .kr
+    // XXX TODO: `synths` should be the same format as `particles`!
+    // XXX TODO: add key \connections to both `synths` and `particles`
+var synthsPart = (
+    (hash: -2657291): (
+        'node': 1023,
+        'synth': "humm",
+        'params': (\freq: 450, \detune: \c2)
+    ),
+    (hash: 980355): (
+        'node': 1012,
+        'synth': "wind",
+        'params': (\cutoff: \c1, \rq: \c0)
+    ),
+    (hash: 717767): (
+        'node': 1015,
+        'synth': "pole"
+    ),
+    (hash: 370145): (
+        'node': 1010,
+        'synth': "pole"
+    ),
+);
+var synthsCust = (
+    \intro_bic: (
+        'node': 1011,
+        'synth': "buzz",
+        'params': (\cutoff: \c0, \rq: \c1, \delay: \c0, \room: \c2)
+    )
+);
+var synthsLFO = (
+    // XXX do we have to display kr bus number here?
+    "6298284": (
+        'node': 1023,
+        'synth': "ksine",
+        'params': (\out: 0)
+    ),
+    "8280242": (
+        'node': 1012,
+        'synth': "keyscale",
+        'params': (\out: 1, \in: \r_hand)
+    ),
+    "9600413": (
+        'node': 1015,
+        'synth': "klfno0",
+        'params': (\out: 2)
+    ),
+);
+var reshape = { |src|
+    var rec, res=List.new;
+    src.keys.do { |k|
+        rec = (
+            id: k,
+            node: src[k][\node],
+            synth: src[k][\synth],
+            params: src[k].atFail(\params, {Dictionary.new}),
+        );
+        rec[\out] = rec[\params].atFail(\out, {~outbus});
+        res.add(rec)
+    };
+    res
+};
+// WARNING! all synths of a particular class should be help in the same dict for display!
+// .ar - sorted by node
+var synthsAr = (reshape.(synthsPart) ++ reshape.(synthsCust)).sortBy('node');
+// .kr - sorted by outbus
+var synthsKr = reshape.(synthsLFO).sortBy('out');
+// TEST
+
 
 // The World is a cube with measurements relative to the screen height.
 tmp = (Window.screenBounds.height*0.623).floor;
@@ -767,73 +838,17 @@ postView = TextView(panel, panel.bounds.width@panel.bounds.height)
 
 // GUI: running synths and connections
 viewConn = UserView(viewRight, viewRight.bounds.width@viewWorld.bounds.height);
-// connections = {};
 viewConn.drawFunc = { |view|
-    // TEST - 5 .ar synths, 3 .kr
-    // XXX TODO: `synths` should be the same format as `particles`!
-    // XXX TODO: add key \connections to both `synths` and `particles`
-    var synthsPart = (
-        (hash: -2657291): (
-            'node': 1023,
-            'synth': "humm",
-            'params': (\freq: 450, \detune: \c2)
-            ),
-        (hash: 980355): (
-            'node': 1012,
-            'synth': "wind",
-            'params': (\cutoff: \c1, \rq: \c0)
-            ),
-        (hash: 717767): (
-            'node': 1015,
-            'synth': "pole"
-        ),
-        (hash: 370145): (
-            'node': 1010,
-            'synth': "pole"
-        ),
-    );
-    var synthsCust = (
-        \intro_bic: (
-            'node': 1015,
-            'synth': "buzz",
-            'params': (\cutoff: \c0, \rq: \c1, \delay: \c0, \room: \c2)
-        )
-    );
-    var synthsLFO = (
-        // XXX do we have to display kr bus number here?
-        "6298284": (
-            'node': 1023,
-            'synth': "ksine",
-            'params': (\out: 0)
-            ),
-        "8280242": (
-            'node': 1012,
-            'synth': "keyscale",
-            'params': (\out: 1, \in: \r_hand)
-            ),
-        "9600413": (
-            'node': 1015,
-            'synth': "klfno0",
-            'params': (\out: 2)
-        ),
-    );
-    var reshape = { |src|
-        all {: (
-            id: k,
-            node: src[k][\node],
-            synth: src[k][\synth],
-            params: src[k][\params]
-        ),
-        k <- src.keys };
-    };
+    var ind;
     var drawSynth = { |syn, oX, oY, boxWidth, parm, ctl|
         // `parm`: params label (for example, "node [outbus]"), displayed under the synth name
         // `ctl`: [mute, solo], each value is Boolean
-        var rect;
+        var rect, coords;
         if (ctl.isNil) {ctl=[true, true]};
         oX = oX * (boxWidth + 5); // adjust to the boxWidth
         // main synth container
-        rect = Rect(oX, oY, boxWidth, 45);
+        coords = [oX, oY, boxWidth, 45]; // save box coords for identifying mouse click
+        rect = Rect.fromArray(coords);
         Pen.strokeColor = Color.white;
         if (syn['id'].class != Event) { // XXX - change to TraerParticle after testing!
             // the background of custom synth differs from particle synth
@@ -858,35 +873,116 @@ viewConn.drawFunc = { |view|
             Pen.strokeRect(Rect(oX+(boxWidth-16), oY+30, 15, 15));
             Pen.stringAtPoint("S", [oX+(boxWidth-12), oY+30].asPoint);
         };
+        coords
     };
-    // all synths of a particular class sorted by node
-    var synthsAr = (reshape.(synthsPart) ++ reshape.(synthsCust)).sortBy('node');
-    var synthsKr = reshape.(synthsLFO).sortBy('node');
+    var drawConnection = { |synFro, synTo, parmName, wdt, num|
+        //
+        var parmCoords;
+        // stroke param connector in .ar synth
+        Pen.strokeColor = techColor;
+        Pen.strokeRect(Rect(
+            synFro[\coords][0]+((wdt*2)*num),
+            synFro[\coords][1]-5,
+            wdt, 5));
+        // stroke param name box
+        try {
+            parmCoords = synFro[\connCoords][parmName]
+        } { |err|
+            postMsg.(format("%: No coords for %", err, parmName));
+        };
+        parmName = parmName.asString;
+        if (parmCoords.isNil) {
+            parmCoords = [
+                rrand(
+                    (synFro[\coords][0]-100).max(50),
+                    (synFro[\coords][0]+100).max(view.bounds.width-50)
+                ),
+                rrand(view.bounds.height*0.35, view.bounds.height*0.65),
+                parmName.size*10, 20
+            ]
+        };
+        Pen.width = 2;
+        Pen.fillColor = Color.black;
+        Pen.strokeColor = techColor;
+        Pen.fillRect(Rect.fromArray(parmCoords));
+        Pen.strokeRect(Rect.fromArray(parmCoords));
+        Pen.fillColor = Color.green;
+        Pen.stringAtPoint(parmName, [parmCoords[0]+5, parmCoords[1]+5].asPoint);
+        Pen.strokeColor = Color.grey(0.5);
+        // start from .ar synth param
+        Pen.moveTo(Point(
+            synFro[\coords][0]+((wdt*2)*num)+(wdt/2),
+            synFro[\coords][1]-5
+        ));
+        // connect with param name box
+        Pen.lineTo(Point(
+            parmCoords[0]+(parmCoords[2]*0.5),
+            parmCoords[1]+parmCoords[3]
+        ));
+        // start from param name box
+        Pen.moveTo(Point(
+            parmCoords[0]+(parmCoords[2]*0.5),
+            parmCoords[1]+parmCoords[3]-20
+        ));
+        // connect with .kr synth
+        Pen.lineTo(Point(
+            synTo[\coords][0]+(synTo[\coords][2]*0.5),
+            synTo[\coords][1]+synTo[\coords][3]+5
+        ));
+        Pen.stroke;
+        Pen.width = 1;
+        parmCoords // return connection coordinates for future use
+    };
+    // synths width depending on the synth type
+    var wdtKr = (view.bounds.width / synthsKr.size) - 5;
+    var wdtAr = (view.bounds.width/synthsAr.size)-5 / ~defaultParams[\ar].size / 2;
 
     // set 'nerd-ish' font to the whole view
     Pen.font_(Font("Andale Mono")).smoothing_(true);
 
-    // .ar
-    synthsAr.do { |syn, i|
-        drawSynth.(
-            syn, oX: i, oY: view.bounds.height-50,
-            boxWidth: (view.bounds.width/synthsAr.size)-5,
-            parm: syn[\node]
-        );
-    };
-
     // .kr
     synthsKr.do { |syn, i|
-        drawSynth.(
+        syn[\coords] = drawSynth.(
             syn, oX: i, oY: 5,
-            boxWidth: (view.bounds.width/synthsKr.size)-5,
+            boxWidth: wdtKr,
             parm: format("% [%]",
                 syn[\node],
                 syn[\params].atFail(\out, {~outbus})
             ),
             ctl: [false, false]
         );
-    }
+        // input for ctrl bus
+        Pen.fillColor = Color.white;
+        Pen.fillRect(Rect(syn[\coords][0]+(wdtKr*0.5)-2.5, 50, 5, 5));
+    };
+
+    // .ar
+    synthsAr.do { |syn, i|
+        syn[\coords] = drawSynth.(
+            syn, oX: i, oY: view.bounds.height-50,
+            boxWidth: (view.bounds.width/synthsAr.size)-5,
+            parm: syn[\node],
+        );
+        // params ctrl buses
+        ~synths[syn[\synth].asSymbol][\params].do { |name, num|
+            Pen.fillColor = Color.white;
+            Pen.fillRect(Rect(
+                syn[\coords][0]+((wdtAr*2)*num),
+                syn[\coords][1]-5,
+                wdtAr, 5));
+            try {
+                if (syn[\params][name].asString.toLower.beginsWith("c")) {
+                    ind = syn[\params][name].asString.replace("c", "").asInteger;
+                    if (syn.keys.asArray.includes(\connCoords).not) {
+                        syn[\connCoords] = ( );
+                    };
+                    syn[\connCoords][name] = drawConnection.(
+                        syn, synthsKr[ind], name, wdtAr, num
+                    );
+                }
+            };
+        };
+    };
 };
 
 // GUI: .ar synths selection
@@ -1250,7 +1346,7 @@ viewWorld.drawFunc = { |view|
         Pen.stroke;
     };
     // Visualize joins connections.
-    Pen.color = Color.green(0.5);
+    Pen.color = techColor;
     skeleton.values.do { |sk|
         jointVisible.size.do { |j|
             try {
@@ -1387,22 +1483,22 @@ viewWorld.drawFunc = { |view|
     };
 
     // draw stat (on top of everything else, all values updated in a current cycle)
-    Pen.color = Color.green(0.5);
+    Pen.color = techColor;
     Pen.stringAtPoint("particles", [world.width*0.5-260, world.height-20].asPoint);
     Pen.color = Color.green;
     Pen.stringAtPoint(physics.particles.size.asString, [world.width*0.5-185, world.height-20].asPoint);
 
-    Pen.color = Color.green(0.5);
+    Pen.color = techColor;
     Pen.stringAtPoint("skeletons", [world.width*0.5-155, world.height-20].asPoint);
     Pen.color = Color.green;
     Pen.stringAtPoint(format("% %", skeleton.size, skeleton.keys.asArray), [world.width*0.5-75, world.height-20].asPoint);
 
-    Pen.color = Color.green(0.5);
+    Pen.color = techColor;
     Pen.stringAtPoint("springs", [world.width*0.5+30, world.height-20].asPoint);
     Pen.color = Color.green;
     Pen.stringAtPoint(physics.springs.size.asString, [world.width*0.5+90, world.height-20].asPoint);
 
-    Pen.color = Color.green(0.5);
+    Pen.color = techColor;
     Pen.stringAtPoint("attractions", [world.width*0.5+120, world.height-20].asPoint);
     Pen.color = Color.green;
     Pen.stringAtPoint(physics.attractions.size.asString, [world.width*0.5+210, world.height-20].asPoint);

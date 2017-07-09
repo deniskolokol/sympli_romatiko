@@ -588,14 +588,13 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
             depth=5, elevClip=0.01pi;
-        var trig, timer, cutoff, raw, signal;
-        trig = momentum > 0.3;
-        timer = Timer.kr(trig);
-        cutoff = TChoose.ar((timer > 0.25) * trig, [
+        var trig = momentum > 0.3;
+        var timer = Timer.kr(trig);
+        var cutoff = TChoose.ar((timer > 0.25) * trig, [
             LFDClipNoise.ar(az, 450, 650),
             LFNoise2.ar(TRand.kr(trig: Delay2.kr(Dust.kr(0.2))), 450, 550)
         ]);
-        raw = (
+        var raw = (
             LFSaw.ar(freq, mul:momentum)
             + Impulse.ar(SinOsc.ar(cutoff).exprange(48, 10000), mul:momentum)
             + Formlet.ar(
@@ -606,46 +605,12 @@ var makeSynthDefADSR = { |name, outCodeFunc|
                 mul: momentum.scurve
             )
         ) * amp;
-        signal = Mix.ar(raw) * 0.06;
+        var signal = Mix.ar(raw) * 0.06;
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
             gate, attack, sustain, release, ca, cr, depth, elevClip
         );
     }).add;
-
-    // // XXX - former \sr__e__radio
-    // SynthDef("komar__" ++ name, {
-    //     arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
-    //     gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
-    //     ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
-    //     gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
-    //     depth=5, elevClip=0.01pi;
-    //     var baseFreq; // XXX - remove baseFreq, let modulator control \freq
-    //     var trig, timer, cutoff, raw, signal;
-    //     baseFreq = (az * (36..72)).midicps;
-    //     trig = momentum > 0.3;
-    //     timer = Timer.kr(trig);
-    //     cutoff = TChoose.ar((timer > 0.25) * trig, [
-    //         LFDClipNoise.ar(az, 450, 650),
-    //         LFNoise2.ar(TRand.kr(trig: Delay2.kr(Dust.kr(0.2))), 450, 550)
-    //     ]);
-    //     raw = (
-    //         LFSaw.ar(baseFreq, mul:momentum)
-    //         + Impulse.ar(SinOsc.ar(cutoff).exprange(48, 10000), mul:momentum)
-    //         + Formlet.ar(
-    //             Impulse.ar(baseFreq + SinOsc.ar(baseFreq * 0.02).exprange(0.3, cutoff / 3.67)),
-    //             (1..5)
-    //             * SinOsc.ar(momentum).exprange(20, 2000)
-    //             * SinOsc.ar(SinOsc.ar(momentum, 0, 0.1), 0, 0.1, 1), 0.001, 0.0015,
-    //             mul: momentum.scurve
-    //         )
-    //     ) * amp;
-    //     signal = Mix.ar(raw) * 0.06;
-    //     outCodeFunc.value(
-    //         signal, out, trigID, azimuth, distance, elevation,
-    //         gate, attack, sustain, release, ca, cr, depth, elevClip
-    //     );
-    // }).add;
 
 
     // XXX - former \sr__e__noisy
@@ -719,22 +684,22 @@ var makeSynthDefADSR = { |name, outCodeFunc|
     // "POLE - POLyphonic Electronic synth"
     // XXX - former \sr__e__growl
     SynthDef("pole__" ++ name, {
-        arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0, dur=0.1,
+        arg bufnum=0, in=30, out=0, trigID=80, freq=73, amp=1.0, dur=0.1,
             gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
             ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.1,
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
-            depth=5, elevClip=0.01pi;
-        var mix, room, signal, output;
-        var cutoff, rq, pitches, trig, mul, add, detune, lag,
-            tones=10, noOfSynths=20, note;
-        rq = momentum.lincurve(0, 1, 0.6, 0.01, 4);
-        mul = momentum.lincurve(0, 1, 400, 2000, 4);
-        add = momentum.lincurve(0, 1, 600, 10000, 4);
-        cutoff = LFNoise2.ar(momentum).clip2 * mul + add;
-        trig = Dust2.kr(momentum.linlin(0, 1, 1, 100).round);
-        lag = momentum.lincurve(0, 1, 0.5, 0.05, -4);
-        detune = momentum.lincurve(0, 1, 0.4, 0.5, 4);
-        signal = Mix.fill(tones,
+            depth=5, elevClip=0.01pi,
+            voices=10;
+        var rq = momentum.lincurve(0, 1, 0.6, 0.01, 4);
+        var mul = momentum.lincurve(0, 1, 400, 2000, 4);
+        var add = momentum.lincurve(0, 1, 600, 10000, 4);
+        var cutoff = LFNoise2.ar(momentum).clip2 * mul + add;
+        var trig = Dust2.kr(momentum.linlin(0, 1, 1, 100).round);
+        var lag = momentum.lincurve(0, 1, 0.5, 0.05, -4);
+        var detune = momentum.lincurve(0, 1, 0.4, 0.5, 4);
+        var tones = 20;
+        var pitches;
+        var signal = Mix.fill(tones,
             { |index|
                 pitches = Lag.kr(
                     freq + TRand.kr(detune.neg, detune, trig),
@@ -745,11 +710,12 @@ var makeSynthDefADSR = { |name, outCodeFunc|
                     100,
                     Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2)),
                 )
-                * ( if(index < noOfSynths, 1, 0) );
+                * ( if(index < voices, 1, 0) );
             }
         );
+        // SendReply.kr(Impulse.kr(10), '/trim', momentum); // XXX - remove after test
         signal = RLPF.ar(RLPF.ar(Mix.fill(10, signal), cutoff, rq), cutoff, rq);
-        signal = Limiter.ar(MidEQ.ar(signal, [200, 1400], 0.7, 8), (amp/tones) * 0.5);
+        signal = Limiter.ar(MidEQ.ar(signal, [200, 1400], 0.7, 8), amp * tones.reciprocal);
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
             gate, attack, sustain, release, ca, cr, depth, elevClip

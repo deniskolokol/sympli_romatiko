@@ -67,29 +67,10 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
     2: [
         (
             info: "2 heavy <pole>",
-            wait: 120,
-            message: \particle,
-            synth: (
-                name: "pole",
-                params: [
-                    \attack, 120,
-                    \release, 40,
-                    \amp, 0.5,
-                    \freq, "d 3".notemidi.midicps
-                ]
-            ),
-            particle: (
-                mass: 1,
-                spring: 1,
-                source: \r_hand,
-                x: 194, y: 194, z: 327
-            )
-        ),
-        (
             message: \particle,
             synth: (name: "pole",
                 params: [
-                    \attack, 120,
+                    \attack, 2, //120,
                     \release, 40,
                     \amp, 0.5,
                     \freq, "d 3".notemidi.midicps
@@ -100,6 +81,25 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
                 spring: 1,
                 source: \l_hand,
                 x: 460, y: 194, z: 327
+            )
+        ),
+        (
+            wait: 120,
+            message: \particle,
+            synth: (
+                name: "pole",
+                params: [
+                    \attack, 10, //120,
+                    \release, 40,
+                    \amp, 0.5,
+                    \freq, "a#2".notemidi.midicps // "g 3".notemidi.midicps
+                ]
+            ),
+            particle: (
+                mass: 1,
+                spring: 1,
+                source: \r_hand,
+                x: 194, y: 194, z: 327
             )
         ),
     ],
@@ -191,12 +191,26 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
         (
             info: "2 heavy <komar>",
             message: \particle,
-            synth: (name: "komar", params: [\attack, 0.5, \amp, 0.3]),
+            synth: (
+                name: "komar",
+                params: [
+                    \attack, 0.5,
+                    \amp, 0.3,
+                    \freq, 282.56
+                ]
+            ),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: "komar", params: [\attack, 0.5, \amp, 0.3]),
+            synth: (
+                name: "komar",
+                params: [
+                    \attack, 0.5,
+                    \amp, 0.3,
+                    \freq, 90.81
+                ]
+            ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         )
     ],
@@ -369,7 +383,7 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
             coords[2] = coords[2] + 0.6; // offset
             ~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
             i = i + 1;
-            0.005.wait;
+            0.001.wait;
         }
     }),
 

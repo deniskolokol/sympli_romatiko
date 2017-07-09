@@ -20,12 +20,12 @@ var skeleton, skeletonParticles, skeletonRemove,
 var getParticlesOnSprings, getParticlesSkelVis, getParticlesHidden;
 var mag3D, sigmoid, xyz, xyz2ade, ade2xyz, xyz2plane;
 var ax, ay, az, azimuth, distance, elevation,
-    guide, gx, gy, gz,
-    gAzimuth, gDistance, gElevation;
+    guide, gx, gy, gz, gAzimuth, gDistance, gElevation;
 var attractionsPhysical, springsPhysical, springMissed,
     particlesOnSprings, particlesSkelVis, particlesHidden,
     partColor, partSize;
 var listenerPos, currSpeaker, getSynthName;
+var ccCurrSynthParam, labelAr, labelKr, guiAr, guiKr, guiSynthCtrls, mute;
 var win, viewTop, viewSeqList, viewTopCenter, viewSeqTime,
     viewWorld, viewConn, viewLeft, viewRight, viewBottom,
     winSrvBottomLeft, winSrvBottomRight, viewSeqEvents,
@@ -37,7 +37,6 @@ var postView, postMaxSize=25000;
 var scale, translate, focal;
 var paramsChanged;
 var cleanExit;
-var trigSynth, synthNames, trigCodes;
 var fileNames;
 var postMsg, updatePostColors, getMsgColor, postColors=List.new;
 var eventInfo, switchEvent, processEvents, getKey;
@@ -211,33 +210,6 @@ var worldParams = (
     // TEST - 5 .ar synths, 3 .kr
     // XXX TODO: `synths` should be the same format as `particles`!
     // XXX TODO: add key \connections to both `synths` and `particles`
-var synthsPart = (
-    (hash: -2657291): (
-        'node': 1023,
-        'synth': "humm",
-        'params': (\freq: 450, \detune: \c2)
-    ),
-    (hash: 980355): (
-        'node': 1012,
-        'synth': "wind",
-        'params': (\cutoff: \c1, \rq: \c0)
-    ),
-    (hash: 717767): (
-        'node': 1015,
-        'synth': "pole"
-    ),
-    (hash: 370145): (
-        'node': 1010,
-        'synth': "pole"
-    ),
-);
-var synthsCust = (
-    \intro_bic: (
-        'node': 1011,
-        'synth': "buzz",
-        'params': (\cutoff: \c0, \rq: \c1, \delay: \c0, \room: \c2)
-    )
-);
 var synthsLFO = (
     // XXX do we have to display kr bus number here?
     "6298284": (
@@ -272,7 +244,7 @@ var reshape = { |src|
 };
 // WARNING! all synths of a particular class should be help in the same dict for display!
 // .ar - sorted by node
-var synthsAr = (reshape.(synthsPart) ++ reshape.(synthsCust)).sortBy('node');
+var synthsAr = ( );
 // .kr - sorted by outbus
 var synthsKr = reshape.(synthsLFO).sortBy('out');
 // TEST
@@ -297,32 +269,6 @@ listenerPos = ( // as default - center of the world
     y: world.height * 0.5,
     z: world.depth * 0.5
 );
-
-// Keycodes for triggering obj creation with a synth.
-trigCodes = [
-    12, "q", 13, "w", 14, "e", 15, "r", 17, "t", 16, "y",
-    32, "u", 34, "i", 31, "o", 35, "p", 33, "[", 30, "]",
-    1,  "s", 2,  "d", 3,  "f", 5,  "g", 4,  "h", 38, "j", 40, "k",
-    37, "l", 41, ";", 39, "\"", 42, "\\", 47, "\?"
-];
-
-// collect keys and synths in a form of dict, unsorted
-synthNames = Dictionary.newFrom(
-    (all {: [~synths[k][\key], k],
-        k <- ~synths.keys,
-        trigCodes.includes(~synths[k][\key])
-    }).flatten
-);
-
-// sort it according to the order of elements in trigCodes
-trigSynth = (
-    all {: [key, synthNames[key]],
-        key <- all{: k, k <- trigCodes, trigCodes.indexOf(k).even}
-    }
-).flatten;
-
-// convert trigCodes to dictionary for easier access
-trigCodes = Dictionary.newFrom(trigCodes);
 
 fileNames = { |paths|
     // Get only filenames from sequence paths.
@@ -850,10 +796,11 @@ viewConn.drawFunc = { |view|
         coords = [oX, oY, boxWidth, 45]; // save box coords for identifying mouse click
         rect = Rect.fromArray(coords);
         Pen.strokeColor = Color.white;
-        if (syn['id'].class != Event) { // XXX - change to TraerParticle after testing!
-            // the background of custom synth differs from particle synth
-            Pen.fillColor = Color.grey(0.15);
-            Pen.fillRect(rect);
+        try {
+            if (syn[\current]) {
+                Pen.fillColor = Color.grey(0.15);
+                Pen.fillRect(rect);
+            };
         };
         Pen.strokeRect(rect);
         // synth name and node
@@ -865,6 +812,13 @@ viewConn.drawFunc = { |view|
         Pen.stringAtPoint("x", [oX+(boxWidth-12), oY].asPoint);
         // ctrl panel: "mute"
         if (ctl[0]) {
+            try {
+                if (syn.params[\amp] <= 0) {
+                    Pen.fillColor = Color.red(0.75);
+                    Pen.fillRect(Rect(oX+(boxWidth-16), oY+15, 15, 15));
+                    Pen.color = fontColor;
+                };
+            };
             Pen.strokeRect(Rect(oX+(boxWidth-16), oY+15, 15, 15));
             Pen.stringAtPoint("M", [oX+(boxWidth-12), oY+15].asPoint);
         };
@@ -935,7 +889,9 @@ viewConn.drawFunc = { |view|
     };
     // synths width depending on the synth type
     var wdtKr = (view.bounds.width / synthsKr.size) - 5;
-    var wdtAr = (view.bounds.width/synthsAr.size)-5 / ~defaultParams[\ar].size / 2;
+    // var wdtAr = (view.bounds.width/synthsAr.size)-5 / ~defaultParams[\ar].size / 2;
+    var wdtAr = (view.bounds.width/particles.size)-5 / ~defaultParams[\ar].size / 2;
+    var unit;
 
     // set 'nerd-ish' font to the whole view
     Pen.font_(Font("Andale Mono")).smoothing_(true);
@@ -957,65 +913,131 @@ viewConn.drawFunc = { |view|
     };
 
     // .ar
-    synthsAr.do { |syn, i|
-        syn[\coords] = drawSynth.(
-            syn, oX: i, oY: view.bounds.height-50,
-            boxWidth: (view.bounds.width/synthsAr.size)-5,
-            parm: syn[\node],
+    synthsAr = reshape.(particles).sortBy('node');
+    synthsAr.do { |sn, i|
+        unit = particles[sn[\id]];
+        unit[\coords] = drawSynth.(
+            unit, oX: i, oY: view.bounds.height-50,
+            boxWidth: (view.bounds.width/particles.size)-5,
+            parm: unit[\node]
         );
         // params ctrl buses
-        ~synths[syn[\synth].asSymbol][\params].do { |name, num|
+        ~synths[unit[\synth].asSymbol][\params].do { |name, num|
             Pen.fillColor = Color.white;
             Pen.fillRect(Rect(
-                syn[\coords][0]+((wdtAr*2)*num),
-                syn[\coords][1]-5,
+                unit[\coords][0]+((wdtAr*2)*num),
+                unit[\coords][1]-5,
                 wdtAr, 5));
             try {
-                if (syn[\params][name].asString.toLower.beginsWith("c")) {
-                    ind = syn[\params][name].asString.replace("c", "").asInteger;
-                    if (syn.keys.asArray.includes(\connCoords).not) {
-                        syn[\connCoords] = ( );
+                if (unit[\params][name].asString.toLower.beginsWith("c")) {
+                    ind = unit[\params][name].asString.replace("c", "").asInteger;
+                    if (unit.keys.asArray.includes(\connCoords).not) {
+                        unit[\connCoords] = ( );
                     };
-                    syn[\connCoords][name] = drawConnection.(
-                        syn, synthsKr[ind], name, wdtAr, num
+                    unit[\connCoords][name] = drawConnection.(
+                        unit, synthsKr[ind], name, wdtAr, num
                     );
                 }
             };
         };
     };
 };
+viewConn.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
+    var sX, sY, sW, sH;
+    particles.keysValuesDo { |part, synth|
+        if (synth.keys.includes(\coords)) {
+            #sX, sY, sW, sH = synth.coords;
+            // main synth area
+            if ((x > sX) && (x < (sX+sW-15)) && (y > sY) && (y < (sY+sH))) {
+                particles[part].put(\current, true);
+                labelAr.string = format("% [%]", synth[\synth], synth[\node]);
+                ~synths[synth[\synth].asSymbol][\params].do { |parm, i|
+                    guiAr[i].labelView.string = parm;
+                    guiAr[i].controlSpec = ~specs[parm];
+                    try {
+                        guiAr[i].value = synth[\params][parm]
+                    } {
+                        guiAr[i].value = ~defaultParams.ar[i]
+                    };
+                };
+            } {
+                particles[part].put(\current, false)
+            };
+            // close [x] button
+            if ((x > (sX+sW-15)) && (x < (sX+sW)) && (y > sY) && (y < (sY+15))) {
+                unregisterParticle.(synth[\node]);
+                removeParticle.(part);
+            };
+            // mute [M] button
+            if ((x > (sX+sW-15)) && (x < (sX+sW)) && (y > (sY+15)) && (y < (sY+sH-15))) {
+                mute.(synth);
+            };
+            // solo [S] button
+            if ((x > (sX+sW-15)) && (x < (sX+sW)) && (y > (sY+sH-15)) && (y < (sY+sH))) {
+                particles.keysValuesDo { |pt, sy|
+                    if (pt != part) { mute.(sy) }
+                };
+            };
+        }
+    }
+};
+mute = { |synth|
+    if (synth.keys.includes(\params).not) {
+        synth[\params] = ( );
+    };
+    if (synth[\params].keys.includes(\amp).not) {
+        synth[\params][\amp] = 1
+    };
+    synth.params[\amp] = synth.params[\amp].neg;
+    ~scsynth.sendMsg("/n_set", synth.node, \amp, max(0, synth.params[\amp]));
+};
+
+
 
 // GUI: .ar synths selection
 panel = compViewFlow.(viewRight, scaleW: 0.2, scaleH: 0.365);
 listView.(
     panel,
-    items: ~synths.keys.asArray,
+    items: ~synths.keys.asArray.sort,
     action: { |lv|
-        var params=[];
-        if (world[\internalBuf].booleanValue) {
-            params = params ++ [\bufnum, ~internalBuff.bufnum]
-        };
-        ~sendParticle.(
-            particle:(spring:1, mass:1),
-            synth:(name: lv.items.at(lv.value), params: params)
-        )
+        ~sendParticle.((
+            particle: (spring:1, mass:1),
+            synth: (name: lv.items.at(lv.value))
+        ));
     }
 );
 
 // synth params
-// XXX TODO
-panel = compViewFlow.(viewRight, scaleW: 0.635, scaleH: 0.4);
-2.do { |i|
+ccCurrSynthParam = { |sType, ctlInd, val|
+    var curr, parmName;
+    if (sType == \ar) {
+        particles.values.do { |sy| if (sy[\current]) { curr = sy }};
+    } {
+        synthsKr.values.do { |sy| if (sy[\current]) { curr = sy }};
+    };
+    parmName = ~synths[curr[\synth].asSymbol][\params][ctlInd];
+    if (curr.keys.includes(\params).not) {
+        curr[\params] = ( );
+    };
+    curr[\params][parmName] = val; // update param value
+    if (curr.isNil.not) {
+        ~scsynth.sendMsg("/n_set", curr[\node], parmName.asString, val);
+    };
+};
+
+guiSynthCtrls = { |panel, synthType|
     var stripeWidth = (panel.bounds.width/2).round;
-    var pan, stSynth;
-    pan = compViewFlow.(panel, scaleW: 0.5);
-    stSynth = sText.(pan,
+    var pan = compViewFlow.(panel, scaleW: 0.5);
+    // label
+    var stSynth = sText.(pan,
         ~synths.keys.asArray.choose, // XXX
         stringFont:fontMedium, scaleW:1, scaleH: 0.1
     );
+    // controls
+    var ctrls = Array.fill(8, {nil});
     // knobs
     6.do({ |j|
-        EZKnob(pan,
+        ctrls[j] = EZKnob(pan,
             Rect(
                 (j/3).trunc*30+10,
                 stSynth.bounds.height+(j%3*90)+30,
@@ -1023,7 +1045,7 @@ panel = compViewFlow.(viewRight, scaleW: 0.635, scaleH: 0.4);
                 stripeWidth*0.6
             ),
             ~defaultParams.ar[j], ~specs.at(~defaultParams.ar[j]),
-            { |ez| ez.value.postln },
+            { |ez| ccCurrSynthParam.(synthType, j, ez.value)},
             layout: \vert2
         )
         .font_(fontSmall)
@@ -1038,7 +1060,7 @@ panel = compViewFlow.(viewRight, scaleW: 0.635, scaleH: 0.4);
     // sliders
     2.do { |j|
         sText.(pan, "", scaleW:0.15, scaleH: 0.4);
-        EZSlider(pan,
+        ctrls[j+6] = EZSlider(pan,
             Rect(
                 j%2*60+10,
                 (pan.bounds.height*0.55).trunc,
@@ -1046,7 +1068,7 @@ panel = compViewFlow.(viewRight, scaleW: 0.635, scaleH: 0.4);
                 pan.bounds.height*0.3
             ),
             ~defaultParams.ar[j+6], ~specs.at(~defaultParams.ar[j+6]),
-            { |ez| ez.value.postln },
+            { |ez| ccCurrSynthParam.(synthType, j+6, ez.value)},
             unitWidth:30, numberWidth:60, layout:\vert
         )
         .font_(fontSmall)
@@ -1058,7 +1080,12 @@ panel = compViewFlow.(viewRight, scaleW: 0.635, scaleH: 0.4);
             background:transparent
         )
     };
+    // return gui elements themselves
+    [stSynth, ctrls]
 };
+panel = compViewFlow.(viewRight, scaleW: 0.635, scaleH: 0.4);
+#labelAr, guiAr = guiSynthCtrls.(panel, \ar);
+#labelKr, guiKr = guiSynthCtrls.(panel, \kr);
 
 // .kr synths selection
 panel = compViewFlow.(viewRight, scaleW: 0.2, scaleH: 0.365);

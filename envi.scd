@@ -161,7 +161,8 @@ srEnv = Environment.make {
         \delaytime -> ControlSpec(0.001,  2.0, -3, 0.001, 0.2),
         \decaytime -> ControlSpec(-3,  3, \lin, 0.1, 1),
         \mul -> \amp.asSpec, // dummy
-        \add -> \amp.asSpec // dummy
+        \add -> \amp.asSpec, // dummy
+        \dummy -> \bipolar.asSpec // dummy
     ];
     ~defaultParams = (
         \ar: #[
@@ -172,78 +173,32 @@ srEnv = Environment.make {
     );
 
     ~synths = (
-        \silent: (
-            key: nil,
-        ),
-        \buzz: (
-            key: 41, // ;
-        ),
-        \pole: (
-            key: 39, // "
-        ),
-        \bass: (
-            key: 47, // \?
-        ),
-        \moog: (
-            key: 42, // \ (the answer to the ultimate question ))
-        ),
-        \lowe: (
-            key: 31, // o
-        ),
-        \wind: (
-            key: 16, // y
-        ),
-        \komar: (
-            key: 13, // w
-        ),
-        \neural: (
-            key: 37, // l
-        ),
-        \entro: (
-            key: 17, // t
-        ),
-        \humm: (
-            key: 14, // e
-        ),
-        \melo: (
-            key: 35, // p
-        ),
-        \cmb: (
-            key: 34, // i
-        ),
-        \probe: (
-            key: 32, // u
-        ),
-        \pulse: (
-            key: 30, // ]
-        ),
-        \therem: (
-            key: nil,
-        ),
-        \gauss: (
-            key: 15, // r
-        ),
-        \loop: (
-            key: 4, // h
-        ),
-        \loopdel: (
-            key: nil,
-        ),
-        \drone: (
-            key: 2, // d
-        ),
-        \greg: (
-            key: 1, // s
-        ),
-        \scratch: (
-            key: 38, // j
-        ),
-        \unst: (
-            key: 40, // k
-        ),
-        \gust: (
-            key: 3, // f
-        ),
+        \silent: ( ),
+        \atru: ( ),
+        \buzz: ( ),
+        \pole: ( \params: [\freq, \dummy, \dummy, \cutoff, \dummy, \rq, \dummy, \amp] ),
+        \bass: ( ),
+        \moog: ( ),
+        \lowe: ( ),
+        \wind: ( ),
+        \komar: ( ),
+        \neural: ( ),
+        \entro: ( ),
+        \humm: ( ),
+        \melo: ( ),
+        \cmb: ( ),
+        \probe: ( ),
+        \pulse: ( ),
+        \therem: ( ),
+        \gauss: ( ),
+        \loop: ( ),
+        \loopdel: ( ),
+        \drone: ( ),
+        \greg: ( ),
+        \scratch: ( ),
+        \unst: ( ),
+        \gust: ( ),
+        \kick: ( ),
     );
     ~lfos = (
         \ksine: ( ),

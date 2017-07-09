@@ -160,8 +160,8 @@ srEnv = Environment.make {
         \damp -> ControlSpec(0.0,  1.0, \lin, 0.01, 0.5),
         \delaytime -> ControlSpec(0.001,  2.0, -3, 0.001, 0.2),
         \decaytime -> ControlSpec(-3,  3, \lin, 0.1, 1),
-        \mul -> \amp.asSpec, // dummy
-        \add -> \amp.asSpec, // dummy
+        \mul -> \unipolar.asSpec, // dummy
+        \add -> \unipolar.asSpec, // dummy
         \dummy -> \bipolar.asSpec // dummy
     ];
     ~defaultParams = (
@@ -181,7 +181,7 @@ srEnv = Environment.make {
         \moog: ( ),
         \lowe: ( ),
         \wind: ( ),
-        \komar: ( ),
+        \komar: ( \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
         \neural: ( ),
         \entro: ( ),
         \humm: ( ),

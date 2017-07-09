@@ -587,18 +587,21 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
             ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
-            depth=5, elevClip=0.01pi;
+            depth=5, elevClip=0.01pi,
+            min= -1, max=1, cutoff=250, rq=0.5;
         var trig = momentum > 0.3;
         var timer = Timer.kr(trig);
-        var cutoff = TChoose.ar((timer > 0.25) * trig, [
+        var impFreq = TChoose.ar((timer > 0.25) * trig, [
             LFDClipNoise.ar(az, 450, 650),
             LFNoise2.ar(TRand.kr(trig: Delay2.kr(Dust.kr(0.2))), 450, 550)
         ]);
+        var impMin = min.linlin(-1, 0.99, 3, 1200);
+        var impMax = max.linlin(-0.99,  1, 1201, 20000);
         var raw = (
             LFSaw.ar(freq, mul:momentum)
-            + Impulse.ar(SinOsc.ar(cutoff).exprange(48, 10000), mul:momentum)
+            + Impulse.ar(SinOsc.ar(impFreq).exprange(impMin, impMax), mul:momentum)
             + Formlet.ar(
-                Impulse.ar(freq + SinOsc.ar(freq * 0.02).exprange(0.3, cutoff / 3.67)),
+                Impulse.ar(freq + SinOsc.ar(freq * 0.02).exprange(0.3, impFreq / 3.67)),
                 (1..5)
                 * SinOsc.ar(momentum).exprange(20, 2000)
                 * SinOsc.ar(SinOsc.ar(momentum, 0, 0.1), 0, 0.1, 1), 0.001, 0.0015,
@@ -606,6 +609,7 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             )
         ) * amp;
         var signal = Mix.ar(raw) * 0.06;
+        signal = RLPF.ar(RLPF.ar(signal, cutoff, rq), cutoff, rq); // XXX profile this contruct: RLPF(RLPF) w/same params
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
             gate, attack, sustain, release, ca, cr, depth, elevClip

@@ -2,10 +2,10 @@
 var samplesDir;
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
-// ZZZ - skeleton: remove after test
-var skelData;
-postf("Reading skeleton simulation data\n");
-skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
+// // ZZZ - skeleton: remove after test
+// var skelData;
+// postf("Reading skeleton simulation data\n");
+// skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
 
 ~sequence[\title] = "Sympli Romatiko: kraut Traer World";
 
@@ -57,20 +57,20 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
         ])
     ],
 
-    // ZZZ - skeleton: remove after test
-    1: [
-        (
-            info: "ZZZ - Skeleton simulation",
-            message: \task, name: \skelSimulation, act: 1
-        ),
-    ],
+    // // ZZZ - skeleton: remove after test
+    // 1: [
+    //     (
+    //         info: "ZZZ - Skeleton simulation",
+    //         message: \task, name: \skelSimulation, act: 1
+    //     ),
+    // ],
     2: [
         (
             info: "2 heavy <pole>",
             message: \particle,
             synth: (name: "pole",
                 params: [
-                    \attack, 2, //120,
+                    \attack, 120,
                     \release, 40,
                     \amp, 0.5,
                     \freq, "d 3".notemidi.midicps
@@ -89,7 +89,7 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
             synth: (
                 name: "pole",
                 params: [
-                    \attack, 10, //120,
+                    \attack, 120,
                     \release, 40,
                     \amp, 0.5,
                     \freq, "a#2".notemidi.midicps // "g 3".notemidi.midicps
@@ -196,7 +196,9 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
                 params: [
                     \attack, 0.5,
                     \amp, 0.3,
-                    \freq, 282.56
+                    \freq, 282.56,
+                    \cutoff, 18500,
+                    \rq, 0.35
                 ]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
@@ -208,7 +210,11 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
                 params: [
                     \attack, 0.5,
                     \amp, 0.3,
-                    \freq, 90.81
+                    \freq, 52.08,
+                    \min, -0.83,
+                    \max, 0.87,
+                    \cutoff, 2915,
+                    \rq, 0.65
                 ]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
@@ -345,11 +351,11 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
             message: \task, name: \randomParticles, act: 0
         ),
 
-        // ZZZ - skeleton: remove after test
-        (
-            info: "stop skeleton simulation",
-            message: \task, name: \skelSimulation, act: 0
-        ),
+        // // ZZZ - skeleton: remove after test
+        // (
+        //     info: "stop skeleton simulation",
+        //     message: \task, name: \skelSimulation, act: 0
+        // ),
         (
             info: "stop random particles",
             message: \task, name: \storm, act: 0
@@ -373,19 +379,19 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
 //
 ~sequence.tasks = (
 
-    // ZZZ - skeleton: remove after test
-    skelSimulation: Task({
-        var i=0, coords;
-        inf.do {
-            // process
-            if (i == skelData.size) {i = 0};
-            coords = skelData[i][1..];
-            coords[2] = coords[2] + 0.6; // offset
-            ~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
-            i = i + 1;
-            0.001.wait;
-        }
-    }),
+    // // ZZZ - skeleton: remove after test
+    // skelSimulation: Task({
+    //     var i=0, coords;
+    //     inf.do {
+    //         // process
+    //         if (i == skelData.size) {i = 0};
+    //         coords = skelData[i][1..];
+    //         coords[2] = coords[2] + 0.6; // offset
+    //         ~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
+    //         i = i + 1;
+    //         0.001.wait;
+    //     }
+    // }),
 
     randomParticles: Task({
         var key, next;

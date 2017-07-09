@@ -406,6 +406,7 @@ groupRemove = { |data|
 
 processEvents = { |key|
     // Process specific key from sequence.
+    var node, taskParmUpdate, defaultParams;
     ~sequence.events.atFail(key, {[]}).do { |d, l|
         d[\message].switch(
             \physics, {
@@ -415,7 +416,23 @@ processEvents = { |key|
                 ~sendMessage.('/audio', d[\params])
             },
             \particle, {
-                ~sendParticle.(d[\particle], d[\synth])
+                node = ~sendParticle.(d[\particle], d[\synth]);
+                // update params for GUI
+                taskParmUpdate = Task({
+                    inf.do {
+                        particles.keysValuesDo { |part, synth|
+                            if (synth[\node] == node) {
+                                defaultParams = ~synths.at(d[\synth][\name].asSymbol)[\params];
+                                particles[part][\params] = ( );
+                                Dictionary.newFrom(d[\synth][\params]).keysValuesDo { |k, v|
+                                    if (defaultParams.includes(k)) { synth[\params][k] = v }
+                                };
+                                taskParmUpdate.stop;
+                            };
+                        };
+                        0.1.wait;
+                    };
+                }).start;
             },
             \task, {
                 taskPlay.(~sequence.tasks[d[\name]], d[\act].booleanValue)
@@ -993,19 +1010,15 @@ mute = { |synth|
 };
 
 
-
 // GUI: .ar synths selection
 panel = compViewFlow.(viewRight, scaleW: 0.2, scaleH: 0.365);
-listView.(
-    panel,
-    items: ~synths.keys.asArray.sort,
-    action: { |lv|
-        ~sendParticle.((
-            particle: (spring:1, mass:1),
-            synth: (name: lv.items.at(lv.value))
-        ));
-    }
-);
+listView.(panel, items: ~synths.keys.asArray.sort)
+.enterKeyAction_({ |lv|
+    ~sendParticle.(
+        particle: (spring:1, mass:1),
+        synth: (name: lv.items.at(lv.value).asSymbol)
+    );
+});
 
 // synth params
 ccCurrSynthParam = { |sType, ctlInd, val|

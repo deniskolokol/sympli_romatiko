@@ -28,11 +28,11 @@ var listenerPos, currSpeaker, getSynthName;
 var ccCurrSynthParam, labelAr, labelKr, guiAr, guiKr, guiSynthCtrls, mute;
 var win, viewTop, viewSeqList, viewTopCenter, viewSeqTime,
     viewWorld, viewConn, viewLeft, viewRight, viewBottom,
-    winSrvBottomLeft, winSrvBottomRight, viewSeqEvents,
+    panelSrvLeft, panelSrvRight, viewSeqEvents, stPastEvents, stFutureEvents,
     paneWidth, paneHeight, compView, compViewFlow, panel,
     sText, dropdown, listView, slider, knob, button, buttonCheckbox,
-    updateButtonLabel;
-var winSrv, palette, meterView, srvTreeView;
+    scrollInfo;
+var winSrv, palette, meterView;
 var postView, postMaxSize=25000;
 var scale, translate, focal;
 var paramsChanged;
@@ -308,11 +308,31 @@ eventInfo = { |k=nil, lim=50|
     infoStr[..(infoStr.size-2)]; // cut last \n
 };
 
-updateButtonLabel = { |btn, label|
-    // Sets a label to a button in a current state.
-    var states=btn.states;
-    states[btn.value][0] = label;
-    btn.states = states;
+scrollInfo = { |curr, next|
+    var updateButtonLabel = { |btn, label|
+        // Sets a label to a button in a current state.
+        var states=btn.states;
+        states[btn.value][0] = label;
+        btn.states = states;
+    };
+    var eventsFeed = { |start, stop, feed=""|
+        ~sequence.events.keys.select((_ >= start) && (_ < stop))
+        .asArray.sort.do { |key|
+            feed = feed ++ eventInfo.(key) ++ "\n\n"
+        };
+        feed[..(feed.size-2)]; // cut one last \n
+    };
+    updateButtonLabel.(btCurrNum, curr);
+    updateButtonLabel.(btNextNum, next);
+    stCurrInfo.string = eventInfo.(curr);
+    stNextInfo.string = eventInfo.(next);
+
+    stPastEvents.string = eventsFeed.(0, curr, "".catList("\n" ! 5));
+    stPastEvents.select(stPastEvents.string.size, 1); // autoscroll
+    stPastEvents.stringColor = fontColor;
+
+    stFutureEvents.string = eventsFeed.(next+1, ~sequence.events.keys.maxItem+1);
+    stFutureEvents.stringColor = fontColor;
 };
 
 switchEvent = { |nxt=1|
@@ -322,18 +342,17 @@ switchEvent = { |nxt=1|
     if (~sequence.isNil.not) {
         if (~sequence.size > 0) {
             current = getKey.(current, nxt);
-            updateButtonLabel.(btCurrNum, current);
-            stCurrInfo.string = eventInfo.(current);
-            if (current == 0) { count = 0 }; // reset clock
-
             next = getKey.(current, 1);
-            updateButtonLabel.(btNextNum, next);
-            stNextInfo.string = eventInfo.(next);
+            [current, next].postln;
+            scrollInfo.(current, next);
 
             // bring it on!
             blinked = 0; // blinking several times with red, then change to grey.
             if (animateSeq.not && (nxt > 0)) { animateSeq = true };
             processEvents.(current);
+
+            // reset the clock
+            if (current == 0) { count = 0 };
 
             // reset waiting time globally
             waitNextEvent = -1;
@@ -563,26 +582,44 @@ winSrv.view.decorator = FlowLayout(winSrv.view.bounds, 1@1, 1@1);
 palette = QPalette.dark;
 palette.setColor(Color.black, \window);
 winSrv.view.palette = palette;
+
 // internal levels
-panel = compViewFlow.(winSrv, scaleH:0.3, scaleW:0.57);
+panelSrvLeft = compViewFlow.(winSrv, scaleW:0.57);
+panel = compViewFlow.(panelSrvLeft, scaleH:0.3);
 meterView = EntroServerMeterView(~scsynth, panel, 0@0, 210);
 
 // GUI: sequence panel
-panel = compViewFlow.(winSrv, scaleH:0.3, scaleW:0.43);
-viewSeqList = compViewFlow.(panel, scaleH:0.25, scaleW:0.65);
-viewSeqTime = compViewFlow.(panel, margin:5@5, gap:5@5, scaleH:0.25, scaleW:0.35);
-viewSeqEvents = compViewFlow.(panel, gap:8@4, scaleH:0.63);
+panelSrvRight = compViewFlow.(winSrv, scaleW:0.43);
+viewSeqList = compViewFlow.(panelSrvRight, scaleH:0.1, scaleW:0.65);
+viewSeqTime = compViewFlow.(panelSrvRight, margin:5@5, gap:5@5, scaleH:0.1, scaleW:0.35);
+viewSeqEvents = compViewFlow.(panelSrvRight, gap:8@4, scaleH:0.83);
 // time elapsed since the start
 timeLabel = sText.(viewSeqTime, ~convertTime.(0), stringFont:fontLarge1, scaleW:1, scaleH:0.7);
 timeLabel.align = \center;
+stPastEvents = TextView(viewSeqEvents, viewSeqEvents.bounds.width@(viewSeqEvents.bounds.height*0.25))
+    .editable_(false)
+    .font_(fontMedium)
+    .stringColor_(fontColor)
+    .background_(transparent)
+    .hasVerticalScroller_(false)
+    .canFocus_(false)
+    .string_("...\n...\n...");
+
 // current event number and info
-btCurrNum = button.(viewSeqEvents, ">>", bgColor:Color.gray(0.15), scaleH: 0.55, scaleW: 0.15)
-.action_({ |bt| switchEvent.(-1) });
-stCurrInfo = sText.(viewSeqEvents, "...", stringFont:fontLarge, scaleH:0.55, scaleW:0.85);
+btCurrNum = button.(viewSeqEvents, ">>", bgColor:Color.gray(0.15), scaleH: 0.05)
+    .action_({ |bt| switchEvent.(-1) });
+stCurrInfo = sText.(viewSeqEvents, "[...]", stringFont:fontLarge, scaleH:0.15);
 // next (awaiting) event number and info
-btNextNum = button.(viewSeqEvents, "<<", bgColor:Color.gray(0.15), scaleH: 0.55, scaleW: 0.15)
-.action_({ |bt| switchEvent.(1) });
-stNextInfo = sText.(viewSeqEvents, "", stringFont:fontLarge, scaleH:0.55, scaleW:0.85);
+btNextNum = button.(viewSeqEvents, "<<", bgColor:Color.gray(0.15), scaleH: 0.05)
+    .action_({ |bt| switchEvent.(1) });
+stNextInfo = sText.(viewSeqEvents, "...next", stringFont:fontLarge, scaleW:1, scaleH:0.12);
+stFutureEvents = TextView(viewSeqEvents, viewSeqEvents.bounds.width@(viewSeqEvents.bounds.height*0.8))
+    .editable_(false)
+    .font_(fontMedium)
+    .stringColor_(fontColor)
+    .background_(transparent)
+    .hasVerticalScroller_(false)
+    .canFocus_(false);
 miscParams[\prev] = (
     midinote: 46,
     gui: btCurrNum
@@ -623,8 +660,7 @@ ddSequence = dropdown.(
             if (val == 0) {postMsg.("ERROR: Loading sequence has failed!")} {postMsg.("OK...")};
         };
         current = -1;
-        updateButtonLabel.(btNextNum, getKey.(current, 1).asString);
-        stNextInfo.string = eventInfo.(0);
+        scrollInfo.(current, 0);
     },
     initAction: true
 );
@@ -642,13 +678,13 @@ button.(viewSeqList,
     ddSequence.valueAction_(ddSequence.value);
 });
 miscParams[\rec] = (
-    gui: buttonCheckbox.(panel,
-        "REC.", labelColor: Color.red, bgColor:Color.black, scaleW:0.5, scaleH:0.2
+    gui: buttonCheckbox.(panelSrvRight,
+        "REC.", labelColor: Color.red, bgColor:Color.black, scaleW:0.5, scaleH:0.06
     ).action_({ |bt| postMsg.(~recordAudio.(bt.value)) })
 );
 miscParams[\intBuf] = (
-    gui: buttonCheckbox.(panel,
-        "int buf", labelColor: Color.red, bgColor:Color.black, scaleW:0.5, scaleH:0.2
+    gui: buttonCheckbox.(panelSrvRight,
+        "int buf", labelColor: Color.red, bgColor:Color.black, scaleW:0.5, scaleH:0.06
     )
     .action_({ |bt|
         var synthIn;
@@ -664,24 +700,6 @@ miscParams[\intBuf] = (
     })
 );
 
-
-// world params panel
-// Warning: filled out later!
-winSrvBottomLeft = compViewFlow.(winSrv, 2@2, scaleH:0.72, scaleW:0.57);
-
-// GUI: sequence control
-winSrvBottomRight = compViewFlow.(winSrv, scaleH:0.75, scaleW:0.43);
-
-// server tree view
-srvTreeView = TextView(winSrvBottomRight,
-    winSrvBottomRight.bounds.width@winSrvBottomRight.bounds.height
-)
-.editable_(false)
-.font_(Font("Monaco", 10).boldVariant)
-.stringColor_(Color.gray(0.7))
-.background_(transparent)
-.hasVerticalScroller_(true)
-.canFocus_(false);
 winSrv.front;
 
 
@@ -710,7 +728,7 @@ viewRight = compViewFlow.(win,
 );
 
 // GUI: slider controllers for physics params
-panel = compViewFlow.(winSrvBottomLeft, scaleH:0.78);
+panel = compViewFlow.(panelSrvLeft, scaleH:0.56);
 [
     \drag, \repulsion, \starMass,
     \gravX, \gravY, \gravZ,
@@ -723,7 +741,7 @@ panel = compViewFlow.(winSrvBottomLeft, scaleH:0.78);
 };
 
 // slider controllers for misc params
-panel = compViewFlow.(winSrvBottomLeft, scaleH:0.15);
+panel = compViewFlow.(panelSrvLeft, scaleH:0.1);
 miscParams[\serverVolume] = (
     midicc: 12,
     spec: \db,
@@ -756,7 +774,7 @@ miscParams[\depth] = (
     })
 );
 
-panel = compViewFlow.(winSrvBottomLeft, margin:5@5, gap:5@5, scaleH:0.12);
+panel = compViewFlow.(panelSrvLeft, margin:5@5, gap:5@5, scaleH:0.1);
 // button based misc params
 miscParams[\removeall] = (
     midinote: 70,
@@ -2265,12 +2283,18 @@ oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
     };
     // fill out srv tree
     if (msg[2] == 0) {
-        {
-            srvTreeView.string = ~formatSrvTree.(msg);
-            srvTreeView.stringColor = Color.gray(0.7);
-            srvTreeView.setStringColor(Color.green, 0, 6);
-        }.defer
+        postf(
+            "-> /g_queryTree.reply (%:%)\n%\n",
+            addr.ip, addr.port, ~formatSrvTree.(msg)
+        );
     };
+    // if (msg[2] == 0) {
+    //     {
+    //         srvTreeView.string = ~formatSrvTree.(msg);
+    //         srvTreeView.stringColor = Color.gray(0.7);
+    //         srvTreeView.setStringColor(Color.green, 0, 6);
+    //     }.defer
+    // };
 }, '/g_queryTree.reply');
 
 // PHYSICS
@@ -2288,11 +2312,12 @@ viewWorld.animate = true;
 
 { // GLOBAL APP CLOCK. Resolution: 100 milliseconds (0.1 of a second)
     while {win.isClosed.not} {
+        // report nodes every now and then
         tick = tick + 1;
-        if (tick > 1e+6) { tick = 0 };
-
-        // fill out srvTree
-        if (tick % 20 == 0) { ~scsynth.sendMsg("/g_queryTree", 0) };
+        if (tick >= 500) {
+            ~scsynth.sendMsg("/g_queryTree", 0);
+            tick = 0;
+        };
 
         if (animateSeq) {
             count = count + 1;

@@ -311,7 +311,7 @@ srEnv = Environment.make {
         // report it
         postf("-> ~initGroup: %\n", node);
         messages.do { |m| postf("\t%\n", m) };
-        // return group nodce id
+        // return group node id
         node
     };
 

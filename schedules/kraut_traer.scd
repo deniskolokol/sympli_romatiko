@@ -195,6 +195,7 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
                 name: "komar",
                 params: [
                     \attack, 0.5,
+                    \release, 10,
                     \amp, 0.3,
                     \freq, 282.56,
                     \cutoff, 18500,
@@ -209,12 +210,45 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
                 name: "komar",
                 params: [
                     \attack, 0.5,
+                    \release, 10,
+                    \amp, 0.3,
+                    \freq, 382.56,
+                    \cutoff, 18500,
+                    \rq, 0.35
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        ),
+        (
+            message: \particle,
+            synth: (
+                name: "komar",
+                params: [
+                    \attack, 0.5,
+                    \release, 10,
                     \amp, 0.3,
                     \freq, 52.08,
                     \min, -0.83,
                     \max, 0.87,
-                    \cutoff, 2915,
-                    \rq, 0.65
+                    \cutoff, 19500,
+                    \rq, 0.25
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+        (
+            message: \particle,
+            synth: (
+                name: "komar",
+                params: [
+                    \attack, 0.5,
+                    \release, 10,
+                    \amp, 0.3,
+                    \freq, 252.08,
+                    \min, -0.83,
+                    \max, 0.87,
+                    \cutoff, 19500,
+                    \rq, 0.25
                 ]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
@@ -231,19 +265,19 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
         (
             info: "2 heavy <neural>",
             message: \particle,
-            synth: (name: "neural", params: [\attack, 15, \cutoff, 1]),
+            synth: (name: "neural", params: [\attack, 1, \cutoff, 1]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: "neural", params: [\attack, 15, \cutoff, 1]),
+            synth: (name: "neural", params: [\attack, 1, \cutoff, 1]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
         (
             info: "heavy <lowe>",
             message: \particle,
             synth: (name: "lowe",
-                params: [\attack, 5.0.rand, \release, 8, \amp, 0.03]),
+                params: [\attack, 15, \release, 8, \amp, 0.01]),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
     ],
@@ -265,12 +299,12 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
         (
             info: "2 heavy <buzz>",
             message: \particle,
-            synth: (name: "buzz", params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.05]),
+            synth: (name: "buzz", params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.05, \freq, 622.25396744416]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: "buzz", params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.05]),
+            synth: (name: "buzz", params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.05, \freq, 740]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
     ],

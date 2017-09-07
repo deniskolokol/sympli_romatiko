@@ -647,10 +647,10 @@ var makeSynthDefADSR = { |name, outCodeFunc|
     // XXX - in orig synth \freq was a var with default val 400
     SynthDef("lowe__" ++ name, {
         arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
-            gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
-            ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
-            gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
-            depth=5, elevClip=0.01pi;
+        gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+        gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+        depth=5, elevClip=0.01pi;
         var signal;
         var q=0.1, a=2pi, b=400, c=0, dir=[1, 0], frate=1, xx=(1..5)*20;
         dir = dir.put(1, az.linlin(0, 1, -pi, pi));
@@ -659,8 +659,11 @@ var makeSynthDefADSR = { |name, outCodeFunc|
         a = frate.linlin(0,2, 2pi, 0);
         b = dir[1].hypot(dir[0]) * 400 + 250;
         c = momentum.linlin(0, 1, 100, 150);
-        signal = SinOsc.ar(c, BPF.ar(BPF.ar(LFSaw.ar(freq * xx, 0, a), b), xx, q), amp);
-        signal = RLPF.ar(Limiter.ar(Mix.ar(signal)), distance.linlin(0, 2.sqrt, 500, 10000), 0.5);
+        // signal = SinOsc.ar(c, BPF.ar(BPF.ar(LFSaw.ar(freq * xx, 0, a), b), xx, q), amp);
+        // signal = RLPF.ar(Limiter.ar(Mix.ar(signal)), distance.linlin(0, 2.sqrt, 500, 10000), 0.5);
+        signal = SinOsc.ar(c, BPF.ar(BPF.ar(LFSaw.ar(freq * xx, 0, a), b), xx, q));
+        signal = RLPF.ar(Mix.ar(signal), distance.linlin(0, 2.sqrt, 500, 10000), 0.5);
+        signal = Limiter.ar(signal, amp);
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
             gate, attack, sustain, release, ca, cr, depth, elevClip
@@ -717,7 +720,6 @@ var makeSynthDefADSR = { |name, outCodeFunc|
                 * ( if(index < voices, 1, 0) );
             }
         );
-        // SendReply.kr(Impulse.kr(10), '/trim', momentum); // XXX - remove after test
         signal = RLPF.ar(RLPF.ar(Mix.fill(10, signal), cutoff, rq), cutoff, rq);
         signal = Limiter.ar(MidEQ.ar(signal, [200, 1400], 0.7, 8), amp * tones.reciprocal);
         outCodeFunc.value(

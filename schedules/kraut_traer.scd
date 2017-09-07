@@ -2,11 +2,6 @@
 var samplesDir;
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
-// // ZZZ - skeleton: remove after test
-// var skelData;
-// postf("Reading skeleton simulation data\n");
-// skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
-
 ~sequence[\title] = "Sympli Romatiko: kraut Traer World";
 
 // INITIAL
@@ -56,14 +51,6 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
             \audioIn, true
         ])
     ],
-
-    // // ZZZ - skeleton: remove after test
-    // 1: [
-    //     (
-    //         info: "ZZZ - Skeleton simulation",
-    //         message: \task, name: \skelSimulation, act: 1
-    //     ),
-    // ],
     2: [
         (
             info: "2 heavy <pole>",
@@ -92,7 +79,7 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
                     \attack, 120,
                     \release, 40,
                     \amp, 0.5,
-                    \freq, "a#2".notemidi.midicps // "g 3".notemidi.midicps
+                    \freq, "a#2".notemidi.midicps
                 ]
             ),
             particle: (
@@ -126,58 +113,31 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
         )
     ],
     7: [
-        // (
-        //     info: "heavy <lowe>",
-        //     message: \particle,
-        //     synth: (name: "lowe",
-        //         // XXX - play with \freq (~800 -> noisy and sharp)
-        //         // XXX - add it to 2 __entro later to achieve some sort of "melodicity"
-        //     params: [\attack, 10, \attack, 12, \release, 0.5, \amp, 0.03]),
-        //     particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
-        // ),
         (
             info: "heavy <bass>",
             message: \particle,
             synth: (name: "bass",
-                // XXX - play with \freq (~800 -> noisy and sharp)
-                // XXX - add it to 2 __entro later to achieve some sort of "melodicity"
-                params: [\attack, 12, \release, 0.5, \freq, 42]),
+                params: [
+                    \attack, 20,
+                    \release, 20,
+                    \freq, "g 2".notemidi.midicps,
+                    \amp, 0.5
+                ]
+            ),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
         (
             info: "heavy <wind>",
             message: \particle,
             synth: (name: "wind",
-                params: [\attack, 12, \release, 0.5, \amp, 0.7]),
-            particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
-        )
-    ],
-    8: [
-        (
-            message: \action,  params: [\remove, \all]
-        ),
-        (
-            info: "heavy <lowe>",
-            message: \particle,
-            synth: (name: "lowe",
-                params: [\attack, 0.1, \release, 1, \amp, 0.03]
+                params: [
+                    \attack, 12,
+                    \release, 20,
+                    \release, 0.5,
+                    \amp, 0.5
+                ]
             ),
-            particle: (age: inf, mass: 0.9, spring: 1,
-                // should appear close to the source to minimize
-                // the effect of environment on sound
-                source: \r_hand, x: 330, y: 370, z: 350
-            )
-        ),
-        (
-            info: "heavy <wind>",
-            message: \particle,
-            synth: (name: "wind",
-                params: [\attack, 0.1, \release, 1, \amp, 0.7]),
-            particle: (age: inf, mass: 0.9, spring: 1,
-                // should appear close to the source to minimize
-                // the effect of environment on sound
-                source: \l_hand, x: 370, y: 370, z: 350
-            )
+            particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
         )
     ],
     9: [
@@ -285,6 +245,15 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
         (
             message: \action,  params: [\remove, \all]
         ),
+        // XXX - TRY THIS:
+        // (
+        //     info: "heavy <lowe>",
+        //     message: \particle,
+        //     synth: (name: "lowe",
+        //         // XXX - play with \freq (~800 -> noisy and sharp) to achieve a sort of "melodicity"
+        //     params: [\attack, 10, \attack, 12, \release, 0.5, \amp, 0.03]),
+        //     particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
+        // ),
         (
             info: "2 heavy <entro>",
             message: \particle,
@@ -384,12 +353,6 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
             info: "stop storm",
             message: \task, name: \randomParticles, act: 0
         ),
-
-        // // ZZZ - skeleton: remove after test
-        // (
-        //     info: "stop skeleton simulation",
-        //     message: \task, name: \skelSimulation, act: 0
-        // ),
         (
             info: "stop random particles",
             message: \task, name: \storm, act: 0
@@ -412,21 +375,6 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
 // Tasks dictionary.
 //
 ~sequence.tasks = (
-
-    // // ZZZ - skeleton: remove after test
-    // skelSimulation: Task({
-    //     var i=0, coords;
-    //     inf.do {
-    //         // process
-    //         if (i == skelData.size) {i = 0};
-    //         coords = skelData[i][1..];
-    //         coords[2] = coords[2] + 0.6; // offset
-    //         ~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
-    //         i = i + 1;
-    //         0.001.wait;
-    //     }
-    // }),
-
     randomParticles: Task({
         var key, next;
         var particleParams = [ // list of acceptable configurations

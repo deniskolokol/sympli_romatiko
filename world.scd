@@ -189,16 +189,19 @@ var worldParams = (
         label: "part synth",
         default: \sr__e__pulse,
     ),
+    // misc
+    skelSimulSpeed: (
+        label: "simul vel",
+        minval: 0.001,
+        maxval: 0.005,
+        default: 0.002,
+        midicc: 34,
+        hint: "speed of skeleton simulation",
+    ),
     mutualAttraction: (
         label: "mutual",
         default: true,
         midinote: 44,
-    ),
-    calibration: (
-        label: "calibr",
-        default: true,
-        midinote: 69,
-        hint: "display image if in calibration mode",
     ),
     internalBuf: (
         label: "internal buf",
@@ -247,8 +250,24 @@ var reshape = { |src|
 var synthsAr = ( );
 // .kr - sorted by outbus
 var synthsKr = reshape.(synthsLFO).sortBy('out');
-// TEST
-
+// Skeleton simulation
+var skelData;
+var loadSkelData = {
+    postf("Reading skeleton simulation data\n");
+    skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
+};
+var skelSimul = Task({
+    var i=0, coords;
+    inf.do {
+        // process
+        if (i == skelData.size) {i = 0};
+        coords = skelData[i][1..];
+        coords[2] = coords[2] + 0.6; // offset
+        ~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
+        i = i + 1;
+        world.skelSimulSpeed.wait;
+    }
+});
 
 // The World is a cube with measurements relative to the screen height.
 tmp = (Window.screenBounds.height*0.623).floor;
@@ -734,7 +753,7 @@ panel = compViewFlow.(panelSrvLeft, scaleH:0.56);
     \gravX, \gravY, \gravZ,
     \springRestLen, \springStrength, \springDamp,
     \maxVel, \partInitAccel, \partFreq,
-    \partDefaultMass, \partAgeThresh, \partSigmoidRatio,
+    \partDefaultMass, \partAgeThresh, \skelSimulSpeed, //\partSigmoidRatio,
 ].do { |key, n|
     worldParams[key][\gui] = slider.(panel, key, worldParams[key]);
     if ((n+1) % 3 == 0) { compViewFlow.(panel, scaleH:0.04)} // gap after every 3rd slider
@@ -795,9 +814,22 @@ miscParams[\reset] = (
         }
     })
 );
+miscParams[\skelsimul] = (
+    midinote: 70,
+    gui: buttonCheckbox.(panel,
+        "skel", bgColor:Color.black, scaleW:0.19, scaleH:0.7
+    ).action_({ |bt|
+        if (bt.value.booleanValue) {
+            if (skelData.isNil) {loadSkelData.()};
+            skelSimul.start
+        } {
+            skelSimul.stop
+        }
+    })
+);
 sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
 // button based physics params
-[\particles, \mutualAttraction, \calibration].do { |key|
+[\particles, \mutualAttraction].do { |key|
     worldParams[key][\gui] = buttonCheckbox.(
         panel,
         worldParams[key][\label],
@@ -806,6 +838,7 @@ sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
     .value_(worldParams[key][\default])
     .action_({ |bt| sendPhysics.([key, bt.value]) })
 };
+
 
 // GUI: local post window
 panel = compViewFlow.(viewBottom);
@@ -1246,21 +1279,12 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
 
 viewWorld.drawFunc = { |view|
     Pen.font_(Font("Andale Mono")).smoothing_(true);
-    if (world.calibration.booleanValue) {
-        Pen.scale(1, 1);
-        Pen.translate(0, 0);
-        center = [world.width/2, world.height/2].asPoint;
-        scale = star.position.z.linlin(0, world.depth, 0.2, 1);
-        translate = scale.linlin(0.2, 1, world.height/2, 0);
-        focal = star.position.x.linlin(0, world.width, 0, 100);
-        // Pen.scale(scale, scale);
-        // Pen.translate(translate, translate);
-    } {
-        center = xyz2plane.(
-            [world.width/2, world.height/2],
-            world, scale, focal
-        ).asPoint;
-    };
+    Pen.scale(1, 1);
+    Pen.translate(0, 0);
+    center = [world.width/2, world.height/2].asPoint;
+    scale = star.position.z.linlin(0, world.depth, 0.2, 1);
+    translate = scale.linlin(0.2, 1, world.height/2, 0);
+    focal = star.position.x.linlin(0, world.width, 0, 100);
 
     // draw floor
     Pen.color = Color.white;
@@ -1419,32 +1443,6 @@ viewWorld.drawFunc = { |view|
             }
         };
 
-        // XXX
-        //
-        // var curve;
-        // var drawCurve = { |crv, j|
-        //     try {
-        //         Pen.moveTo(Point(sk[crv[j]].position.x, sk[crv[j]].position.y));
-        //         Pen.lineTo(Point(sk[crv[j+1]].position.x, sk[crv[j+1]].position.y));
-        //         Pen.stroke;
-        //     }
-        // };
-        // if (world.calibration.booleanValue) {
-        //     curve = ['head', 'neck', 'torso'];
-        //     curve.do { |joint, j| drawCurve.(curve, j) };
-        //     curve = ['l_hand', 'l_elbow', 'l_shoulder', 'neck', 'r_shoulder', 'r_elbow', 'r_hand'];
-        //     curve.do { |joint, j| drawCurve.(curve, j) };
-        //     curve = ['l_foot', 'l_knee', 'l_hip', 'torso', 'r_hip', 'r_knee', 'r_foot'];
-        //     curve.do { |joint, j| drawCurve.(curve, j) };
-        // } {
-        //     jointVisible.size.do { |j|
-        //         try {
-        //             Pen.moveTo(Point(sk[jointVisible[j]].position.x, sk[jointVisible[j]].position.y));
-        //             Pen.lineTo(Point(sk[jointVisible[j+1]].position.x, sk[jointVisible[j+1]].position.y));
-        //             Pen.stroke;
-        //         }
-        //     }
-        // };
     };
     // WARNING - end
 
@@ -2250,20 +2248,6 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
         msg[5].linlin(0.0, 5.0, 0, world.height),
         msg[4].linlin(0.0, 1.0, 0, world.depth)
     ];
-    // XXX
-    // if (world.calibration.booleanValue) {
-    //     #x, y, z = [
-    //         msg[3].linlin(-0.1, 1.1, 0, world.width),
-    //         msg[4].linlin(-0.15, 0.99, 0, world.depth),
-    //         msg[5].linlin(0.3, 3.4, 0, world.height)
-    //     ];
-    // } {
-    //     #x, y, z = [
-    //         msg[3].linlin(-0.1, 1.1, 0, world.width),
-    //         msg[5].linlin(0.3, 3.4, 0, world.height),
-    //         msg[4].linlin(-0.15, 0.99, 0, world.depth)
-    //     ];
-    // };
     skeletonParticles.(id, joint, x, y, z);
 }, '/joint');
 

@@ -8,6 +8,7 @@ var star, physics, particles, springs;
 var oscParticle, oscPhysics, oscAction,
     oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
     oscGroupTree;
+var drawPhysics;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
@@ -753,7 +754,7 @@ panel = compViewFlow.(panelSrvLeft, scaleH:0.56);
     \gravX, \gravY, \gravZ,
     \springRestLen, \springStrength, \springDamp,
     \maxVel, \partInitAccel, \partFreq,
-    \partDefaultMass, \partAgeThresh, \skelSimulSpeed, //\partSigmoidRatio,
+    \partDefaultMass, \partAgeThresh, \skelSimulSpeed
 ].do { |key, n|
     worldParams[key][\gui] = slider.(panel, key, worldParams[key]);
     if ((n+1) % 3 == 0) { compViewFlow.(panel, scaleH:0.04)} // gap after every 3rd slider
@@ -1277,7 +1278,7 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
     }
 };
 
-viewWorld.drawFunc = { |view|
+drawPhysics = { |view|
     Pen.font_(Font("Andale Mono")).smoothing_(true);
     Pen.scale(1, 1);
     Pen.translate(0, 0);
@@ -1589,7 +1590,10 @@ viewWorld.drawFunc = { |view|
         // general
         \depth, ~depth,
     );
+};
 
+viewWorld.drawFunc = { |view|
+    drawPhysics.(view);
     physics.tick;
 };
 

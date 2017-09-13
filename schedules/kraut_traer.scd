@@ -16,11 +16,11 @@ dictObjSeq = (
 msetObjSeq = MarkovSetN([], 2);
 dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 
-samplesDir = "~/Music/Sympli_Romatiko/samples/";
-PathName.new(samplesDir +/+ "test").entries.do { |f, i|
+samplesDir = "~/Music/MOON2/samples/";
+PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
     try {
         ~sequence.samples.add(Buffer.readChannel(~scsynth, f.fullPath, channels: [0]))
-    }
+    };
 };
 [
     FloatArray[0, 3, 7, 10], // scales[0] is the main scale
@@ -59,7 +59,7 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
                 params: [
                     \attack, 120,
                     \release, 40,
-                    \amp, 0.5,
+                    \amp, 0.65,
                     \freq, "d 3".notemidi.midicps
                 ]
             ),
@@ -78,7 +78,7 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
                 params: [
                     \attack, 120,
                     \release, 40,
-                    \amp, 0.5,
+                    \amp, 0.65,
                     \freq, "a#2".notemidi.midicps
                 ]
             ),
@@ -121,7 +121,7 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
                     \attack, 20,
                     \release, 20,
                     \freq, "g 2".notemidi.midicps,
-                    \amp, 0.5
+                    \amp, 0.1
                 ]
             ),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
@@ -241,7 +241,7 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
     ],
-    14: [
+    15: [
         (
             message: \action,  params: [\remove, \all]
         ),
@@ -268,16 +268,136 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
         (
             info: "2 heavy <buzz>",
             message: \particle,
-            synth: (name: "buzz", params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.05, \freq, 622.25396744416]),
+            synth: (name: "buzz", params: [
+                \att, 1,
+                \bufnum,  ~sequence.scales[3].bufnum,
+                \offset, 26+24,
+                \amp, 0.05,
+                \freq, 622.25396744416
+            ]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: "buzz", params: [\att, 1, \bufnum, ~sequence.scales[3].bufnum, \offset, 26+24, \amp, 0.05, \freq, 740]),
+            synth: (name: "buzz", params: [
+                \att, 1,
+                \bufnum, ~sequence.scales[3].bufnum,
+                \offset, 26+24,
+                \amp, 0.05,
+                \freq, 740
+            ]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
     ],
-    15: [
+    16: [
+        (
+            message: \action,  params: [\remove, \all]
+        ),
+        (
+            info: "2 heavy <buzz> (alone)",
+            message: \particle,
+            synth: (name: "buzz", params: [
+                \att, 1,
+                \bufnum,  ~sequence.scales[3].bufnum,
+                \offset, 26+24,
+                \amp, 0.05,
+                \freq, 622.25396744416
+            ]),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        ),
+        (
+            message: \particle,
+            synth: (name: "buzz", params: [
+                \att, 1,
+                \bufnum, ~sequence.scales[3].bufnum,
+                \offset, 26+24,
+                \amp, 0.05,
+                \freq, 742
+            ]),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+
+    ],
+    17: [
+        (
+            info: "voice 1",
+            message: \particle,
+            synth: (name: "loop", params: [
+                \att, 1,
+                \bufnum, ~sequence.samples[0].bufnum,
+                \amp, 0.2,
+            ]),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        ),
+    ],
+    18: [
+        (
+            info: "voice 2",
+            message: \particle,
+            synth: (name: "loop", params: [
+                \attack, 1,
+                \release, 10,
+                \bufnum, ~sequence.samples[1].bufnum,
+                \amp, 0.2,
+            ]),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+
+    ],
+    19: [
+        (
+            info: "voice 1 effect",
+            message: \particle,
+            synth: (name: "gust", params: [
+                \attack, 1,
+                \bufnum, ~sequence.samples[0].bufnum,
+                \amp, 0.2,
+            ]),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+
+    ],
+    20: [
+        (
+            message: \action,  params: [\remove, \all]
+        ),
+        (
+            info: "leave voice 1 only",
+            message: \particle,
+            synth: (name: "loop", params: [
+                \attack, 1,
+                \bufnum, ~sequence.samples[1].bufnum,
+                \amp, 0.2,
+            ]),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+        (
+            info: "2 heavy <buzz> (alone)",
+            message: \particle,
+            synth: (name: "buzz", params: [
+                \att, 1,
+                \bufnum,  ~sequence.scales[3].bufnum,
+                \offset, 26+24,
+                \amp, 0.05,
+                \freq, 622.25396744416
+            ]),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        ),
+        (
+            message: \particle,
+            synth: (name: "buzz", params: [
+                \att, 1,
+                \bufnum, ~sequence.scales[3].bufnum,
+                \offset, 26+24,
+                \amp, 0.05,
+                \freq, 742
+            ]),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+    ],
+
+    // stale code
+    43: [
         (
             info: "__analog 1 for audio through, .kr buses",
             message: \g_new,
@@ -295,7 +415,7 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
             ]
         )
     ],
-    16: [
+    44: [
         (
             info: "__analog 2 for audio through, .kr buses",
             message: \g_new,
@@ -313,7 +433,7 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
             ]
         )
     ],
-    17: [
+    45: [
         (
             info: "2 heavy __authro",
             message: \particle,
@@ -330,25 +450,25 @@ PathName.new(samplesDir +/+ "test").entries.do { |f, i|
             particle: (mass: 1, spring: 1, source: \r_hand)
         ),
     ],
-    20: [
+    46: [
         (
             info: "random particles",
             message: \task, name: \randomParticles, act: 1
         ),
     ],
-    30: [
+    47: [
         (
             info: "increase gravity",
             message: \physics, params: [\gravY, -2], // everythin is being dragged "forward"
         ),
     ],
-    35: [
+    48: [
         (
             info: "storm",
             message: \task, name: \storm, act: 1
         ),
     ],
-    40: [
+    49: [
         (
             info: "stop storm",
             message: \task, name: \randomParticles, act: 0

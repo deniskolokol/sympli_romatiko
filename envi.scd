@@ -10,10 +10,10 @@ var initAudioThrough;
 var doTest, loadComponents__test;
 var conf=Dictionary.new;
 var confKeys = [ // keys to save to conf file
-        'surround', 'depth',
-        'inbus', 'outbus', 'audioThruBus', 'inbus', 'outbus',
-        'worldSize', 'receiver', 'speakers'
-    ];
+    'surround', 'depth',
+    'inbus', 'outbus', 'audioThruBus', 'inbus', 'outbus',
+    'worldSize', 'receiver', 'speakers'
+];
 var harmonics, numHarmonics=1024, numWavetables = 8;
 
 var cleanPaths = { |paths|
@@ -152,10 +152,10 @@ srEnv = Environment.make {
         \depth -> ControlSpec(1, 10, \lin, 0.1, 5),
         \offset -> \midinote.asSpec,
         \rq -> \rq.asSpec,
-        \lfo -> ControlSpec(0.01, 100, \lin, 0.01, 0.5, units: " Hz"), // dummy, 0.01..1.000 | 1..100
+        \lfreq -> ControlSpec(0.01, 100, \lin, 0.01, 0.5, units: " Hz"), // dummy, 0.01..1.000 | 1..100
         \min -> ControlSpec(-1, 0.99, \lin, 0.01, -1),
         \max -> ControlSpec(-0.99,  1, \lin, 0.01, 1),
-        \amp -> \amp.asSpec,
+        \amp -> ControlSpec(0, 1, \amp, 0, 1),
         \room -> ControlSpec(0.0,  1.0, \lin, 0.01, 0.5),
         \damp -> ControlSpec(0.0,  1.0, \lin, 0.01, 0.5),
         \delaytime -> ControlSpec(0.001,  2.0, -3, 0.001, 0.2),
@@ -169,51 +169,55 @@ srEnv = Environment.make {
             \freq, \detune, \delay, \cutoff, \room, \rq, // knobs in GUI
             \rate, \amp // sliders in GUI
         ],
-        \kr: #[\lfo, \min, \max],
+        \kr: #[
+            \lfreq, \dummy, \min, \dummy, \max, \dummy,  // knobs in GUI
+            \dummy, \dummy // sliders in GUI
+        ],
     );
 
     ~synths = (
-        \silent: ( ),
-        \atru: ( ),
-        \buzz: ( ),
-        \pole: ( \params: [\freq, \dummy, \dummy, \cutoff, \dummy, \rq, \dummy, \amp] ),
-        \bass: ( ),
-        \moog: ( ),
-        \lowe: ( ),
-        \wind: ( ),
-        \komar: ( \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
-        \neural: ( ),
-        \entro: ( ),
-        \humm: ( ),
-        \melo: ( ),
-        \cmb: ( ),
-        \probe: ( ),
-        \pulse: ( ),
-        \therem: ( ),
-        \gauss: ( ),
-        \loop: ( ),
-        \loopdel: ( ),
-        \drone: ( ),
-        \greg: ( ),
-        \scratch: ( ),
-        \unst: ( ),
-        \gust: ( ),
-        \kick: ( ),
+        // types are: \gen - generator; \gran - granulator
+        \silent: ( \type: \gen ),
+        \atru: ( \type: \gen ),
+        \buzz: ( \type: \gen ),
+        \pole: ( \type: \gen, \params: [\freq, \detune, \dummy, \cutoff, \dummy, \rq, \dummy, \amp] ),
+        \bass: ( \type: \gen ),
+        \moog: ( \type: \gen ),
+        \lowe: ( \type: \gen ),
+        \wind: ( \type: \gen ),
+        \komar: (\type: \gen, \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
+        \neural: ( \type: \gen ),
+        \entro: ( \type: \gen ),
+        \humm: ( \type: \gen ),
+        \melo: ( \type: \gen ),
+        \cmb: ( \type: \gen ),
+        \probe: ( \type: \gen ),
+        \pulse: ( \type: \gen ),
+        \therem: ( \type: \gen ),
+        \gauss: ( \type: \gen ),
+        \loop: ( \type: \gran ),
+        \loopdel: ( \type: \gran ),
+        \drone: ( \type: \gran ),
+        \greg: ( \type: \gran ),
+        \scratch: ( \type: \gran ),
+        \unst: ( \type: \gran ),
+        \gust: ( \type: \gran ),
+        \kick: ( \type: \gen ),
     );
     ~lfos = (
-        \ksine: ( ),
-        \kpulse: ( ),
-        \ksaw: ( ),
-        \ktri: ( ),
-        \ksawprc: ( ),
-        \klipnoise: ( ),
-        \klfno0: ( ),
-        \klfno1: ( ),
-        \klfno2: ( ),
-        \kstepno: ( ),
-        \ksinmod: ( ),
-        \ksawmod: ( ),
-        \keyscale: ( ),
+        \ksine: ( \type: \gen ),
+        \kpulse: ( \type: \gen ),
+        \ksaw: ( \type: \gen ),
+        \ktri: ( \type: \gen ),
+        \ksawprc: ( \type: \gen ),
+        \klipnoise: ( \type: \gen ),
+        \klfno0: ( \type: \gen ),
+        \klfno1: ( \type: \gen ),
+        \klfno2: ( \type: \gen ),
+        \kstepno: ( \type: \gen ),
+        \ksinmod: ( \type: \gen ),
+        \ksawmod: ( \type: \gen ),
+        \keyscale: ( \type: \gen ),
     );
     // fill default params if no parameters for a synth provided
     ~synths.keys.do { |name|
@@ -229,13 +233,13 @@ srEnv = Environment.make {
         ((in + step).clip(lo, hi) % hi).clip(lo, hi)
     };
 
-    ~initSynth = { |synth, spatial, params|
+    ~initSynth = { |synth, node, spatial, params|
         // Creates an .ar synth on Server.
         // Returns ID of the Node created.
         // `synth` - short name (i.e. \moog or \buzz).
         // `params` - anything convertable to Dictionary (i.e. list of pairs).
         var message;
-        var node=~scsynth.nextNodeID;
+        node = node ? ~scsynth.nextNodeID;
         params = Dictionary.newFrom(params ? []);
         if (params.keys.includes(\in).not) {
             params[\in] = ~inbus;
@@ -266,25 +270,22 @@ srEnv = Environment.make {
         node
     };
 
-    ~initModulator = { |synth, bufnum, inbus, outbus, params|
+    ~initLFO = { |synth, node, params|
         // Creates a .kr synth on Server.
         // Returns nil, if outbus is not given (.kr doesn't make
         // sense without outbus).
-        var messages, node = ~scsynth.nextNodeID;
-        params = params ? [];
-        if (inbus.isNil.not) {
-            params = params ++ [\in, inbus]
+        var message;
+        node = node ? ~scsynth.nextNodeID;
+        params = Dictionary.newFrom(params ? []);
+        if (params.keys.includes(\bufnum).not) {
+            params[\bufnum] = ~getDefaultBuffer.(synth).bufnum;
         };
-        if (outbus.isNil.not) {
-            params = params ++ [\out, outbus];
+        if (params.keys.includes(\out)) {
             // report
             postf("INFO: init LFO % at node %\n", synth, node);
-            Dictionary.newFrom(params).keysValuesDo { |k,v| postf("\t%: %\n", k, v); };
-            messages = [
-                ["/s_new", synth, node, 0, ~rootKr],
-                ["/n_set", node] ++ (params ? [])
-            ];
-            ~scsynth.listSendBundle(0.1, messages)
+            params.keysValuesDo { |k,v| postf("\t%: %\n", k, v); };
+            message = ["/s_new", synth, node, 0, ~rootKr] ++ params.asKeyValuePairs;
+            ~scsynth.listSendMsg(message);
         } {
             node = nil
         };
@@ -347,7 +348,11 @@ srEnv = Environment.make {
         var x, y, z, node, spring, source, age, params;
         #x, y, z = [\x, \y, \z].collect({ |k| particle.atFail(k, { ~worldSize.rand }) });
         particle.putAll((x: x, y: y, z: z));
-        node = ~initSynth.(synth[\name], params:synth[\params]);
+        node = ~initSynth.(
+            synth[\name],
+            node:synth[\node],
+            params:synth[\params]
+        );
         spring = particle.atFail(\spring, {0});
         params = [
             1, // create
@@ -378,15 +383,19 @@ srEnv = Environment.make {
         }).asSpec
     };
 
-    // XXX re-design
-    //     no indicator of whether synth is gen or gran anymore
-    ~getDefaultBuffer = { |synthName|
-        var buff;
-        if (synthName.asString.beginsWith("sr__e__")) {
+    ~getDefaultBuffer = { |synth|
+        var container, buff;
+        synth = synth.asSymbol;
+        if (~synths.keys.includes(synth)) {
+            container = ~synths
+        } {
+            container = ~lfos
+        };
+        if (container[synth][\type] == 'gen') {
             buff = ~sequence.scales[0]
         };
-        if (synthName.asString.beginsWith("sr__g__")) {
-            buff = ~sequence.voices.choose
+        if (container[synth][\type] == 'gran') {
+            buff = ~sequence.samples.choose
         };
         if (buff.isNil) {
             buff = ~defaultBuff
@@ -728,7 +737,7 @@ doTest = {
     // Unit tests:
     // $sclang /path/to/envi.scd test
     //
-    // WARNING! Start withing working dir (where envi.scd lives).
+    // WARNING! Start within working dir (where envi.scd lives).
     //
     var test_initSynth = {
         // write empty output to levelsList

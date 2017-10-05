@@ -705,10 +705,9 @@ var makeSynthDefADSR = { |name, outCodeFunc|
         var lag = momentum.lincurve(0, 1, 0.5, 0.05, -4);
         var detune = momentum.lincurve(0, 1, 0.4, 0.5, 4);
         var tones = 20;
-        var pitches;
         var signal = Mix.fill(tones,
             { |index|
-                pitches = Lag.kr(
+                var pitches = Lag.kr(
                     freq + TRand.kr(detune.neg, detune, trig),
                     lag * Rand(0.8, 1.2)
                 );
@@ -883,45 +882,48 @@ spatialConf.keysValuesDo { |name, conf|
 //
 // XXX former \sr__k__sine
 SynthDef(\ksine, {
-    arg out=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    // arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, min= -1, max=1, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var ctl = env * SinOsc.ar(lfo, phase, mul, add);
+    var mul = max.absdif(min) * 0.5;
+    var add = min + mul;
+    var ctl = env * SinOsc.ar(lfreq, phase, mul, add);
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
     Out.kr(out, ctl);
 }).send(~scsynth);
 
 // XXX former \sr__k__pulse
 SynthDef(\kpulse, {
-    arg out=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var ctl = env * LFPulse.ar(lfo, phase, mul, add);
+    var ctl = env * LFPulse.ar(lfreq, phase, mul, add);
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
     Out.kr(out, ctl);
 }).send(~scsynth);
 
 // XXX former \sr__k__saw
 SynthDef(\ksaw, {
-    arg out=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var ctl = env * Saw.kr(lfo, mul, add);
+    var ctl = env * Saw.kr(lfreq, mul, add);
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
     Out.kr(out, ctl);
 }).send(~scsynth);
 
 // XXX \sr__k__tri
 SynthDef(\ktri, {
-    arg out=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var ctl = env * LFTri.kr(lfo, phase, mul, add);
+    var ctl = env * LFTri.kr(lfreq, phase, mul, add);
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
     Out.kr(out, ctl);
 }).send(~scsynth);
 
 // XXX \sr__k__sawperc
 SynthDef(\ksawprc, {
-    arg out=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var ctl = env * LFSaw.ar(lfo, phase, mul, add).cubed.neg.clip;
+    var ctl = env * LFSaw.ar(lfreq, phase, mul, add).cubed.neg.clip;
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
     Out.kr(out, ctl);
 }).send(~scsynth);
@@ -929,9 +931,9 @@ SynthDef(\ksawprc, {
 // XXX former \sr__k__clipnoise
 // clip noise
 SynthDef(\klipnoise, {
-    arg out=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var ctl = env * LFDClipNoise.kr(lfo, mul, add);
+    var ctl = env * LFDClipNoise.kr(lfreq, mul, add);
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
     Out.kr(out, ctl);
 }).send(~scsynth);
@@ -939,38 +941,44 @@ SynthDef(\klipnoise, {
 // XXX former \sr__k__lfnoise0
 // step noise
 SynthDef(\klfno0, {
-    arg out=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    // arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, min= -1, max=1, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var ctl = env * LFDNoise0.kr(lfo, mul, add);
+    var mul = max.absdif(min) * 0.5;
+    var add = min + mul;
+    var ctl = env * LFDNoise0.kr(lfreq, mul, add);
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
     Out.kr(out, ctl);
 }).send(~scsynth);
 
 // XXX former \sr__k__lfnoise1
 SynthDef(\klfno1, {
-    arg out=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var ctl = env * LFNoise1.kr(lfo, mul, add);
+    var ctl = env * LFNoise1.kr(lfreq, mul, add);
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
     Out.kr(out, out );
 }).send(~scsynth);
 
 // XXX former \sr__k__lfnoise2
 SynthDef(\klfno2, {
-    arg out=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    // arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, min= -1, max=1, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var ctl = env * LFNoise2.kr(lfo).clip2 * mul + add;
+    var mul = max.absdif(min) * 0.5;
+    var add = min + mul;
+    var ctl = env * LFNoise2.kr(lfreq).clip2 * mul + add;
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
     Out.kr(out, out );
 }).send(~scsynth);
 
 // XXX former \sr__k__stepnoise
 SynthDef(\kstepno, {
-    arg out=0, lfo=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
     var ctl = env * TWChoose.kr(
         Dust.ar(1),
-        [LFNoise0.kr(lfo, mul, add), LFNoise1.kr(lfo, mul, add), LFNoise2.kr(lfo).clip2 * mul + add],
+        [LFNoise0.kr(lfreq, mul, add), LFNoise1.kr(lfreq, mul, add), LFNoise2.kr(lfreq).clip2 * mul + add],
         [0.2, 0.3, 0.5]
     );
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
@@ -979,27 +987,31 @@ SynthDef(\kstepno, {
 
 // XXX former \sr__k__sinmod
 SynthDef(\ksinmod, {
-    arg out=0, lfo=1, phase=0, mul=1, add=0, mod_mul=0.45, mod_add=0.55, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, mul=1, add=0, mod_mul=0.45, mod_add=0.55, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var ctl = env * SinOsc.kr(LFNoise0.kr(lfo, mod_mul, mod_add), LFDClipNoise.kr(lfo), mul, add);
+    var ctl = env * SinOsc.kr(LFNoise0.kr(lfreq, mod_mul, mod_add), LFDClipNoise.kr(lfreq), mul, add);
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
     Out.kr(out, ctl);
 }).send(~scsynth);
 
 // XXX former \sr__k__sawmod
 SynthDef(\ksawmod, {
-    arg out=0, lfo=1, mul=1, add=0, mod_mul=0.45, mod_add=0.55, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, mul=1, add=0, mod_mul=0.45, mod_add=0.55, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
-    var ctl = env * Saw.kr(LFNoise0.kr(lfo, mod_mul, mod_add), mul, add);
+    var ctl = env * Saw.kr(LFNoise0.kr(lfreq, mod_mul, mod_add), mul, add);
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
-    Out.kr(out, Saw.kr(lfo, mul, add));
+    Out.kr(out, Saw.kr(lfreq, mul, add));
 }).send(~scsynth);
 
 // XXX former \sr__k__keyscale
 SynthDef(\keyscale, {
+    // arg bufnum=0, val=0.5, idx=12, octave=12, detune=3, detuneDepth=0.04,
+    // out=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     arg bufnum=0, val=0.5, idx=12, octave=12, detune=3, detuneDepth=0.04,
-        out=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+        out=0, min= -1, max=1, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
+    var mul = max.absdif(min) * 0.5;
+    var add = min + mul;
     var note = (
         // `add` here is an offset and must be given in midi!
         DegreeToKey.kr(bufnum, val.linlin(0, 1, 0, idx), octave, mul, add)

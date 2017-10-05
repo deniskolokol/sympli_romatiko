@@ -211,27 +211,6 @@ var worldParams = (
     ),
 );
 
-    // TEST - 5 .ar synths, 3 .kr
-    // XXX TODO: `synths` should be the same format as `particles`!
-    // XXX TODO: add key \connections to both `synths` and `particles`
-var synthsLFO = (
-    // XXX do we have to display kr bus number here?
-    "6298284": (
-        'node': 1023,
-        'synth': "ksine",
-        'params': (\out: 0)
-    ),
-    "8280242": (
-        'node': 1012,
-        'synth': "keyscale",
-        'params': (\out: 1, \in: \r_hand)
-    ),
-    "9600413": (
-        'node': 1015,
-        'synth': "klfno0",
-        'params': (\out: 2)
-    ),
-);
 var reshape = { |src|
     var rec, res=List.new;
     src.keys.do { |k|
@@ -249,8 +228,10 @@ var reshape = { |src|
 // WARNING! all synths of a particular class should be help in the same dict for display!
 // .ar - sorted by node
 var synthsAr = ( );
+// .kr - dictionary of LFOs with node as a key
+var synthsLFO = ( );
 // .kr - sorted by outbus
-var synthsKr = reshape.(synthsLFO).sortBy('out');
+var synthsKr = ( );
 // Skeleton simulation
 var skelData;
 var loadSkelData = {
@@ -363,7 +344,6 @@ switchEvent = { |nxt=1|
         if (~sequence.size > 0) {
             current = getKey.(current, nxt);
             next = getKey.(current, 1);
-            [current, next].postln;
             scrollInfo.(current, next);
 
             // bring it on!
@@ -445,42 +425,57 @@ groupRemove = { |data|
 
 processEvents = { |key|
     // Process specific key from sequence.
-    var node, taskParmUpdate, defaultParams;
-    ~sequence.events.atFail(key, {[]}).do { |d, l|
-        d[\message].switch(
+    var node, taskParmUpdate, params, out;
+    var updateParams = { |data, nodeID, container, synthDict|
+        // Update params for GUI
+        //     `container` - `particles` or `synthsLFO` depending on the type of synth
+        //     `synthDict` - where to look for default params of the synth (~synths or ~lfos)
+        var taskParmUpdate;
+        taskParmUpdate = Task({
+            inf.do {
+                container.keysValuesDo { |id, synth|
+                    if (synth[\node] == nodeID) {
+                        synth[\params] = Dictionary.newFrom(data[\synth][\params] ? []);
+                        // fill out default params
+                        synthDict.at(data[\synth][\name].asSymbol)[\params].do { |parm|
+                            if (synth[\params].keys.includes(parm).not) {
+                                synth[\params][parm] = ~specs[parm].default
+                            }
+                        };
+                        taskParmUpdate.stop;
+                    };
+                };
+                0.1.wait;
+            };
+        }).start;
+    };
+    ~sequence.events.atFail(key, {[]}).do { |data, l|
+        data[\message].switch(
             \physics, {
-                sendPhysics.(d[\params])
+                sendPhysics.(data[\params])
             },
             \audio, {
-                ~sendMessage.('/audio', d[\params])
+                ~sendMessage.('/audio', data[\params])
             },
             \particle, {
-                node = ~sendParticle.(d[\particle], d[\synth]);
-                // update params for GUI
-                taskParmUpdate = Task({
-                    inf.do {
-                        particles.keysValuesDo { |part, synth|
-                            if (synth[\node] == node) {
-                                defaultParams = ~synths.at(d[\synth][\name].asSymbol)[\params];
-                                particles[part][\params] = ( );
-                                Dictionary.newFrom(d[\synth][\params]).keysValuesDo { |k, v|
-                                    if (defaultParams.includes(k)) { synth[\params][k] = v }
-                                };
-                                taskParmUpdate.stop;
-                            };
-                        };
-                        0.1.wait;
-                    };
-                }).start;
+                node = ~sendParticle.(data[\particle], data[\synth]);
+                updateParams.(data, node, particles, ~synths)
+            },
+            \lfo, {
+                params = data[\synth][\params];
+                try { node = data[\synth][\node] };
+                node = ~initLFO.(data[\synth][\name], node, params);
+                synthsLFO.put(node, (synth: data[\synth][\name], node: node)); // LFOs container id is node
+                updateParams.(data, node, synthsLFO, ~lfos);
             },
             \task, {
-                taskPlay.(~sequence.tasks[d[\name]], d[\act].booleanValue)
+                taskPlay.(~sequence.tasks[data[\name]], data[\act].booleanValue)
             },
-            \s_new, { sendSNew.(d) },
-            \n_set, { sendNSet.(d) },
-            \g_new, { groupNew.(d) },
-            \g_free, { groupRemove.(d) },
-            { ~sendMessage.(d[\message], d[\params]) }
+            \s_new, { sendSNew.(data) },
+            \n_set, { sendNSet.(data) },
+            \g_new, { groupNew.(data) },
+            \g_free, { groupRemove.(data) },
+            { ~sendMessage.(data[\message], data[\params]) }
         )
     }
 };
@@ -572,6 +567,8 @@ slider = { |par, name, val, layout='horz', scale=1|
         { |ez| ~sendMessage.('/physics', [name, ez.value]) },
         layout:layout, labelWidth:80, numberWidth:40)
     .font_(fontSmall);
+    ezs.numberView.canFocus = false;
+    ezs.sliderView.canFocus = false;
 
     ezs.setColors(
         stringColor:fontColor,
@@ -612,7 +609,7 @@ meterView = EntroServerMeterView(~scsynth, panel, 0@0, 210);
 panelSrvRight = compViewFlow.(winSrv, scaleW:0.43);
 viewSeqList = compViewFlow.(panelSrvRight, scaleH:0.1, scaleW:0.65);
 viewSeqTime = compViewFlow.(panelSrvRight, margin:5@5, gap:5@5, scaleH:0.1, scaleW:0.35);
-viewSeqEvents = compViewFlow.(panelSrvRight, gap:8@4, scaleH:0.83);
+viewSeqEvents = compViewFlow.(panelSrvRight, gap:8@4, scaleH:0.86);
 // time elapsed since the start
 timeLabel = sText.(viewSeqTime, ~convertTime.(0), stringFont:fontLarge1, scaleW:1, scaleH:0.7);
 timeLabel.align = \center;
@@ -628,7 +625,7 @@ stPastEvents = TextView(viewSeqEvents, viewSeqEvents.bounds.width@(viewSeqEvents
 // current event number and info
 btCurrNum = button.(viewSeqEvents, ">>", bgColor:Color.gray(0.15), scaleH: 0.05)
     .action_({ |bt| switchEvent.(-1) });
-stCurrInfo = sText.(viewSeqEvents, "[...]", stringFont:fontLarge, scaleH:0.15);
+stCurrInfo = sText.(viewSeqEvents, "[...]", stringFont:fontLarge, scaleW:1, scaleH:0.15);
 // next (awaiting) event number and info
 btNextNum = button.(viewSeqEvents, "<<", bgColor:Color.gray(0.15), scaleH: 0.05)
     .action_({ |bt| switchEvent.(1) });
@@ -689,6 +686,7 @@ button.(viewSeqList,
 ).action_({ |bt|
     "INFO: removing custom groups / synths".postln;
     synths.keys.do { |k| groupRemove.((id: k)) };
+    synthsLFO = ();
     ~stopSequence.();
     animateSeq = false; // stop clock
 });
@@ -844,17 +842,20 @@ sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
 // GUI: local post window
 panel = compViewFlow.(viewBottom);
 postView = TextView(panel, panel.bounds.width@panel.bounds.height)
-.editable_(false)
-.font_(fontMedium)
-.stringColor_(fontColor)
-.background_(transparent)
-.hasVerticalScroller_(false)
-.canFocus_(false);
+    .editable_(false)
+    .font_(fontMedium)
+    .stringColor_(fontColor)
+    .background_(transparent)
+    .hasVerticalScroller_(false)
+    .canFocus_(false);
 
 // GUI: running synths and connections
-viewConn = UserView(viewRight, viewRight.bounds.width@viewWorld.bounds.height);
+viewConn = UserView(viewRight, viewRight.bounds.width@(viewWorld.bounds.height*0.85));
 viewConn.drawFunc = { |view|
-    var ind;
+    var ind, unit, grid=6, gridMargin=60;
+    // synths width depending on the synth type
+    var wdtKr = if (synthsLFO.size == 0) {view.bounds.width/4} {(view.bounds.width/synthsLFO.size)-5};
+    var wdtAr = (view.bounds.width/particles.size)-5 / ~defaultParams[\ar].size / 2;
     var drawSynth = { |syn, oX, oY, boxWidth, parm, ctl|
         // `parm`: params label (for example, "node [outbus]"), displayed under the synth name
         // `ctl`: [mute, solo], each value is Boolean
@@ -904,7 +905,7 @@ viewConn.drawFunc = { |view|
         // stroke param connector in .ar synth
         Pen.strokeColor = techColor;
         Pen.strokeRect(Rect(
-            synFro[\coords][0]+((wdt*2)*num),
+            synFro[\coords][0]+(num*wdt*2),
             synFro[\coords][1]-5,
             wdt, 5));
         // stroke param name box
@@ -916,11 +917,8 @@ viewConn.drawFunc = { |view|
         parmName = parmName.asString;
         if (parmCoords.isNil) {
             parmCoords = [
-                rrand(
-                    (synFro[\coords][0]-100).max(50),
-                    (synFro[\coords][0]+100).max(view.bounds.width-50)
-                ),
-                rrand(view.bounds.height*0.35, view.bounds.height*0.65),
+                synTo[\coords][0] + (wdtKr*0.5) - (parmName.size*5),
+                (view.bounds.height - (gridMargin*2)) / grid * (min(num+1, grid)) + 10,
                 parmName.size*10, 20
             ]
         };
@@ -934,7 +932,7 @@ viewConn.drawFunc = { |view|
         Pen.strokeColor = Color.grey(0.5);
         // start from .ar synth param
         Pen.moveTo(Point(
-            synFro[\coords][0]+((wdt*2)*num)+(wdt/2),
+            synFro[\coords][0]+(num*wdt*2)+(wdt/2),
             synFro[\coords][1]-5
         ));
         // connect with param name box
@@ -956,16 +954,26 @@ viewConn.drawFunc = { |view|
         Pen.width = 1;
         parmCoords // return connection coordinates for future use
     };
-    // synths width depending on the synth type
-    var wdtKr = (view.bounds.width / synthsKr.size) - 5;
-    // var wdtAr = (view.bounds.width/synthsAr.size)-5 / ~defaultParams[\ar].size / 2;
-    var wdtAr = (view.bounds.width/particles.size)-5 / ~defaultParams[\ar].size / 2;
-    var unit;
+
+    // stroke grid
+    Pen.strokeColor = Color.grey(0.2);
+    (view.bounds.width / wdtKr).floor.do { |i|
+        tmp = wdtKr * (i + 0.5) + (i * 5);
+        Pen.moveTo(Point(tmp, gridMargin));
+        Pen.lineTo(Point(tmp, view.bounds.height-gridMargin));
+    };
+    grid.do { |i|
+        tmp = ((view.bounds.height - (gridMargin * 2)) / grid) * (i + 0.5) + gridMargin;
+        Pen.moveTo(Point(20, tmp));
+        Pen.lineTo(Point(view.bounds.width-20, tmp));
+    };
+    Pen.stroke;
 
     // set 'nerd-ish' font to the whole view
     Pen.font_(Font("Andale Mono")).smoothing_(true);
 
     // .kr
+    synthsKr = reshape.(synthsLFO).sortBy('out');
     synthsKr.do { |syn, i|
         syn[\coords] = drawSynth.(
             syn, oX: i, oY: 5,
@@ -1063,7 +1071,8 @@ mute = { |synth|
 
 
 // GUI: .ar synths selection
-panel = compViewFlow.(viewRight, scaleW: 0.2, scaleH: 0.365);
+tmp = 1-(viewConn.bounds.height/viewRight.bounds.height).round(0.01);
+panel = compViewFlow.(viewRight, scaleW: 0.2, scaleH: tmp);
 listView.(panel, items: ~synths.keys.asArray.sort)
 .enterKeyAction_({ |lv|
     ~sendParticle.(
@@ -1078,7 +1087,7 @@ ccCurrSynthParam = { |sType, ctlInd, val|
     if (sType == \ar) {
         particles.values.do { |sy| if (sy[\current]) { curr = sy }};
     } {
-        synthsKr.values.do { |sy| if (sy[\current]) { curr = sy }};
+        synthsLFO.values.do { |sy| if (sy[\current]) { curr = sy }};
     };
     parmName = ~synths[curr[\synth].asSymbol][\params][ctlInd];
     if (curr.keys.includes(\params).not) {
@@ -1095,7 +1104,7 @@ guiSynthCtrls = { |panel, synthType|
     var pan = compViewFlow.(panel, scaleW: 0.5);
     // label
     var stSynth = sText.(pan,
-        ~synths.keys.asArray.choose, // XXX
+        "<synthname>",
         stringFont:fontMedium, scaleW:1, scaleH: 0.1
     );
     // controls
@@ -1109,10 +1118,12 @@ guiSynthCtrls = { |panel, synthType|
                 stripeWidth*0.45,
                 stripeWidth*0.6
             ),
-            ~defaultParams.ar[j], ~specs.at(~defaultParams.ar[j]),
+            ~defaultParams[synthType][j],
+            ~specs.at(~defaultParams[synthType][j]),
             { |ez| ccCurrSynthParam.(synthType, j, ez.value)},
             layout: \vert2
         )
+        .enabled_(~defaultParams[synthType][j] != \dummy)
         .font_(fontSmall)
         .setColors(
             stringBackground:transparent,
@@ -1121,21 +1132,26 @@ guiSynthCtrls = { |panel, synthType|
             numNormalColor:fontColor,
             background:transparent,
         );
+        ctrls[j].knobView.canFocus = false;
+        ctrls[j].numberView.canFocus = false;
+
     });
     // sliders
     2.do { |j|
-        sText.(pan, "", scaleW:0.15, scaleH: 0.4);
+        sText.(pan, "", scaleW:0.15, scaleH: 0.35);
         ctrls[j+6] = EZSlider(pan,
             Rect(
                 j%2*60+10,
                 (pan.bounds.height*0.55).trunc,
                 stripeWidth*0.3,
-                pan.bounds.height*0.3
+                pan.bounds.height*0.4
             ),
-            ~defaultParams.ar[j+6], ~specs.at(~defaultParams.ar[j+6]),
+            ~defaultParams[synthType][j+6],
+            ~specs.at(~defaultParams[synthType][j+6]),
             { |ez| ccCurrSynthParam.(synthType, j+6, ez.value)},
             unitWidth:30, numberWidth:60, layout:\vert
         )
+        .enabled_(~defaultParams[synthType][j+6] != \dummy)
         .font_(fontSmall)
         .setColors(
             stringColor:fontColor,
@@ -1143,17 +1159,19 @@ guiSynthCtrls = { |panel, synthType|
             numBackground:Color.grey(alpha:0.5),
             numNormalColor:fontColor,
             background:transparent
-        )
+        );
+        ctrls[j+6].sliderView.canFocus = false;
+        ctrls[j+6].numberView.canFocus = false;
     };
     // return gui elements themselves
     [stSynth, ctrls]
 };
-panel = compViewFlow.(viewRight, scaleW: 0.635, scaleH: 0.4);
+panel = compViewFlow.(viewRight, scaleW: 0.635, scaleH: tmp);
 #labelAr, guiAr = guiSynthCtrls.(panel, \ar);
 #labelKr, guiKr = guiSynthCtrls.(panel, \kr);
 
 // .kr synths selection
-panel = compViewFlow.(viewRight, scaleW: 0.2, scaleH: 0.365);
+panel = compViewFlow.(viewRight, scaleW: 0.2, scaleH: tmp);
 listView.(
     panel,
     items: ~lfos.keys.asArray,
@@ -2105,7 +2123,6 @@ getMsgColor = { |msg|
 };
 
 
-// XXX - change this with re-directing all POST messages
 postMsg = { |msg|
     // post message to local listener
     var msgColor, start, color;
@@ -2194,6 +2211,7 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
     postMsg.(format("%:%: %\n    %: %\n\n", addr.ip, addr.port, msg[0], msg[1], msg[2..]));
     msg[1].switch(
         \remove, {
+            postMsg.(format("DEBUG %", msg[2]));
             if (msg[2] == \all) {
                 removeAll.()
             } {
@@ -2276,13 +2294,6 @@ oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
             addr.ip, addr.port, ~formatSrvTree.(msg)
         );
     };
-    // if (msg[2] == 0) {
-    //     {
-    //         srvTreeView.string = ~formatSrvTree.(msg);
-    //         srvTreeView.stringColor = Color.gray(0.7);
-    //         srvTreeView.setStringColor(Color.green, 0, 6);
-    //     }.defer
-    // };
 }, '/g_queryTree.reply');
 
 // PHYSICS

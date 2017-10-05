@@ -51,16 +51,64 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             \audioIn, true
         ])
     ],
+    1: [
+        (
+            info: "LFOs: ksine, keyscale, klfno0",
+            message: \lfo,
+            synth: (name: "ksine",
+                node: 1200,
+                params: [
+                    \lfreq, 10,
+                    \min, "d 3".notemidi.midicps,
+                    \max, "a 3".notemidi.midicps,
+                    \out, 0
+                ]
+            ),
+        ),
+        (
+            message: \lfo,
+            synth: (name: "keyscale",
+                node: 1201,
+                params: [
+                    \lfreq, 1,
+                    \min, 0.2,
+                    \max, 0.8,
+                    \out, 1
+                ]
+            ),
+        ),
+        (
+            message: \lfo,
+            synth: (name: "klfno2",
+                params: [
+                    \lfreq, 0.5,
+                    \min, "c 2".notemidi.midicps,
+                    \max, "g 4".notemidi.midicps,
+                    \out, 2
+                ]
+            ),
+        )
+    ],
     2: [
         (
+            message: \action,  params: [\remove, \all]
+        ),
+        (
             info: "2 heavy <pole>",
+            wait: 120,
             message: \particle,
             synth: (name: "pole",
+                node: 1100,
                 params: [
-                    \attack, 120,
+                    \attack, 10, //120,
                     \release, 40,
-                    \amp, 0.65,
-                    \freq, "d 3".notemidi.midicps
+                    \amp, 0.8,
+                    // XXX un-comment after TEST
+                    \freq, "d 3".notemidi.midicps,
+
+                    // // XXX change after TEST
+                    // \freq, \c1, // assign .kr connection
+                    // \room, \c0
                 ]
             ),
             particle: (
@@ -71,15 +119,21 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             )
         ),
         (
-            wait: 120,
             message: \particle,
             synth: (
                 name: "pole",
+                node: 1101,
                 params: [
                     \attack, 120,
                     \release, 40,
-                    \amp, 0.65,
-                    \freq, "a#2".notemidi.midicps
+                    \amp, 0.8,
+                    // XXX un-comment after TEST
+                    \freq, "a#2".notemidi.midicps,
+
+                    // // XXX remove after TEST
+                    // \freq, \c2,
+                    //
+                    // \detune, \c0,
                 ]
             ),
             particle: (
@@ -141,9 +195,9 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
         )
     ],
     9: [
-        (
-            message: \action,  params: [\remove, \all]
-        ),
+        // (
+        //     message: \action,  params: [\remove, \all]
+        // ),
         (
             info: "Adjust spring params",
             message: \physics, params: [\springStrength, 2, \springDamp, 0.32]
@@ -154,7 +208,7 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             synth: (
                 name: "komar",
                 params: [
-                    \attack, 0.5,
+                    \attack, 60, //0.5,
                     \release, 10,
                     \amp, 0.3,
                     \freq, 282.56,
@@ -169,7 +223,7 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             synth: (
                 name: "komar",
                 params: [
-                    \attack, 0.5,
+                    \attack, 30, //0.5,
                     \release, 10,
                     \amp, 0.3,
                     \freq, 382.56,

@@ -3,11 +3,6 @@ var samplesDir;
 var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
-// ZZZ - skeleton: remove after test
-var skelData;
-postf("Reading skeleton simulation data\n");
-skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
-
 //GLOBAL
 ~sequence[\title] = "Sympli Romatiko: band in Traer World";
 
@@ -220,15 +215,6 @@ guideBuff = Buffer.readChannel(~scsynth,
             particle: (mass: 1, x: 470, y: 300, z: 250)
         )
     ],
-
-    // ZZZ - skeleton: remove after test
-    32: [
-        (
-            info: "ZZZ - Skeleton simulation",
-            message: \task, name: \skelSimulation, act: 1
-        ),
-    ],
-
     34: [
         (
             info: "SCI-FI: Remove all",
@@ -474,14 +460,6 @@ guideBuff = Buffer.readChannel(~scsynth,
             particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand) // must be on l_hand!
         )
     ],
-    98: [
-        // ZZZ - skeleton: remove after test
-        (
-            info: "ZZZ - stop skeleton simulation",
-            message: \task, name: \skelSimulation, act: 0
-        ),
-    ],
-
     99: [
         (
             info: "FIN",
@@ -497,20 +475,6 @@ guideBuff = Buffer.readChannel(~scsynth,
 // Tasks dictionary.
 //
 ~sequence.tasks = (
-    // ZZZ - skeleton: remove after test
-    skelSimulation: Task({
-        var i=0, coords;
-        inf.do {
-            // process
-            if (i == skelData.size) {i = 0};
-            coords = skelData[i][1..];
-            coords[2] = coords[2] + 0.6; // offset
-            ~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
-            i = i + 1;
-            0.002.wait;
-        }
-    }),
-
     randomParticles: Task({
         var key, next;
         var params = [ // list of acceptable configurations

@@ -233,11 +233,28 @@ srEnv = Environment.make {
         ((in + step).clip(lo, hi) % hi).clip(lo, hi)
     };
 
+    // Fills params from incoming data. Uses default value,
+    // if a param specified in a synthDict is missing.
+    //
+    //     `synth` (Dictionary) - element to which the key `params` should be added
+    //     `container` (Dictionary) - `particles` or `synthsLFO` depending on the type of synth
+    //     `synthDict` (Dictionary) - where to look for default params of the synth (~synths or ~lfos)
+    ~fillSynthParams = { |synth, synthDict|
+        var params = Dictionary.newFrom(synth[\params] ? []);
+        synthDict.at(synth[\name].asSymbol)[\params].do { |parm|
+            if (params.keys.includes(parm).not) {
+                params[parm] = ~specs[parm].default
+            }
+        };
+        params
+    };
+
+
+    // Creates an .ar synth on Server.
+    // Returns ID of the Node created.
+    // `synth` - short name (i.e. \moog or \buzz).
+    // `params` - anything convertable to Dictionary (i.e. list of pairs).
     ~initSynth = { |synth, node, spatial, params|
-        // Creates an .ar synth on Server.
-        // Returns ID of the Node created.
-        // `synth` - short name (i.e. \moog or \buzz).
-        // `params` - anything convertable to Dictionary (i.e. list of pairs).
         var message;
         node = node ? ~scsynth.nextNodeID;
         params = Dictionary.newFrom(params ? []);
@@ -270,10 +287,11 @@ srEnv = Environment.make {
         node
     };
 
+
+    // Creates a .kr synth on Server.
+    // Returns nil, if outbus is not given (.kr doesn't make
+    // sense without outbus).
     ~initLFO = { |synth, node, params|
-        // Creates a .kr synth on Server.
-        // Returns nil, if outbus is not given (.kr doesn't make
-        // sense without outbus).
         var message;
         node = node ? ~scsynth.nextNodeID;
         params = Dictionary.newFrom(params ? []);
@@ -292,10 +310,11 @@ srEnv = Environment.make {
         node
     };
 
+
+    // Sends bundle to server, places everything mentioned to the top level group.
+    // This allows for an arbitrary number of synths and flexible structure.
+    // Returns node for registration purposes.
     ~initGroup = { |data, time=0.1|
-        // Sends bundle to server, places everything mentioned to the top level group.
-        // This allows for an arbitrary number of synths and flexible structure.
-        // Returns node for registration purposes.
         var node = ~scsynth.nextNodeID;
         var messages = data[\params];
         messages.do { |l, i|
@@ -316,13 +335,15 @@ srEnv = Environment.make {
         node
     };
 
+
     ~spatial = {
         format("%%", ~surround[0], ~speakers.items.size)
     };
 
+
+    // Release all synths from group, wait until released, then remove
+    // group node from server.
     ~groupFree = { |node, release=2|
-        // Release all synths from group, wait until released, then remove
-        // group node from server.
         Routine({
             [
                 ["/n_set", node, \rel, release, \gate, 0],
@@ -334,43 +355,42 @@ srEnv = Environment.make {
         }).play;
     };
 
+
+    // Sends message to the World.
     ~sendMessage = { |msg, params, lag=0.001|
-        // Sends message to the World.
         if (msg.isNil.not) {
             ~receiver.sendBundle(lag, [msg] ++ (params ? []));
         };
     };
 
+
+    // Sends particle creation message to the World:
+    // [mass, x, y, z, age, spring, source, synth:node, synth:name, synth:params]
     ~sendParticle = { |particle, synth|
-        // Sends particle creation message to the World:
-        // [create:1, node, spring:0|1, mass:9, x:470, y:300, z:250, age:inf]
-        // Returns Server node.
-        var x, y, z, node, spring, source, age, params;
-        #x, y, z = [\x, \y, \z].collect({ |k| particle.atFail(k, { ~worldSize.rand }) });
-        particle.putAll((x: x, y: y, z: z));
-        node = ~initSynth.(
-            synth[\name],
-            node:synth[\node],
-            params:synth[\params]
-        );
+        var data, x, y, z, spring, source;
+        #x, y, z = [\x, \y, \z].collect({ |k|
+            particle.atFail(k, { -1 })
+        });
         spring = particle.atFail(\spring, {0});
-        params = [
-            1, // create
-            node,
-            spring, // spring:0|1
-            particle.mass,
-            particle.x, particle.y, particle.z,
-            particle.atFail(\age, {inf}) // if inf, particle will be waiting for the romoval signal
-        ];
         if (spring.booleanValue) {
-            source = particle.atFail(\source, {nil});
-            if (source.isNil.not) {
-                params = params ++ [source]
+            source = particle.atFail(\source, {0});
+        } {
+            source = 0
             };
-        };
-        ~sendMessage.('/particle', params);
-        node
+        data = [
+            particle[\mass],
+            x,
+            y,
+            z,
+            particle.atFail(\age, {inf}), // if inf, particle will be waiting for the romoval signal
+            spring, // spring:0|1
+            source,
+            synth.atFail(\node, {-1}), // node cannot be -1, substitute it with real node id
+            synth[\name]
+        ] ++ (synth[\params] ?? []);
+        ~sendMessage.('/particle', data);
     };
+
 
     ~valAsApec = { |param|
         param.atFail(\spec, {
@@ -382,6 +402,7 @@ srEnv = Environment.make {
             ]
         }).asSpec
     };
+
 
     ~getDefaultBuffer = { |synth|
         var container, buff;
@@ -403,8 +424,9 @@ srEnv = Environment.make {
         buff
     };
 
+
+    // Converts timecode to readable format.
     ~convertTime = { |timecode|
-        // Converts timecode to readable format.
         var sec=0, min=0, minstring="00", secstring="00";
         if(timecode >= 60) {
             min = trunc(timecode / 60);
@@ -418,9 +440,10 @@ srEnv = Environment.make {
         format("%:%", minstring, secstring);
     };
 
+
+    // Obtains index of val in container (list, array, etc.)
+    // WARNING! Quick and dirty, not universal!
     ~getIndex = { |container, val|
-        // Obtains index of val in container (list, array, etc.)
-        // WARNING! Quick and dirty, not universal!
         var ind;
         if (val.class == String) {
             container.do { |el, i| if (el == val) { ind = i } };
@@ -430,9 +453,10 @@ srEnv = Environment.make {
         ind
     };
 
+
+    // Stops sequence and all its events.
+    // Warning! Order matters!
     ~stopSequence = {
-        // Stops sequence and all its events.
-        // Warning! Order matters!
         fork {
             "INFO: stopping / resetting tasks".postln;
             ~sequence.tasks.keys.do { |taskName|
@@ -458,8 +482,9 @@ srEnv = Environment.make {
         };
     };
 
+
+// Loads sequence from file.
     ~loadSequence = { |path|
-        // Loads sequence from file.
         if (path.isNil) { path = ~seqPaths[2] };
         postf("Loading sequence %...\n", PathName.new(path).fileName);
         path = path.absolutePath;
@@ -478,6 +503,7 @@ srEnv = Environment.make {
         };
     };
 
+
     ~ensureRecDir = {
         var dirname = ~currentDir +/+ "rec";
         if (File.type(dirname) == \not_found) {
@@ -486,8 +512,9 @@ srEnv = Environment.make {
         dirname
     };
 
+
+    // Generates the next filename for recording.
     ~setRecPath = {
-        // Generates the next filename for recording.
         var dirname, numbers=List.new;
         dirname = ~ensureRecDir.();
         PathName(dirname).filesDo { |fname|
@@ -504,8 +531,9 @@ srEnv = Environment.make {
         );
     };
 
+
+    // Records to a multichannel AIFF file set by ~recPath.
     ~recordAudio = { |start|
-        // Records to a multichannel AIFF file set by ~recPath.
         var filename, msg;
         if (start.booleanValue) {
             ~setRecPath.();
@@ -531,9 +559,10 @@ srEnv = Environment.make {
         };
     };
 
+
+    // Creates a tree out of server message \g_queryTree.reply
+    // Copied and re-formatted from Server.queryAllNodes
     ~formatSrvTree = { |msg|
-        // Creates a tree out of server message \g_queryTree.reply
-        // Copied and re-formatted from Server.queryAllNodes
         var i=2, tabs=0, printControls=false, dumpFunc, result;
         if (msg[1] != 0) { printControls = true };
         result = format("ROOT %\n", msg[2]);

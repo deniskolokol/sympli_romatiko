@@ -1021,6 +1021,21 @@ SynthDef(\keyscale, {
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
     Out.kr(out, ctl);
 }).send(~scsynth);
+
+
+// AUXILIARY
+//
+SynthDef(\buffloop, { // continuous recording into buffer
+    arg bufnum, busnum=0, volIn=0.8, loop=1, dur=1, gate=0;
+    RecordBuf.ar(
+        InFeedback.ar(busnum)
+        * EnvGen.kr(
+            Env.linen(0.1, dur-0.2, 0.1, volIn, \welch),
+            gate: Impulse.kr(gate.reciprocal)
+        ),
+        bufnum, 0, volIn, 0, 1, loop, 1
+    );
+}).send(~scsynth);
 )
 
 

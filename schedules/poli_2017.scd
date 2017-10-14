@@ -47,7 +47,6 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             \springRestLen, 3,
             \springStrength, 0.5,
             \springDamp, 2,
-            \mutualAttraction, \default,
             \maxVel, 150
         ]),
     ],
@@ -120,10 +119,11 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
     ],
     35: [
         (
+            info: "AIRY: 2 heavy <melo> controlled",
             message: \action,  params: [\remove, \all]
         ),
         (
-            info: "AIRY: 2 heavy <melo> controlled\n WARNING! start skel tracking!",
+            info: "WARNING! start skel tracking!",
             message: \particle,
             synth: (name: "melo",
                 params: [\attack, 1.0, \release, 8, \bufnum, ~sequence.scales[1].bufnum]),
@@ -140,6 +140,18 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             message: \physics, params: [\drag, 0.5, \starMass, 1]
         ),
 
+    ],
+    36: [
+        (
+            info: "TEST: change draw mode",
+            message: \action,  params: [\draw, \skel]
+        ),
+    ],
+    37: [
+        (
+            info: "TEST: revert calibration draw mode",
+            message: \action,  params: [\draw, \calibration]
+        ),
     ],
     40: [
         (
@@ -259,7 +271,7 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             synth: (name: "pole",
                 node: 1100,
                 params: [
-                    \attack, 120,
+                    \attack, 10, //120,
                     \release, 40,
                     // XXX un-comment after TEST
                     \freq, "d 3".notemidi.midicps,
@@ -282,7 +294,7 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
                 name: "pole",
                 node: 1101,
                 params: [
-                    \attack, 120,
+                    \attack, 10, //120,
                     \release, 40,
                     // XXX un-comment after TEST
                     \freq, "a#2".notemidi.midicps,
@@ -340,7 +352,7 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
                     \attack, 20,
                     \release, 20,
                     \freq, "g 2".notemidi.midicps,
-                    \amp, 0.5
+                    \amp, 0.3
                 ]
             ),
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
@@ -489,19 +501,16 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
     ],
+    75: [
+        (
+            info: "XXX - TEST: Buzz Melody",
+            message: \task, name: \buzzMelody, act: 1
+        ),
+    ],
     80: [
         (
             message: \action,  params: [\remove, \all]
         ),
-        // XXX - TRY THIS:
-        // (
-        //     info: "heavy <lowe>",
-        //     message: \particle,
-        //     synth: (name: "lowe",
-        //         // XXX - play with \freq (~800 -> noisy and sharp) to achieve a sort of "melodicity"
-        //     params: [\attack, 10, \attack, 12, \release, 0.5, \amp, 0.03]),
-        //     particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
-        // ),
         (
             info: "PATA: 2 heavy <entro>",
             message: \particle,
@@ -520,6 +529,44 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
                 params: [\attack, 0.1, \amp, 0.3]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+        // (
+        //     info: "2 heavy <buzz>",
+        //     message: \particle,
+        //     synth: (name: "buzz", params: [
+        //         \att, 1,
+        //         \bufnum,  ~sequence.scales[3].bufnum,
+        //         \offset, 26+24,
+        //         \amp, 0.05,
+        //         \freq, 622.25396744416
+        //     ]),
+        //     particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        // ),
+        // (
+        //     message: \particle,
+        //     synth: (name: "buzz", params: [
+        //         \att, 1,
+        //         \bufnum, ~sequence.scales[3].bufnum,
+        //         \offset, 26+24,
+        //         \amp, 0.05,
+        //         \freq, 740
+        //     ]),
+        //     particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        // ),
+    ],
+    82: [
+        (
+            info: "XXX - TEST: Stop Buzz Melody",
+            message: \task, name: \buzzMelody, act: 0
+        ),
+    ],
+    85: [
+        (
+            info: "MATH: remove <entro>",
+            message: \action,  params: [\remove, 1180]
+        ),
+        (
+            message: \action,  params: [\remove, 1181]
         ),
         (
             info: "2 heavy <buzz>",
@@ -543,15 +590,6 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
                 \freq, 740
             ]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
-        ),
-    ],
-    85: [
-        (
-            info: "MATH: remove <entro>",
-            message: \action,  params: [\remove, 1180]
-        ),
-        (
-            message: \action,  params: [\remove, 1181]
         ),
     ],
     87: [
@@ -646,10 +684,26 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
     switchScale: Task({
         var sca = ~sequence.scales[0..2];
         inf.do{ |i|
-            s.sendMsg("/n_set", nil, \bufnum, sca[i % sca.size].bufnum);
+            ~scsynth.sendMsg("/n_set", nil, \bufnum, sca[i % sca.size].bufnum);
             (6..9).choose.wait;
-            s.sendMsg("/n_set", nil, \bufnum, nil);
+            ~scsynth.sendMsg("/n_set", nil, \bufnum, nil);
             (30, 32..60).choose.wait;
+        }
+    }),
+    buzzMelody: Task({
+        var amp=0, bpm=135;
+        inf.do { |j|
+            x = ~worldSize * [0.2, 0.8].choose;
+            #y, z = ~worldSize * 0.2 ! 2;
+            amp = (amp + 0.03).min(1);
+            ~sendParticle.(
+                particle: (x:x, y:z, z:z, age: (60/bpm*4), mass: 0.9, spring: 0),
+                synth: (
+                    name: "buzz",
+                    params: [\attack, 0.2, \release, 0.2, \freq: "a 4".notemidi.midicps, \amp, amp]
+                )
+            );
+            (60/bpm*16).wait;
         }
     })
 );

@@ -27,6 +27,7 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
     FloatArray[0, 2, 5, 7, 10], // the rest are specific to sequence's parts
     FloatArray[0, 2, 4, 8, 10],
     FloatArray[0, 1, 4, 5, 7, 11],
+    FloatArray[0, 4, 5, 7, 11 ] //["c# 3", "d 3", "f# 3", "g 3", "a 3"].
 ].do { |c, i|
     ~sequence.scales.add(Buffer.sendCollection(~scsynth, c));
 };
@@ -258,6 +259,17 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
                     \out, 2
                 ]
             ),
+        ),
+        (
+            message: \lfo,
+            synth: (name: "klfno2",
+                params: [
+                    \lfreq, 0.5,
+                    \min, -5,
+                    \max, 5,
+                    \out, 3
+                ]
+            ),
         )
     ],
     52: [
@@ -271,7 +283,7 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             synth: (name: "pole",
                 node: 1100,
                 params: [
-                    \attack, 10, //120,
+                    \attack, 120,
                     \release, 40,
                     // XXX un-comment after TEST
                     \freq, "d 3".notemidi.midicps,
@@ -294,7 +306,7 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
                 name: "pole",
                 node: 1101,
                 params: [
-                    \attack, 10, //120,
+                    \attack, 120,
                     \release, 40,
                     // XXX un-comment after TEST
                     \freq, "a#2".notemidi.midicps,
@@ -342,21 +354,22 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
         )
     ],
     57: [
-        (
-            info: "DARK: heavy <bass>",
-            message: \particle,
-            synth: (
-                name: "bass",
-                node: 1120,
-                params: [
-                    \attack, 20,
-                    \release, 20,
-                    \freq, "g 2".notemidi.midicps,
-                    \amp, 0.3
-                ]
-            ),
-            particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
-        ),
+        // // XXX - filter out the lowest freqs!!!
+        // (
+        //     info: "DARK: heavy <bass>",
+        //     message: \particle,
+        //     synth: (
+        //         name: "bass",
+        //         node: 1120,
+        //         params: [
+        //             \attack, 20,
+        //             \release, 20,
+        //             \freq, "g 2".notemidi.midicps,
+        //             \amp, 0.3
+        //         ]
+        //     ),
+        //     particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
+        // ),
         (
             info: "heavy <wind>",
             message: \particle,
@@ -366,7 +379,7 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
                 params: [
                     \attack, 12,
                     \release, 20,
-                    \release, 0.5,
+                    \decaytime, \c3, // assign .kr connection
                 ]
             ),
             particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
@@ -471,6 +484,43 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             message: \physics, params: [\springStrength, 1, \springDamp, \default]
         ),
     ],
+
+    67: [
+        (
+            info: "XXX remove all",
+            message: \action, params: [\remove, \all],
+        ),
+        (
+            info: "2 heavy <melo>",
+            message: \particle,
+            synth: (
+                name: "melo",
+                params: [
+                    \attack, 10,
+                    \release, 10,
+                    \amp, 0.7,
+                    \offset, 38,
+                    \bufnum, ~sequence.scales[4].bufnum,
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        ),
+        (
+            message: \particle,
+            synth: (
+                name: "melo",
+                params: [
+                    \attack, 10,
+                    \release, 10,
+                    \amp, 0.7,
+                    \offset, 38,
+                    \bufnum, ~sequence.scales[4].bufnum,
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+    ],
+
     70: [
         (
             message: \action,  params: [\remove, \all]
@@ -517,7 +567,7 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             synth: (
                 name: "entro",
                 node: 1180,
-                params: [\attack, 0.1, \amp, 0.3]
+                params: [\attack, 0.1, \amp, 0.2]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
@@ -526,47 +576,15 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
             synth: (
                 name: "entro",
                 node: 1181,
-                params: [\attack, 0.1, \amp, 0.3]
+                params: [\attack, 0.1, \amp, 0.2]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
-        // (
-        //     info: "2 heavy <buzz>",
-        //     message: \particle,
-        //     synth: (name: "buzz", params: [
-        //         \att, 1,
-        //         \bufnum,  ~sequence.scales[3].bufnum,
-        //         \offset, 26+24,
-        //         \amp, 0.05,
-        //         \freq, 622.25396744416
-        //     ]),
-        //     particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
-        // ),
-        // (
-        //     message: \particle,
-        //     synth: (name: "buzz", params: [
-        //         \att, 1,
-        //         \bufnum, ~sequence.scales[3].bufnum,
-        //         \offset, 26+24,
-        //         \amp, 0.05,
-        //         \freq, 740
-        //     ]),
-        //     particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
-        // ),
     ],
     82: [
         (
             info: "XXX - TEST: Stop Buzz Melody",
             message: \task, name: \buzzMelody, act: 0
-        ),
-    ],
-    85: [
-        (
-            info: "MATH: remove <entro>",
-            message: \action,  params: [\remove, 1180]
-        ),
-        (
-            message: \action,  params: [\remove, 1181]
         ),
         (
             info: "2 heavy <buzz>",
@@ -575,7 +593,7 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
                 \att, 1,
                 \bufnum,  ~sequence.scales[3].bufnum,
                 \offset, 26+24,
-                \amp, 0.05,
+                \amp, 0.1,
                 \freq, 622.25396744416
             ]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
@@ -586,10 +604,19 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
                 \att, 1,
                 \bufnum, ~sequence.scales[3].bufnum,
                 \offset, 26+24,
-                \amp, 0.05,
+                \amp, 0.1,
                 \freq, 740
             ]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+    ],
+    85: [
+        (
+            info: "MATH: remove <entro>",
+            message: \action,  params: [\remove, 1180]
+        ),
+        (
+            message: \action,  params: [\remove, 1181]
         ),
     ],
     87: [
@@ -693,8 +720,8 @@ PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
     buzzMelody: Task({
         var amp=0, bpm=135;
         inf.do { |j|
-            x = ~worldSize * [0.2, 0.8].choose;
-            #y, z = ~worldSize * 0.2 ! 2;
+            x = ~worldSize * [0.3, 0.7].choose;
+            #y, z = ~worldSize * 0.3 ! 2;
             amp = (amp + 0.03).min(1);
             ~sendParticle.(
                 particle: (x:x, y:z, z:z, age: (60/bpm*4), mass: 0.9, spring: 0),

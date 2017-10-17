@@ -159,7 +159,7 @@ srEnv = Environment.make {
         \room -> ControlSpec(0.0,  1.0, \lin, 0.01, 0.5),
         \damp -> ControlSpec(0.0,  1.0, \lin, 0.01, 0.5),
         \delaytime -> ControlSpec(0.001,  2.0, -3, 0.001, 0.2),
-        \decaytime -> ControlSpec(-3,  3, \lin, 0.1, 1),
+        \decaytime -> ControlSpec(-5,  5, \lin, 0.1, 1),
         \mul -> \unipolar.asSpec, // dummy
         \add -> \unipolar.asSpec, // dummy
         \dummy -> \bipolar.asSpec // dummy
@@ -184,7 +184,7 @@ srEnv = Environment.make {
         \bass: ( \type: \gen ),
         \moog: ( \type: \gen ),
         \lowe: ( \type: \gen ),
-        \wind: ( \type: \gen ),
+        \wind: ( \type: \gen, \params: [\freq, \detune, \delay, \cutoff, \decaytime, \rq, \rate, \amp] ),
         \komar: (\type: \gen, \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
         \neural: ( \type: \gen ),
         \entro: ( \type: \gen ),
@@ -269,7 +269,7 @@ srEnv = Environment.make {
         };
         synth = format("%__%", synth, (spatial ? ~spatial.()));
         // report
-        postf("-> ~initSynth synth % at node %\n", synth, node);
+        postf("-> ~initSynth \"%\" at node %\n", synth, node);
         params.keysValuesDo { |k,v| postf("\t%: %\n", k, v); };
         // gather everything in place
         message = [
@@ -300,7 +300,7 @@ srEnv = Environment.make {
         };
         if (params.keys.includes(\out)) {
             // report
-            postf("INFO: init LFO % at node %\n", synth, node);
+            postf("-> ~initLFO \"%\" at node %\n", synth, node);
             params.keysValuesDo { |k,v| postf("\t%: %\n", k, v); };
             message = ["/s_new", synth, node, 0, ~rootKr] ++ params.asKeyValuePairs;
             ~scsynth.listSendMsg(message);

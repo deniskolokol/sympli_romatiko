@@ -573,6 +573,7 @@ processEvents = { |num|
                 eventPool.append(data);
             },
             \lfo, {
+                data[\synth][\params] = ~fillSynthParams.(data[\synth], ~lfos);
                 data[\synth][\node] = ~initLFO.(
                     data[\synth][\name],
                     node: data[\synth][\node],
@@ -581,9 +582,9 @@ processEvents = { |num|
                 // LFOs container's id is node
                 synthsLFO.put(data[\synth][\node], (
                     synth: data[\synth][\name],
-                    node: data[\synth][\node]
+                    node: data[\synth][\node],
+                    params: data[\synth][\params]
                 ));
-                data[\synth][\params] = ~fillSynthParams.(data[\synth], ~lfos);
             },
             \task, {
                 taskPlay.(~sequence.tasks[data[\name]], data[\act].booleanValue)
@@ -1545,7 +1546,7 @@ drawCalibration = { |view, kwargs|
     // WARNING - end
 
     // Visualize particles.
-    Array.newFrom(physics.particles).do { |particle|
+    physics.particles.do { |particle|
         if (kwargs[\partHidden].includes(particle).not) {
             case
             {particle == star} {
@@ -1571,14 +1572,20 @@ drawCalibration = { |view, kwargs|
             Pen.color = partColor;
             z = partSize * particle.position.z.linlin(0, world.depth, 1, 0.1);
             Pen.fillOval(Rect.aboutPoint(Point(particle.position.x, particle.position.y), z, z));
-        };
-
-        // Age control: particles age "backwards",
-        // i.e. age = 0 is a death and positive age is afterlife.
-        if (particle.age >= 0) { particle.dead = true };
-        if (particle.dead) {
-            unregisterParticle.(particles[particle][\node]);
-            removeParticle.(particle)
+            if (
+                kwargs[\partSkel].includes(particle).not &&
+                kwargs[\partHidden].includes(particle).not
+            ) {
+                Pen.color = Color.red;
+                Pen.addArc(particle.position.x@particle.position.y, z+10, 2pi.rand, pi);
+                Pen.perform(\stroke);
+                // // radiation effect
+                // 10.do {
+                //     Pen.color = Color.red(rrand(0.0, 1), rrand(0.0, 0.5));
+                //     Pen.addArc(particle.position.x@particle.position.y, rrand(z, z+30), 2pi.rand, pi);
+                //     Pen.perform([\stroke, \fill].choose);
+                // }
+            }
         };
     };
 

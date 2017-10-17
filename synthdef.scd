@@ -513,27 +513,32 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
             depth=5, elevClip=0.01pi;
         var rq = distance.linlin(0, 2.sqrt, 0.2, 1);
-        // XXX - old (allowing for more)
-        // var shift = ((momentum ** 0.2 * 30) ** 3).lag(0.5); // boost momentum
-        var shift = ((momentum ** 0.3 * 50) ** 2).lag(0.5); // boost momentum
+        var shift = ((momentum ** 0.2 * 30) ** 3).lag(0.5); // boost momentum
         var trig = momentum > 0.2;
         var timer = Timer.kr(trig);
-        var raw = TChoose.ar((timer > 0.25) * trig, [
-            RLPF.ar(
-                Normalizer.ar(
-                    LorenzL.ar(
-                        freq: az.linlin(0, 1, 10, SampleRate.ir),
-                        s: LFNoise0.kr(1, 2, 10),
-                        r: LFNoise0.kr(1, 20, 38),
-                        b: LFSaw.kr(0.2).exp.cubed
-                    )
+        var raw = TChoose.ar(
+            (timer > 0.25) * trig, [
+                RLPF.ar(
+                    Normalizer.ar(
+                        LorenzL.ar(
+                            az.linlin(0, 1, 10, SampleRate.ir),
+                            LFNoise0.kr(1, 2, 10),
+                            r: LFNoise0.kr(1, 20, 38),
+                            b: LFSaw.kr(0.2).exp.cubed
+                        ),
+                        1
+                    ),
+                    LFPulse.kr(LFSaw.ar(0.2).exp.cubed, 0.5, 2500, 3500),
+                    momentum.scurve
                 ),
-                LFPulse.kr(LFSaw.ar(0.2).exp.cubed, 0.5, 2500, 3500),
-                momentum.scurve
-            ),
-            Saw.ar((1..15) * LFNoise0.kr(5, 10, 50) + SinOsc.ar((6..2) * 0.5))
-        ]);
-        var signal = RLPF.ar(RLPF.ar(Mix.ar(raw)*momentum*amp*0.1, shift, rq), shift, rq);
+                Mix.ar(
+                    Saw.ar(
+                        (1..15) * LFNoise0.kr(5, 10, 50) + SinOsc.ar((6..2) * 0.5)
+                    )
+                )
+            ]
+        ) * momentum * amp;
+        var signal = RLPF.ar(RLPF.ar(raw, shift, rq), shift, rq);
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
             gate, attack, sustain, release, ca, cr, depth, elevClip
@@ -623,17 +628,23 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
             ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
-            depth=5, elevClip=0.01pi;
-        var raw, signal;
-        var baseFreq, shift;
-        baseFreq = distance.linexp(0, 1, 10, 40);
-        shift = ((momentum * 30) ** 3).lag(0.01);
-        raw = Formlet.ar(
+            depth=5, elevClip=0.01pi,
+            delay=0.4, decaytime=4;
+        var signal;
+        var baseFreq = distance.linexp(0, 1, 10, 40).lag(0.01);
+        var shift = ((momentum * 30) ** 3).lag(0.01);
+        // raw = Formlet.ar(
+        //     WhiteNoise.ar(SinOsc.ar(baseFreq, shift, 0.5, 1)).min(1) + SinOsc.ar(baseFreq, shift),
+        //     LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(0.5))), 2450, 2550), 0.01, 0.1
+        // ).softclip;
+        var raw = Formlet.ar(
             WhiteNoise.ar(SinOsc.ar(baseFreq, shift, 0.5, 1)).min(1) + SinOsc.ar(baseFreq, shift),
-            LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(0.5))), 2450, 2550), 0.01, 0.1
+            momentum.linexp(0, 1, 50, 10000),
+            0.01,
+            0.1
         ).softclip;
-        raw = [raw, DelayN.ar(raw, 0.04, 0.4)];
-        4.do({raw = AllpassN.ar(raw, 0.5, [0.5.rand, 0.5.rand], 4, amp)});
+        raw = [raw, DelayN.ar(raw, 0.04, delay)];
+        4.do({raw = AllpassN.ar(raw, 0.5, [0.5.rand, 0.5.rand], decaytime, amp)});
         signal = Mix.ar(raw) * 0.02;
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
@@ -957,7 +968,7 @@ SynthDef(\klfno1, {
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
     var ctl = env * LFNoise1.kr(lfreq, mul, add);
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
-    Out.kr(out, out );
+    Out.kr(out, ctl);
 }).send(~scsynth);
 
 // XXX former \sr__k__lfnoise2
@@ -969,7 +980,7 @@ SynthDef(\klfno2, {
     var add = min + mul;
     var ctl = env * LFNoise2.kr(lfreq).clip2 * mul + add;
     SendTrig.kr(Impulse.kr(30), trigID, ctl);
-    Out.kr(out, out );
+    Out.kr(out, ctl);
 }).send(~scsynth);
 
 // XXX former \sr__k__stepnoise

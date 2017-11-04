@@ -12,7 +12,7 @@ var conf=Dictionary.new;
 var confKeys = [ // keys to save to conf file
     'surround', 'depth',
     'inbus', 'outbus', 'audioThruBus', 'inbus', 'outbus',
-    'worldSize', 'receiver', 'speakers'
+    'receiver', 'speakers'
 ];
 var harmonics, numHarmonics=1024, numWavetables = 8;
 
@@ -72,6 +72,8 @@ seqPaths = seqPaths.asList;
 srEnv = Environment.make {
     ~currentDir = currentDir;
     ~seqPaths = seqPaths;
+    // assume the World is a cube
+    ~worldSize = (Window.screenBounds.height*0.623).floor;
     // ~scsynth = Server("scsynth", NetAddr.new("192.168.1.106", 57110));
     ~scsynth = Server.internal;
     ~surround = conf.atFail(\surround, {"ambisonic"});
@@ -79,7 +81,6 @@ srEnv = Environment.make {
     ~inbus = conf.atFail(\inbus, {4});
     ~outbus = conf.atFail(\outbus, {0});
     ~audioThruBus = conf.atFail(\audioThruBus, {[10, 11]}); // two buses for audio through on skeletons hands
-    ~worldSize = conf.atFail(\worldSize, {700}); // assume the World is a cube
     ~receiver = conf.atFail(\receiver, {NetAddr.new("127.0.0.1", 57120)}); // World
     ~speakers = (
         items: conf.atFail(\speakers, {
@@ -180,16 +181,16 @@ srEnv = Environment.make {
         \silent: ( \type: \gen ),
         \atru: ( \type: \gen ),
         \buzz: ( \type: \gen ),
-        \pole: ( \type: \gen, \params: [\freq, \detune, \dummy, \cutoff, \dummy, \rq, \dummy, \amp] ),
+        \pole: ( \type: \gen, \params: [\freq, \detune, \room, \cutoff, \decaytime, \rq, \lfreq, \amp] ),
         \bass: ( \type: \gen ),
         \moog: ( \type: \gen ),
         \lowe: ( \type: \gen ),
         \wind: ( \type: \gen, \params: [\freq, \detune, \delay, \cutoff, \decaytime, \rq, \rate, \amp] ),
         \komar: (\type: \gen, \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
         \neural: ( \type: \gen ),
-        \entro: ( \type: \gen ),
+        \entro: ( \type: \gen, \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
         \humm: ( \type: \gen ),
-        \melo: ( \type: \gen ),
+        \melo: ( \type: \gen, \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
         \cmb: ( \type: \gen ),
         \probe: ( \type: \gen ),
         \pulse: ( \type: \gen ),

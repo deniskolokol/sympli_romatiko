@@ -91,7 +91,7 @@ var eventPool = (
         top
     },
     report: { |self, item|
-        postMsg.(format("DEBUG: added to eventPool\n"));
+        postMsg.(format("$> added to eventPool\n"));
         postMsg.(format("%\n", prettyPrintDict.(item, level:1)));
     }
 );
@@ -351,7 +351,6 @@ var skelSimul = Task({
         // process
         if (i == skelData.size) {i = 0};
         coords = skelData[i][1..];
-        coords[2] = coords[2] + 0.6; // offset
         ~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
         i = i + 1;
         world.skelSimulSpeed.wait;
@@ -359,8 +358,7 @@ var skelSimul = Task({
 });
 
 // The World is a cube with measurements relative to the screen height.
-tmp = (Window.screenBounds.height*0.623).floor;
-world = (width: tmp, height: tmp, depth: tmp);
+world = (width: ~worldSize, height: ~worldSize, depth: ~worldSize);
 // set default params
 worldParams.keysValuesDo { |k, v| world[k] = v[\default]};
 
@@ -393,11 +391,13 @@ miscParams = Dictionary.new;
 // If `action` is true, .valueAction is performed otherwise .value.
 updateGuiElement = { |parm, val, action=false|
     try {
-        if (action) {
-            worldParams[parm][\gui].valueAction_(val)
-        } {
-            worldParams[parm][\gui].value_(val)
-        }
+        {
+            if (action) {
+                worldParams[parm][\gui].valueAction_(val)
+            } {
+                worldParams[parm][\gui].value_(val)
+            }
+        }.defer
     }
 };
 
@@ -488,7 +488,7 @@ switchEvent = { |nxt=1|
             };
             // update waiting time until the next event
             waitNextEvent = wait.maxItem;
-            postMsg.(format("INFO: Waiting time for next event: %\n", waitNextEvent));
+            postMsg.(format("INFO: Waiting time for next event: %\n\n", waitNextEvent));
         }
     }
 };
@@ -517,9 +517,15 @@ sendSNew = { |data|
 
 // Sends \n_set message to server.
 sendNSet = { |data|
-    ~scsynth.listSendMsg(["/n_set",
-        synths.at(data[\synth].atFail(\id), {nil})]
-    ++ data[\synth].atFail(\params, {[]})
+    var node;
+    if (data[\synth].keys.includes(\id)) {
+        node = synths.at(data[\synth][\id])
+    };
+    if (data[\synth].keys.includes(\node)) {
+        node = synths.at(data[\synth][\node])
+    };
+    ~scsynth.listSendMsg(["/n_set", node]
+        ++ data[\synth].atFail(\params, {[]})
     )
 };
 
@@ -1572,19 +1578,22 @@ drawCalibration = { |view, kwargs|
             Pen.color = partColor;
             z = partSize * particle.position.z.linlin(0, world.depth, 1, 0.1);
             Pen.fillOval(Rect.aboutPoint(Point(particle.position.x, particle.position.y), z, z));
+
+            // radiation effect
             if (
                 kwargs[\partSkel].includes(particle).not &&
                 kwargs[\partHidden].includes(particle).not
             ) {
-                Pen.color = Color.red;
-                Pen.addArc(particle.position.x@particle.position.y, z+10, 2pi.rand, pi);
-                Pen.perform(\stroke);
-                // // radiation effect
-                // 10.do {
-                //     Pen.color = Color.red(rrand(0.0, 1), rrand(0.0, 0.5));
-                //     Pen.addArc(particle.position.x@particle.position.y, rrand(z, z+30), 2pi.rand, pi);
-                //     Pen.perform([\stroke, \fill].choose);
-                // }
+                10.do {
+                    Pen.color = Color.red(rrand(0.0, 1), rrand(0.0, 0.5));
+                    Pen.addArc(
+                        particle.position.x@particle.position.y,
+                        rrand(z*1.1, z*1.8),
+                        2pi.rand,
+                        pi
+                    );
+                    Pen.perform([\stroke, \fill].choose);
+                }
             }
         };
     };
@@ -1751,7 +1760,7 @@ viewWorld.drawFunc = { |view|
             \physics, {
                 // some should be updated directly
                 event[\params][0].switch(
-                    \starMass,  {star.mass = world.starMass},
+                    \starMass,  {star.mass = world.starMass.asFloat},
                     \drag, {physics.setDrag(world.drag)},
                     { if (#[\gravX, \gravY, \gravZ].includes(event[\params][0])) {
                         physics.setGravity(
@@ -2423,8 +2432,8 @@ updatePostColors = { |colors, start|
 getMsgColor = { |msg|
     //
     case
-    { msg.beginsWith("INFO") } { Color.new255(11, 96, 224) }
-    { msg.beginsWith("DEBUG") } { Color.new255(55, 157, 0) }
+    { msg.beginsWith("INFO") || msg.beginsWith("->") } { Color.new255(11, 96, 224) }
+    { msg.beginsWith("DEBUG") || msg.beginsWith("$>") } { Color.new255(55, 157, 0) }
     { msg.beginsWith("WARNING") } { Color.white }
     { msg.beginsWith("ERROR") } { Color.new255(158, 33, 33) }
     { fontColor };
@@ -2457,7 +2466,7 @@ postMsg = { |msg|
 //
 reportOSC = { |msg, time, addr, recvPort|
     postMsg.(format(
-        "INFO: OSC msg \"%\" at % from %:%\n",
+        "-> OSC msg \"%\" at % from %:%\n",
         msg[0], Date.getDate.format("%d/%m/%Y %T"),
         addr.ip, addr.port
     ));
@@ -2466,7 +2475,7 @@ reportOSC = { |msg, time, addr, recvPort|
 
 //
 reportEvent = { |num, msg, j|
-    postMsg.(format("INFO: event %, message % (%)\n", num, msg, j))
+    postMsg.(format("-> event %, message % (%)\n", num, msg, j))
 };
 
 
@@ -2580,17 +2589,17 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
     id = msg[2].asInteger;
     joint = msg[1];
 
-    // XXX front view
+    // // XXX front view
     // #x, y, z = [
     //     msg[3].linlin(0.0, 1.0, 0, world.width),
     //     msg[4].linlin(0.0, 1.0, 0, world.height),
-    //     msg[5].linlin(0.0, 5.0, 0, world.depth)
+    //     msg[5].linlin(0.65, 2.8, 0, world.depth)
     // ];
 
     // XXX top view
     #x, y, z = [
         msg[3].linlin(0.0, 1.0, 0, world.width),
-        msg[5].linlin(0.0, 5.0, 0, world.height),
+        msg[5].linlin(0.65, 2.8, 0, world.height),
         msg[4].linlin(0.0, 1.0, 0, world.depth)
     ];
     skeletonParticles.(id, joint, x, y, z);

@@ -458,18 +458,33 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
             depth=5, elevClip=0.01pi,
-            offset=36;
-        var note, raw, signal;
-        note = (
+            offset=36, cutoff=20000, rq=0.1;
+        var signal;
+        var note = (
             DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 24), 12, 1, offset)
             + LFNoise1.kr([3,3], 0.04)    // add some low freq stereo detuning
         ).midicps;
-        raw = RLPF.ar(
+        var gen = (
             LFSaw.ar(note)
-            + Impulse.ar(XLine.kr(note, note + 100, 1.5), 0.0)
-            + Normalizer.ar(LorenzL.ar(az.linlin(0, 1, 10, SampleRate.ir),
-                LFNoise0.kr(1.0.rand, 2, 10), r: LFNoise0.kr(1.0.rand, 20, 38), b: LFSaw.kr(0.2).exp.cubed), 1),
-            LFNoise0.kr(0.2, 38, 115).midicps, 0.1,
+            +
+            Impulse.ar(
+                XLine.kr(note, note + 100, 1.5),
+                0.0
+            )
+            + Normalizer.ar(
+                LorenzL.ar(
+                    az.linlin(0, 1, 10, SampleRate.ir),
+                    LFNoise0.kr(1.0.rand, 2, 10),
+                    r: LFNoise0.kr(1.0.rand, 20, 38),
+                    b: LFSaw.kr(0.2).exp.cubed
+                ),
+                1
+            )
+        );
+        var raw = RLPF.ar(
+            gen,
+            cutoff, // LFNoise0.kr(0.2, 38, 115).midicps,
+            rq,
             mul:(amp * momentum * 0.5).scurve // sigmoid: the faster, the more present
             // mul:momentum // simply the faster the louder
         );
@@ -511,9 +526,10 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
             ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
-            depth=5, elevClip=0.01pi;
-        var rq = distance.linlin(0, 2.sqrt, 0.2, 1);
-        var shift = ((momentum ** 0.2 * 30) ** 3).lag(0.5); // boost momentum
+            depth=5, elevClip=0.01pi,
+            cutoff=20000, rq=0.7;
+        var rQ = distance.linlin(0, 2.sqrt, rq, 0.01);
+        var shift = momentum.lincurve(0, 1, 5, cutoff, -5).lag(0.3); // boost momentum
         var trig = momentum > 0.2;
         var timer = Timer.kr(trig);
         var raw = TChoose.ar(
@@ -538,7 +554,7 @@ var makeSynthDefADSR = { |name, outCodeFunc|
                 )
             ]
         ) * momentum * amp;
-        var signal = RLPF.ar(RLPF.ar(raw, shift, rq), shift, rq);
+        var signal = RLPF.ar(RLPF.ar(raw, shift, rQ), shift, rq);
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
             gate, attack, sustain, release, ca, cr, depth, elevClip
@@ -707,7 +723,7 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.1,
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
             depth=5, elevClip=0.01pi,
-            voices=10;
+            voices=10, lfreq=1.5, melo=0;
         var rq = momentum.lincurve(0, 1, 0.6, 0.01, 4);
         var mul = momentum.lincurve(0, 1, 400, 2000, 4);
         var add = momentum.lincurve(0, 1, 600, 10000, 4);
@@ -716,14 +732,23 @@ var makeSynthDefADSR = { |name, outCodeFunc|
         var lag = momentum.lincurve(0, 1, 0.5, 0.05, -4);
         var detune = momentum.lincurve(0, 1, 0.4, 0.5, 4);
         var tones = 20;
+        var note = SelectX.kr(BinaryOpUGen('>', melo, 0) * 2,
+            [
+                // Zero or negative \melo means constant value
+                freq + TRand.kr(detune.neg, detune, trig),
+
+                // Positive \melo asks for DegreeToKey
+                DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 12), 12, 1, freq.cpsmidi).midicps
+            ]
+        );
         var signal = Mix.fill(tones,
             { |index|
                 var pitches = Lag.kr(
-                    freq + TRand.kr(detune.neg, detune, trig),
+                    note,
                     lag * Rand(0.8, 1.2)
                 );
                 Blip.ar(
-                    SinOsc.kr(0.5, 0, LFDNoise1.kr(1.5), pitches),
+                    SinOsc.kr(0.5, 0, LFDNoise1.kr(lfreq), pitches),
                     100,
                     Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2)),
                 )
@@ -973,7 +998,6 @@ SynthDef(\klfno1, {
 
 // XXX former \sr__k__lfnoise2
 SynthDef(\klfno2, {
-    // arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     arg out=0, lfreq=1, phase=0, min= -1, max=1, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
     var mul = max.absdif(min) * 0.5;
@@ -985,8 +1009,10 @@ SynthDef(\klfno2, {
 
 // XXX former \sr__k__stepnoise
 SynthDef(\kstepno, {
-    arg out=0, lfreq=1, phase=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
+    arg out=0, lfreq=1, phase=0, min= -1, max=1, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);
+    var mul = max.absdif(min) * 0.5;
+    var add = min + mul;
     var ctl = env * TWChoose.kr(
         Dust.ar(1),
         [LFNoise0.kr(lfreq, mul, add), LFNoise1.kr(lfreq, mul, add), LFNoise2.kr(lfreq).clip2 * mul + add],
@@ -1016,8 +1042,6 @@ SynthDef(\ksawmod, {
 
 // XXX former \sr__k__keyscale
 SynthDef(\keyscale, {
-    // arg bufnum=0, val=0.5, idx=12, octave=12, detune=3, detuneDepth=0.04,
-    // out=0, mul=1, add=0, gate=1, att=1, rel=1, trigID=60;
     arg bufnum=0, val=0.5, idx=12, octave=12, detune=3, detuneDepth=0.04,
         out=0, min= -1, max=1, gate=1, att=1, rel=1, trigID=60;
     var env = EnvGen.kr(Env.adsr(att, 0.1, 1, rel, curve:[3, -3]), gate: gate, doneAction: 2);

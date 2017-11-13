@@ -1,5 +1,11 @@
 (
 ~sequence[\title] = "MOON2: Na ulice wyjsc nie sposob";
+[
+    FloatArray[0, 3, 7, 10], // scales[0] is the main scale
+    FloatArray[0, 2, 5, 7, 10], // the rest are specific to sequence's parts
+].do { |c, i|
+    ~sequence.scales.add(Buffer.sendCollection(~scsynth, c));
+};
 ~sequence.events = (
     0: [
         (message: \action,  params: [\remove, \all],
@@ -12,7 +18,7 @@
             \repulsion, 10,
             \maxVel, 150,
             \starMass, \default,
-            \particles, 0,
+            \particleSystem, 0,
             \springRestLen, 3,
             \springStrength, 0.5,
             \springDamp, 2,
@@ -27,12 +33,12 @@
         (
             info: "two heavy <gauss>",
             message: \particle,
-            synth: (name: "gauss", params: [\attack, 60, \release, 16, \ca, 5]),
+            synth: (name: "gauss", params: [\attack, 60, \release, 3, \ca, 5]),
             particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
         ),
         (
             message: \particle,
-            synth: (name: "gauss", params: [\attack, 60, \release, 16, \ca, 5]),
+            synth: (name: "gauss", params: [\attack, 60, \release, 3, \ca, 5]),
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         )
     ],

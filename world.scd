@@ -2,14 +2,14 @@
 // module: World
 // ---------------
 (
-var world, center, skel;
-var miscParams, event,
-    updateWorldParm;
-var physics, springs, particles, particle, star;
+var skel, physics, springs, particles, particle, star;
+var world, center, canvas, frame, item, color;
+var miscParams, event, updateWorldParm;
 var oscParticle, oscPhysics, oscAction,
     oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
     oscGroupTree, reportOSC, reportEvent;
-var drawCalibration, drawSkel, drawCube;
+var drawCalibration, drawSkel, drawSkelJoints, drawSkelParticle,
+    drawCube, drawGraph, drawStrob;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
@@ -20,9 +20,10 @@ var skeleton, skeletonParticles, skeletonRemove,
     defineGuide, getGuide, defineSource, chooseSource,
     jointVisible, springSrcSkel;
 var getParticlesOnSprings, getParticlesSkelVis, getParticlesHidden;
-var mag3D, sigmoid, xyz, xyz2ade, ade2xyz, xyz2plane;
+var mag3D, sigmoid, xyz, xyz2ade, ade2xyz, xyz2plane, getPointPlane;
 var ax, ay, az, azimuth, distance, elevation,
     guide, gx, gy, gz, gAzimuth, gDistance, gElevation;
+var transX, transY, transZ, transRate=0.005;
 var attractionsPhysical, springsPhysical, springMissed,
     particlesOnSprings, particlesSkelVis, particlesHidden,
     partColor, partSize;
@@ -54,9 +55,26 @@ var transparent=Color.grey(alpha:0.01),
     fontLarge=Font("Monaco", 14),
     fontLarge1=Font("Monaco", 18),
     fontGiant=Font("Monaco", 24),
-    fontColor=Color.gray(0.7);
+    fontColor=Color.gray(0.7),
+    colorStar=Color.red,
+    colorJoint=Color.new255(173, 58, 0),
+    colorParticle=Color.white;
 var waitNextEvent= -1;
-var tmp, kwargs;
+var kwargs;
+var patt = Pn(Pshuf(#[0, 0, 0, 0, 0.1, 0.25, 0.5, 0.75, 1, 1], 8), inf).asStream;
+var tmp; // Warning: use this variable only in drawFunc!
+
+// // XXX 3d
+// var cubes=Dictionary.new;
+// var registerCube = { |particle|
+//     if (particle == star) { color = Color.red } { color = Color.green };
+//     item = Canvas3DItem.cube
+//     .color_(color)
+//     .width_(0.5)
+//     .transform(Canvas3D.mScale(0.1));
+//     canvas.add(item);
+//     cubes[particle] = item
+// };
 
 //
 var prettyPrintDict = { |data, output="", level=0|
@@ -244,12 +262,12 @@ var worldParams = (
         default: 2,
         midicc: 33,
     ),
-    // particles
-    particles: (
+    // particle system
+    particleSystem: (
         label: "particl",
         default: false,
         midinote: 45,
-        hint: "run particles",
+        hint: "run particle system",
     ),
     partSigmoidRatio: (
         label: "sigmoid",
@@ -290,7 +308,7 @@ var worldParams = (
     ),
     partSynth: (
         label: "part synth",
-        default: \sr__e__pulse,
+        default: "pulse",
     ),
     // misc
     skelSimulSpeed: (
@@ -377,9 +395,9 @@ listenerPos = ( // as default - center of the world
 
 fileNames = { |paths|
     // Get only filenames from sequence paths.
-    paths[..1] ++ paths[2..].collect({ |path|
+    paths.collect { |path|
         PathName(path.asString.asAbsolutePath).fileName;
-    });
+    };
 };
 
 // Miscelaneous parameters for GUI elements controllable by MIDI.
@@ -390,14 +408,12 @@ miscParams = Dictionary.new;
 // Updates value of a GUI element.
 // If `action` is true, .valueAction is performed otherwise .value.
 updateGuiElement = { |parm, val, action=false|
-    try {
-        {
-            if (action) {
-                worldParams[parm][\gui].valueAction_(val)
-            } {
-                worldParams[parm][\gui].value_(val)
-            }
-        }.defer
+    if (worldParams[parm].keys.includes(\gui)) {
+        if (action) {
+            { worldParams[parm][\gui].valueAction_(val) }.defer
+        } {
+            { worldParams[parm][\gui].value_(val) }.defer
+        }
     }
 };
 
@@ -517,12 +533,21 @@ sendSNew = { |data|
 
 // Sends \n_set message to server.
 sendNSet = { |data|
-    var node;
+    var node, params;
     if (data[\synth].keys.includes(\id)) {
         node = synths.at(data[\synth][\id])
     };
     if (data[\synth].keys.includes(\node)) {
-        node = synths.at(data[\synth][\node])
+        node = data[\synth][\node];
+        params = data[\synth].atFail(\params, {[]});
+        // update particles dict param
+        particles.keysValuesDo { |p, dict|
+            if (dict[\node] == node) {
+                Dictionary.newFrom(params).keysValuesDo { |key, val|
+                    dict[\params][key] = val
+                };
+            }
+        };
     };
     ~scsynth.listSendMsg(["/n_set", node]
         ++ data[\synth].atFail(\params, {[]})
@@ -778,32 +803,33 @@ miscParams[\next] = (
 ddSequence = dropdown.(
     viewSeqList,
     items: fileNames.(~seqPaths),
-    initVal: if (~seqPaths.size > 2) { 2 } { 0 },
+    initVal: if (~seqPaths.size > 0) { 1 } { 0 },
     action: { |element|
-        var val, path, top=2;
+        var val, path;
         animateSeq = false;
-        case
-        { element.value == 1 } { // open dialog to load sequence
+        removeAll.();
+        if (element.value == 0) {
+            // open dialog to load sequence
             Dialog.openPanel({ |path|
-                removeAll.();
                 val = ~loadSequence.(path);
                 element.items = fileNames.(~seqPaths);
                 element.value = val;
             });
-        }
-        { element.value > 1 } { // load seqence from file
-            removeAll.();
+        } {
+            // load seqence from file
             path = ~seqPaths[element.value].asString;
             postMsg.(format("INFO: Loading sequence %...\n",
                 PathName.new(path).fileName
             ));
             val = ~loadSequence.(path); // open from file
-            if (val > top) { // place at the top
-                ~seqPaths.insert(top, ~seqPaths.pop(val));
+            if (val > 0) { // place at the top
+                ~seqPaths.insert(1, ~seqPaths.removeAt(val));
                 element.items = fileNames.(~seqPaths);
-                element.value = top;
+                element.value = 1;
+                postMsg.("OK...")
+            } {
+                postMsg.("ERROR!")
             };
-            if (val == 0) {postMsg.("ERROR: Loading sequence has failed!")} {postMsg.("OK...")};
         };
         current = -1;
         scrollInfo.(current, 0);
@@ -958,7 +984,7 @@ miscParams[\skelsimul] = (
 );
 sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
 // button based physics params
-[\particles, \mutualAttraction].do { |key|
+[\particleSystem, \mutualAttraction].do { |key|
     worldParams[key][\gui] = buttonCheckbox.(
         panel,
         worldParams[key][\label],
@@ -966,7 +992,6 @@ sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
     )
     .value_(worldParams[key][\default])
     .action_({ |bt|
-        // bookmark
         eventPool.append((
             message: \physics,
             params: [key, updateWorldParm.(key, bt.value)]
@@ -1432,6 +1457,8 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
     }
 };
 
+
+// Animation func for the basic calibration layout (top view).
 drawCalibration = { |view, kwargs|
     view.background = transparent;
     Pen.font_(Font("Andale Mono")).smoothing_(true);
@@ -1547,7 +1574,6 @@ drawCalibration = { |view, kwargs|
                 Pen.stroke;
             }
         };
-
     };
     // WARNING - end
 
@@ -1556,11 +1582,13 @@ drawCalibration = { |view, kwargs|
         if (kwargs[\partHidden].includes(particle).not) {
             case
             {particle == star} {
-                partColor = Color.red(alpha:star.position.z.linlin(0, world.depth, 0.7, 0.3));
+                partColor = colorStar;
+                partColor.alpha = star.position.z.linlin(0, world.depth, 0.7, 0.3);
                 partSize = 40
             }
             { kwargs[\partSkel].includes(particle) } {
-                partColor = Color.white;
+                partColor = colorJoint;
+                partColor.alpha = particle.position.z.linlin(0, world.depth, 0.7, 0.3);
                 partSize = 10
             }
             {
@@ -1620,7 +1648,127 @@ drawCalibration = { |view, kwargs|
     Pen.stringAtPoint(physics.attractions.size.asString, [world.width*0.5+210, world.height-20].asPoint);
 };
 
-// XXX - experimental
+
+drawGraph = { |view, kwargs|
+    var drawParticle = { |particle, box, label, color, origin, wedgeNum=10|
+        var radius;
+        Pen.font_(Font("Andale Mono")).smoothing_(true);
+        radius = particle.position.z.linlin(
+            0, view.bounds.width,
+            20.rand, box*rrand(0.45, 0.5)
+        );
+        #azimuth, distance, elevation = xyz2ade.(particle.position);
+        wedgeNum.do {
+            color.alpha = particle.position.z.linlin(0, world.depth, 0.7, 0.3);
+            Pen.color = color;
+            Pen.addAnnularWedge(
+                (origin[0]+(box*rrand(0.4, 0.6)))@(origin[1]+(box*rrand(0.4, 0.6))), // fuzzy center
+                radius.rand,
+                rrand(radius, radius*1.5),
+                azimuth+pi + 0.1.rand2,
+                mag3D.(particle.velocity).linlin(0, 1, pi, rrand(1.8pi, 2pi));
+            );
+            Pen.perform([\stroke, \fill].wchoose([0.8, 0.2]));
+        };
+        // draw stat (on top of everything else, all values updated in a current cycle)
+        tmp = origin[1] + box - 20;
+        Pen.color = techColor;
+        Pen.stringAtPoint(label, [origin[0], origin[1]].asPoint);
+        Pen.color = techColor;
+        Pen.stringAtPoint("#a", [origin[0], tmp].asPoint);
+        Pen.color = Color.green;
+        Pen.stringAtPoint((azimuth/pi).round(0.001).asString ++ "pi", [origin[0]+20, tmp].asPoint);
+        if (box > (origin[0]+80)) {
+            Pen.color = techColor;
+            Pen.stringAtPoint("#d", [origin[0]+80, tmp].asPoint);
+            Pen.color = Color.green;
+            Pen.stringAtPoint(distance.round(0.001).asString, [origin[0]+100, tmp].asPoint);
+            Pen.color = techColor;
+            Pen.stringAtPoint("#^", [origin[0]+150, tmp].asPoint);
+            Pen.color = Color.green;
+            Pen.stringAtPoint((elevation/pi).round(0.001).asString ++ "pi", [origin[0]+170, tmp].asPoint);
+        }
+    };
+    view.background = transparent;
+
+    // star
+    drawParticle.(star,
+        box: view.bounds.width*0.5,
+        label: format("% (star)", star.hash),
+        color: colorStar,
+        origin: [0, 0],
+        wedgeNum: 30
+    );
+    // joints
+    skeleton.values.do { |sk|
+        jointVisible.do { |j, i|
+            drawParticle.(sk[j],
+                box: view.bounds.width*0.163, //*0.5*0.33,
+                label: j,
+                color: colorJoint,
+                origin: [
+                    (i % 3 * view.bounds.width * 0.163),
+                    view.bounds.height * ((i/3).trunc * 0.163 + 0.5)
+                ]
+            );
+        };
+    };
+    // // hidden particles
+    // kwargs[\partHidden].do { |particle, i|
+    //     partColor = Color.grey;
+    //     drawParticle.(particle,
+    //         box: view.bounds.height/kwargs[\partHidden].size,
+    //         label: particle.hash.asString,
+    //         color: partColor,
+    //         origin: [
+    //             view.bounds.width*0.5,
+    //             (view.bounds.height/kwargs[\partHidden].size) * i
+    //         ]
+    //     );
+    // };
+    // ordinary particles
+    tmp = all {: p, p <- physics.particles,
+        kwargs[\partSkel].includes(p).not,
+        kwargs[\partHidden].includes(p).not,
+        p != star
+    };
+    tmp.do { |particle, i|
+        partColor = Color(
+            particle.mass.linlin(0, 1, 0.2, 1), // the heavier the object, the redder it appears
+            particle.mass.linlin(0, 1, 0.7, 1),
+            particle.mass.linlin(0, 1, 1, 0.1)
+        );
+        drawParticle.(particle,
+            box: view.bounds.width*0.3,
+            label: particle.hash.asString,
+            color: partColor,
+            origin: [
+                view.bounds.width*0.65,
+                (view.bounds.height*0.3) * i
+            ]
+        );
+    };
+};
+
+
+// Simple stroboscope.
+drawStrob = { |view|
+    view.background = transparent;
+    tmp = patt.next;
+    Pen.translate(world.width*0.5, world.height*0.5); //offset drawing to the centre
+    Pen.fillColor = Color.white; //always fill with white color
+    tmp = 1 - tmp; // invert the mapping
+    Pen.fillRect(
+        Rect.aboutPoint(
+            Point(0, 0),
+            tmp*world.width.rand,
+            tmp*(world.height*0.5).rand
+        )
+    );
+};
+
+
+// Animation for the skeleton based calibration layout (front view).
 drawSkel = { |view|
     // variable space depth for "jumping picture" effect
     visCount = visCount + 1;
@@ -1629,7 +1777,6 @@ drawSkel = { |view|
         scaleDepth = scaleStream.next;
         gridUnit = focalPoint.linlin(0, 3, 10, 2);
     };
-
     // variable background
     if (visCount % renew == 0) {
         view.background = [
@@ -1656,68 +1803,18 @@ drawSkel = { |view|
         Pen.scale(scaleDepth, scaleDepth);
         Pen.skew(scaleDepth.rand2, scaleDepth.rand2);
     };
+
     // draw skeletons
     skeleton.values.do { |skel|
-        currPath.do { |path|
-            path.do { |jo, j|
-                if (j < (path.size-1)) {
-                    lineColor = Color.grey(
-                        skel[jo].position.z.linlin(0, world.depth, 1, 0)
-                    );
-                    deviation = skel[jo].position.z.lincurve(0, world.depth, 1, 20, -4);
-                    xyA = xyz2plane.(
-                        (
-                            x:skel[jo].position.x.round(gridUnit),
-                            y:skel[jo].position.y.round(gridUnit),
-                            z:skel[jo].position.z
-                        ),
-                        world,
-                        scale:scaleDepth,
-                        focal:focalPoint
-                    );
-                    xyB = xyz2plane.(
-                        (
-                            x:skel[path[j+1]].position.x.round(gridUnit),
-                            y:skel[path[j+1]].position.y.round(gridUnit),
-                            z:skel[path[j+1]].position.z
-                        ),
-                        world,
-                        scale:scaleDepth,
-                        focal:focalPoint
-                    );
-                    drawLine.(
-                        pointA:(x:xyA[0], y:xyA[1]),
-                        pointB:(x:xyB[0], y:xyB[1]),
-                        lineColor:lineColor
-                    );
-
-                    // intenionally messy lines around each "bone"
-                    10.do {
-                        xyDevA = (
-                            x: randomize.(xyA[0], deviation),
-                            y: randomize.(xyA[1], deviation)
-                        );
-                        xyDevB = (
-                            x: randomize.(xyB[0], deviation),
-                            y: randomize.(xyB[1], deviation),
-                        );
-                        drawLine.(xyDevA, xyDevB, lineColor);
-
-                        // additional lines for the head
-                        if (jo == \head) {
-                            xyDevA = (
-                                x: randomize.(xyA[0]-gridUnit, deviation),
-                                y: randomize.(xyA[1]+gridUnit, deviation)
-                            );
-                            xyDevB = (
-                                x: randomize.(xyA[0]+gridUnit, deviation),
-                                y: randomize.(xyA[1]+gridUnit, deviation),
-                            );
-                            drawLine.(xyDevA, xyDevB, lineColor);
-                        };
-                    };
-                };
-            };
+        // WARNING! Technically this is a wrong approach,
+        // since it will draw particles two times.
+        // but it doesn't matter, because only one skel is used.
+        if (skel[\head].position.y > star.position.y) {
+            drawSkelParticle.();
+            drawSkelJoints.(skel, currPath);
+        } {
+            drawSkelJoints.(skel, currPath);
+            drawSkelParticle.();
         };
     };
     // draw grid
@@ -1725,10 +1822,11 @@ drawSkel = { |view|
     Pen.width = 0.5;
     Pen.use {
         if (isGrid) {
+            deviation = [world.width, world.height] / 9;
             rrand(600, 1000).do {
                 Pen.beginPath;
-                Pen.moveTo(Point(10.rand * (world.width/9), 10.rand * (world.height/9)));
-                Pen.lineTo(Point(10.rand * (world.width/9), 10.rand * (world.height/9)));
+                Pen.moveTo(Point(10.rand * deviation[0], 10.rand * deviation[1]));
+                Pen.lineTo(Point(10.rand * deviation[0], 10.rand * deviation[1]));
                 Pen.stroke;
             };
         } {
@@ -1746,9 +1844,90 @@ drawSkel = { |view|
     };
 };
 
+
+// A frame of movement of a skeleton in the drawSkel mode.
+drawSkelJoints = { |skel, currPath|
+    currPath.do { |path|
+        path.do { |jo, j|
+            if (j < (path.size-1)) {
+                lineColor = Color.grey(
+                    skel[jo].position.y.linlin(0, world.depth, 1, 0)
+                );
+                deviation = skel[jo].position.y.lincurve(0, world.depth, 1, 20, -4);
+                xyA = getPointPlane.(skel[jo]);
+                xyB = getPointPlane.(skel[path[j+1]]);
+                drawLine.(
+                    pointA:(x:xyA[0], y:xyA[1]),
+                    pointB:(x:xyB[0], y:xyB[1]),
+                    lineColor:lineColor
+                );
+                // intenionally messy lines around each "bone"
+                10.do {
+                    xyDevA = (
+                        x: randomize.(xyA[0], deviation),
+                        y: randomize.(xyA[1], deviation)
+                    );
+                    xyDevB = (
+                        x: randomize.(xyB[0], deviation),
+                        y: randomize.(xyB[1], deviation),
+                    );
+                    drawLine.(xyDevA, xyDevB, lineColor);
+                    // additional lines for the head
+                    if (jo == \head) {
+                        xyDevA = (
+                            x: randomize.(xyA[0]-gridUnit, deviation),
+                            y: randomize.(xyA[1]+gridUnit, deviation)
+                        );
+                        xyDevB = (
+                            x: randomize.(xyA[0]+gridUnit, deviation),
+                            y: randomize.(xyA[1]+gridUnit, deviation),
+                        );
+                        drawLine.(xyDevA, xyDevB, lineColor);
+                    };
+                };
+            };
+        };
+    };
+};
+
+
+// A frame of movement of particles (excluding skeletal joints)
+// in the drawSkel mode.
+drawSkelParticle = {
+    physics.particles.do { |particle|
+        if (particle.isFree) {
+            xyA = getPointPlane.(particle);
+            lineColor = Color.grey(
+                particle.position.y.linlin(0, world.depth, 1, 0.3)
+            );
+            deviation = particle.position.y.lincurve(
+                0, world.depth,
+                1, if (particle == star) {15} {10},
+                -4
+            );
+            if (particle == star, {80}, {20}).do {
+                xyDevA = (
+                    x: randomize.(xyA[0]-gridUnit, deviation),
+                    y: randomize.(xyA[1]+gridUnit, deviation)
+                );
+                xyDevB = (
+                    x: randomize.(xyA[0]+gridUnit, deviation),
+                    y: randomize.(xyA[1]+gridUnit, deviation),
+                );
+                drawLine.(xyDevA, xyDevB, lineColor);
+            }
+        }
+    }
+};
+
+
+// Animation func for the basic calibration layout (top view).
+drawCube = { |view|
+
+};
+
 // Physics ticks here!
 viewWorld.drawFunc = { |view|
-
     // Process an event from eventPool before going on with the rest.
     paramsChanged = false;
     if (eventPool.items.size > 0) {
@@ -1773,7 +1952,7 @@ viewWorld.drawFunc = { |view|
                 particle = initParticle.(event[\particle]);
                 event[\synth][\node] = ~initSynth.(
                     event[\synth][\name],
-                    node: event[\synth][\node],
+                    node: event[\synth].atFail(\node, {nil}),
                     params: event[\synth][\params]
                 );
                 registerParticle.(particle, event[\synth]);
@@ -1798,12 +1977,12 @@ viewWorld.drawFunc = { |view|
     };
 
     // Particle system.
-    if (world.particles.booleanValue) {
+    if (world[\particleSystem].booleanValue) {
         if (view.frame % (view.frameRate * world.partFreq).round == 0) {
-            particleSystem.(defineGuide.())
+            guide = defineGuide.();
+            particleSystem.(guide);
         }
     };
-
     // Springs should stick to hands even after skeleton is lost and then appears again.
     // Track connections of springs in a global dictionary.
     springsPhysical = all {: g.identityHash, g <- physics.springs} ? [];
@@ -1832,12 +2011,12 @@ viewWorld.drawFunc = { |view|
     particlesSkelVis = getParticlesSkelVis.();
     particlesHidden = getParticlesHidden.();
     particlesOnSprings = getParticlesOnSprings.();
-    Array.newFrom(physics.particles).do { |particle|
+    physics.particles.do { |particle|
         // Re-apply world forces, if there was any change in its parameters
         if (paramsChanged) {
             if (particlesOnSprings.includes(particle)) {
                 // if particle is on spring, change spring's properties
-                setSpringProp.(particle:particle);
+                setSpringProp.(particle: particle);
             } {
                 // if particle isn't on spring, re-apply attractions
                 if (particlesHidden.includes(particle).not) { // exclude hidden particles
@@ -1846,7 +2025,15 @@ viewWorld.drawFunc = { |view|
             };
         };
         handleBoundaryCollisions.value(particle);
-
+        // Age control: particles age "backwards",
+        // i.e. age = 0 is a death and positive age is afterlife.
+        if (particle.age >= 0) { particle.dead = true };
+        if (particle.dead) {
+            try {
+                unregisterParticle.(particles[particle][\node]);
+            };
+            removeParticle.(particle);
+        };
         // send parameters to the group on Server
         if (particles.keys.includes(particle)) {
             #ax, ay, az = xyz.(particle.position);
@@ -1869,7 +2056,6 @@ viewWorld.drawFunc = { |view|
                 \distance, distance,
                 \elevation, elevation,
                 \momentum, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
-
                 // guide params
                 \gx, gx,
                 \gy, gy,
@@ -1877,18 +2063,9 @@ viewWorld.drawFunc = { |view|
                 \gzimuth, gAzimuth,
                 \gDistance, gDistance,
                 \gElevation, gElevation,
-
                 // general
                 \depth, ~depth,
             );
-        };
-
-        // Age control: particles age "backwards",
-        // i.e. age = 0 is a death and positive age is afterlife.
-        if (particle.age >= 0) { particle.dead = true };
-        if (particle.dead) {
-            unregisterParticle.(particles[particle][\node]);
-            removeParticle.(particle)
         };
     };
 
@@ -1930,7 +2107,9 @@ viewWorld.drawFunc = { |view|
     world[\draw].switch(
         \calibration, { drawCalibration.(view, kwargs: kwargs)},
         \skel, { drawSkel.(view) },
-        \cube, { drawCube.(view) },
+        \skelfull, { drawStrob.(view) },
+        \graph, { drawGraph.(view, kwargs: kwargs) },
+        \cube, { drawCube.(view) }, // TODO
         { drawCalibration.(view, kwargs: kwargs) }
     );
 
@@ -2190,8 +2369,9 @@ initParticle = { |params|
         params[\mass] ? world.partDefaultMass,
         x, y, z
     );
+    // Velocity is TraerVector3D.
     if (params.keys.includes(\vel)) {
-        particle.velocity.set(params[\vel][0], params[\vel][1], params[\vel][2])
+        particle.velocity.set(params[\vel].x, params[\vel].y, params[\vel].z)
     };
     // Particles age "backwards": age == 0 is death, age >= 0 is afterlife.
     try {
@@ -2206,44 +2386,51 @@ initParticle = { |params|
 // Particle system.
 particleSystem = { |guide|
     // probability of the birth of particle depends on the guide's velocity
+    var vel = if (guide.velocity != 0) {
+        guide.velocity
+    } {
+        TraerVector3D(
+            x: world[\maxVel].rand,
+            y: world[\maxVel].rand,
+            z: world[\maxVel].rand
+        )
+    };
     var prob = sigmoid.(
         ratio: world.partSigmoidRatio,
-        value: mag3D.(vel).linlin(0, world.maxVel, world.maxVel.neg, world.maxVel)
+        value: mag3D.(vel).linlin(
+            0, world[\maxVel],
+            world[\maxVel].neg, world[\maxVel])
     );
-    var vel = if (guide.velocity != 0) {guide.velocity} {world.maxVel};
-    var data = (
-        message: \particle,
-        particle: (
-            mass: 0.2,
-            age: world.partAgeThresh.logistic,
-            vel: [vel.x, vel.y, vel.z].neg * world.partInitAccel.max(0.01)
-            x: guide.position.x,
-            y: guide.position.y,
-            z: guide.position.z
-        ),
-        synth: (
-            name: world.partSynth,
-            params: [\attack, 0.5.rand]
-        )
-    );
-    if (prob.coin.booleanValue) {
-        eventPool.append(data)
-    }
+    if (prob.coin) {
+        vel = ([vel.x, vel.y, vel.z].neg * world[\partInitAccel]).max(0.1);
+        eventPool.append((
+            message: \particle,
+            particle: (
+                mass: 0.2,
+                age: world[\partAgeThresh].logistic,
+                vel: TraerVector3D(x: vel[0], y: vel[1], z: vel[2]),
+                x: guide.position.x,
+                y: guide.position.y,
+                z: guide.position.z
+            ),
+            synth: (
+                name: world[\partSynth],
+                params: [\attack, 0.5.rand]
+            )
+        ));
+    };
 };
 
 removeSpring = { |spring|
-    //
     springs.removeAt(spring.identityHash);
     physics.removeSpring(spring);
 };
 
 removeAttraction = { |attraction|
-    //
     physics.removeAttraction(attraction);
 };
 
 removeParticle = { |particle|
-    //
     // remove springs
     physics.springs.do { |spring|
         if ([spring.a, spring.b].includes(particle)) {
@@ -2286,6 +2473,9 @@ registerParticle = { |particle, synth|
         synth: synth[\name],
         params: ~fillSynthParams.(synth, ~synths)
     ));
+
+    // // XXX 3d
+    // registerCube.(particle)
 };
 
 unregisterParticle = { |nodeId|
@@ -2316,6 +2506,9 @@ skeletonParticles = { |id, joint, x, y, z|
                 part = initParticle.((mass: world.starMass, x: x, y: y, z: z));
                 part.makeFixed;
                 skeleton[id][joint] = part;
+
+                // // XXX 3d
+                // registerCube.(part)
             };
             skeleton[id][joint].position.set(x, y, z);
             skeleton[id][\update] = Date.getDate.secStamp;
@@ -2346,11 +2539,11 @@ skeletonRemove = { |id|
 
 // HELPER FUNCTIONS
 //
+// 3-d vector(s) magnitude.
+// `vec` can be either dictionary-like object (x:x, y:y, z:z), in which case
+// a siggle float value of the magnitude is returned, or a collection of such
+// objects, which result in a collection of magnitudes.
 mag3D = { |vec|
-    // 3-d vector(s) magnitude.
-    // `vec` can be either dictionary-like object (x:x, y:y, z:z), in which case
-    // a siggle float value of the magnitude is returned, or a collection of such
-    // objects, which result in a collection of magnitudes.
     var func = { |vector| (vector.x.sumsqr(vector.y) + vector.z.pow(2)).sqrt};
     var result = 0;
     try {
@@ -2368,10 +2561,11 @@ sigmoid = { |ratio, value|
     1 / (1 + exp((ratio * value).neg))
 };
 
+
+// Project 3D coordinates on the plane.
+// pos = Dictionary[x, y, z]
+// space = Dictionary[width, height, depth]
 xyz2plane = { arg pos, space, scale=1, focal=0.5;
-    // Project 3D coordinates on the plane.
-    // pos = Dictionary[x, y, z]
-    // space = Dictionary[width, height, depth]
     var x, y, z, ox, oy;
     z = space.depth - pos.z / (space.depth * scale);
     z = z.linlin(0, space.depth, focal, 1);
@@ -2382,8 +2576,24 @@ xyz2plane = { arg pos, space, scale=1, focal=0.5;
     [ox, oy]
 };
 
+
+// Standard plane poiint in the ~world.
+getPointPlane = { |obj|
+    xyz2plane.(
+        (
+            x: obj.position.x.round(gridUnit),
+            y: obj.position.z.round(gridUnit),
+            z: obj.position.y
+        ),
+        world,
+        scale:scaleDepth,
+        focal:focalPoint
+    )
+};
+
+
+// Returns azimuth, distance and elevation for a position defined as [x, y, z]
 xyz2ade = { |position|
-    // Returns azimuth, distance and elevation for a position defined as [x, y, z]
     var pos, elev;
     pos = Complex(
         position.x.linlin(0, world.width, 1, -1), // y
@@ -2397,8 +2607,9 @@ xyz2ade = { |position|
     ]
 };
 
+
+// Converts (azimuth, distance, elevation) to (x, y, z)
 ade2xyz = { |position, maxDist|
-    // Converts (azimuth, distance, elevation) to (x, y, z)
     var pos, distAdj;
     var mC = 2.sqrt; // max in Cartesian plane (from center to wall)
     distAdj = position.dist.linlin(0, maxDist, 0, mC); // adjust distance on [0, maxDist]
@@ -2411,8 +2622,8 @@ ade2xyz = { |position, maxDist|
 };
 
 
+// Returns x, y and z in required format.
 xyz = { |position|
-    // Returns x, y and z in required format.
     [
         position.x / world.width,
         position.y / world.height,
@@ -2421,16 +2632,17 @@ xyz = { |position|
 };
 
 
+// Updates post colors when postView size shrinks.
 updatePostColors = { |colors, start|
-    // Updates post colors when postView size shrinks.
     colors.size.do { |i|
         colors[i][\start] = colors[i][\start] - start
     };
     all {: k, k <-colors, k[\start] > 0 };
 };
 
+
+//
 getMsgColor = { |msg|
-    //
     case
     { msg.beginsWith("INFO") || msg.beginsWith("->") } { Color.new255(11, 96, 224) }
     { msg.beginsWith("DEBUG") || msg.beginsWith("$>") } { Color.new255(55, 157, 0) }
@@ -2440,8 +2652,8 @@ getMsgColor = { |msg|
 };
 
 
+// Posts message to local listener.
 postMsg = { |msg|
-    // post message to local listener
     var msgColor, start, color;
     msg = msg.asString;
     if (msg.endsWith("\n").not) { msg = msg ++ "\n" };
@@ -2549,7 +2761,8 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
             }
         },
         \draw, {
-            world[\draw] = msg[2].asSymbol
+            world[\draw] = msg[2].asSymbol;
+            // canvas.visible = (msg[2].asSymbol == \cube) // XXX 3d
         },
         // XXX - finish it
         \srv_msg, {
@@ -2628,6 +2841,7 @@ oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
     };
 }, '/g_queryTree.reply');
 
+
 // PHYSICS
 //
 physics = TraerParticleSystem.new;
@@ -2639,9 +2853,51 @@ star = initParticle.((
     mass: world.starMass, x: world.width/2, y: world.height/2, z: world.depth/2
 ));
 applyAttractions.(star, world.mutualAttraction);
+// // XXX 3d
+// registerCube.(star);
+
+// XXX 3d
+// // 3-D CANVAS
+// //
+// canvas = Canvas3D(viewWorld, Rect(0, 0, world[\width], world[\height]))
+// .background_(Color.black)
+// .scale_(200)
+// .perspective_(0.2)
+// .distance_(1);
+// canvas.add(frame = Canvas3DItem.cube
+//     .color_(Color.white)
+//     .width_(0.5)
+// );
 
 // Animate!
 viewWorld.animate = true;
+
+// // XXX 3d
+// if (world[\draw] == \cube) {
+//     canvas.animate = true;
+//     canvas.animate(40) { |t|
+//         canvas.transforms = [ // spin the canvas
+//             Canvas3D.mRotateY(t*transRate*1.0 % 2pi),
+//             Canvas3D.mRotateX(t*transRate*1.5 % 2pi)
+//         ];
+//         frame.transforms = canvas.transforms;
+//         cubes.keysValuesDo { |particle, item|
+//             transX = particle.position.x.linlin(0, world[\width], -1, 1);
+//             transY = particle.position.y.linlin(0, world[\height], -1, 1);
+//             transZ = particle.position.z.linlin(0, world[\depth], -1, 1);
+//             if (particle == b) {transZ.postln};
+//             item.transforms = frame.transforms ++ [
+//                 Canvas3D.mRotateZ(t*transRate*5 % 2pi),
+//                 Canvas3D.mRotateX(t*transRate*2 % 2pi),
+//                 Canvas3D.mTranslate(transX, transY, transZ),
+//                 Canvas3D.mScale(transZ)
+//             ];
+//         }
+//     }
+// } {
+//     canvas.animate = true
+// };
+
 
 { // GLOBAL APP CLOCK. Resolution: 100 milliseconds (0.1 of a second)
     while {win.isClosed.not} {

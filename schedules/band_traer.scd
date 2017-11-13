@@ -50,7 +50,7 @@ guideBuff = Buffer.readChannel(~scsynth,
             \drag, 0.001,
             \repulsion, \default,
             \starMass, \default,
-            \particles, \default,
+            \particleSystem, \default,
             \springRestLen, 3,
             \springStrength, 0.5,
             \springDamp, 2,
@@ -85,8 +85,8 @@ guideBuff = Buffer.readChannel(~scsynth,
     7: [
         (
             wait: 5*60,
-            info: "INTRO: Particles",
-            message: \physics, params: [\particles, 1, \maxVel, 2]
+            info: "INTRO: particleSystem",
+            message: \physics, params: [\particleSystem, 1, \maxVel, 2]
         ),
         (
             info: "Silent object",
@@ -189,7 +189,7 @@ guideBuff = Buffer.readChannel(~scsynth,
             message: \task, name: \randomParticles, act: 0
         ),
         ( // switch particles OFF
-            message: \physics, params: [particles: 0]
+            message: \physics, params: [particleSystem: 0]
         ),
         ( // remove intro group from server
             message: \g_free, id: \intro_bundle, params: [\release, 80]
@@ -462,13 +462,9 @@ guideBuff = Buffer.readChannel(~scsynth,
     ],
     99: [
         (
-            info: "FIN",
+            info: "FIN: Remove all",
             message: \action,  params: [\remove, \all]
         ),
-        (
-            info: "Remove all, particles OFF",
-            message: \physics, params: [particles: 0]
-        )
     ]
 );
 

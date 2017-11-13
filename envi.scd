@@ -41,7 +41,7 @@ var loadPaths = { |lines|
 var isTest = thisProcess.argv.includesEqual("test");
 var currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
 var seqPathsFile = currentDir +/+ "conf/sequences.conf";
-var seqPaths = ["", "Load..."];
+var seqPaths = ["Load..."];
 var confFile = currentDir +/+ "conf/envi.conf";
 
 if (isTest) {
@@ -484,24 +484,26 @@ srEnv = Environment.make {
     };
 
 
-// Loads sequence from file.
+    // Loads sequence from file.
     ~loadSequence = { |path|
-        if (path.isNil) { path = ~seqPaths[2] };
+        var index = 0;
+        // if no path is given, load the top one
+        if (path.isNil) { path = ~seqPaths[1] };
         postf("Loading sequence %...\n", PathName.new(path).fileName);
         path = path.absolutePath;
         if (this.executeFile(path).isNil.not) {
             "OK...".postln;
             if (~seqPaths.asString.contains(path).not) {
-                ~seqPaths.insert(2, path); // to the top, but after ["", "Load.."]
+                ~seqPaths.insert(1, path); // to the top, but after ["Load.."]
             };
-            ~getIndex.(~seqPaths, path)
+            index = ~getIndex.(~seqPaths, path)
         } {
             "Loading sequence has failed!".postln;
             try {
                 ~seqPaths.removeAt(~getIndex.(~seqPaths, path));
             };
-            0 // if unsuccessful, return 1st element ("")
         };
+        index;
     };
 
 
@@ -644,12 +646,11 @@ CmdPeriod.doOnce({
     confFile.write(conf.asCompileString);
     confFile.close;
 
-    // Omit the first 2 items of seqPaths are [<empty>, "Load..."],
-    // save paths to sequences only if there are some.
-    if (seqPaths.size > 2) {
+    // Save ~seqPaths to sequences file, omitting the first item ("Load...")
+    if (seqPaths.size > 1) {
         "Saving paths to sequences...".postln;
         seqPathsFile = File.new(seqPathsFile, "w");
-        seqPathsFile.write(cleanPaths.(seqPaths[2..]));
+        seqPathsFile.write(cleanPaths.(~seqPaths[1..]));
         seqPathsFile.close;
     };
 

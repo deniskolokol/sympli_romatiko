@@ -591,7 +591,7 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             Impulse.kr(distance.linexp(0.01, 1, 1, 10000)),
             0.01, 0.01, 1.0, 1.0, 1.0,
             ax.linlin(0, 1, 0.4, 1.2), ay.linlin(0, 1, 2.0, 4.0)
-        ) * 0.2;
+        );
         raw = RLPF.ar(raw, cutoff, rq);
         signal = Compander.ar(raw, raw, 0.1, slopeBelow: 1, slopeAbove: 0.5,
             clampTime: 0.01, relaxTime: 0.01, mul: amp);
@@ -609,7 +609,7 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
             depth=5, elevClip=0.01pi,
-            min= -1, max=1, cutoff=250, rq=0.5;
+            min= -1, max=1, cutoff=250, rq=0.5, melo=0;
         var trig = momentum > 0.3;
         var timer = Timer.kr(trig);
         var impFreq = TChoose.ar((timer > 0.25) * trig, [
@@ -618,18 +618,27 @@ var makeSynthDefADSR = { |name, outCodeFunc|
         ]);
         var impMin = min.linlin(-1, 0.99, 3, 1200);
         var impMax = max.linlin(-0.99,  1, 1201, 20000);
+        var note = SelectX.kr(BinaryOpUGen('>', melo, 0) * 2,
+            [
+                // Zero or negative \melo means constant value
+                freq,
+
+                // Positive \melo asks for DegreeToKey
+                DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 24), 12, 1, freq.cpsmidi).midicps
+            ]
+        );
         var raw = (
-            LFSaw.ar(freq, mul:momentum)
+            LFSaw.ar(note, mul:momentum)
             + Impulse.ar(SinOsc.ar(impFreq).exprange(impMin, impMax), mul:momentum)
             + Formlet.ar(
-                Impulse.ar(freq + SinOsc.ar(freq * 0.02).exprange(0.3, impFreq / 3.67)),
+                Impulse.ar(note + SinOsc.ar(note * 0.02).exprange(0.3, impFreq / 3.67)),
                 (1..5)
                 * SinOsc.ar(momentum).exprange(20, 2000)
                 * SinOsc.ar(SinOsc.ar(momentum, 0, 0.1), 0, 0.1, 1), 0.001, 0.0015,
                 mul: momentum.scurve
             )
-        ) * amp;
-        var signal = Mix.ar(raw) * 0.06;
+        );
+        var signal = Mix.ar(raw) * amp * 0.5;
         signal = RLPF.ar(RLPF.ar(signal, cutoff, rq), cutoff, rq); // XXX profile this contruct: RLPF(RLPF) w/same params
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
@@ -645,23 +654,31 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
             depth=5, elevClip=0.01pi,
-            delay=0.4, decaytime=4;
+            delay=0.4, decaytime=4, melo=0;
         var signal;
         var baseFreq = distance.linexp(0, 1, 10, 40).lag(0.01);
         var shift = ((momentum * 30) ** 3).lag(0.01);
-        // raw = Formlet.ar(
-        //     WhiteNoise.ar(SinOsc.ar(baseFreq, shift, 0.5, 1)).min(1) + SinOsc.ar(baseFreq, shift),
-        //     LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(0.5))), 2450, 2550), 0.01, 0.1
-        // ).softclip;
+        var note = SelectX.kr(BinaryOpUGen('>', melo, 0) * 2,
+            [
+                // Positive \melo means value controlled by momentum
+                LFNoise1.ar(TRand.kr(trig:Delay2.kr(Dust.kr(0.5))), 2450, 2550),
+
+                // Zero or negative \melo asks for LFNoise1
+                momentum.linexp(0, 1, 5000, 100),
+            ]
+        );
         var raw = Formlet.ar(
-            WhiteNoise.ar(SinOsc.ar(baseFreq, shift, 0.5, 1)).min(1) + SinOsc.ar(baseFreq, shift),
-            momentum.linexp(0, 1, 50, 10000),
-            0.01,
-            0.1
+            in: (
+                WhiteNoise.ar(SinOsc.ar(baseFreq, shift, 0.5, 1)).min(1)
+                + SinOsc.ar(baseFreq, shift)
+            ),
+            freq: note,
+            attacktime: 0.01,
+            decaytime: 0.1
         ).softclip;
         raw = [raw, DelayN.ar(raw, 0.04, delay)];
         4.do({raw = AllpassN.ar(raw, 0.5, [0.5.rand, 0.5.rand], decaytime, amp)});
-        signal = Mix.ar(raw) * 0.02;
+        signal = Mix.ar(raw) * 0.2;
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
             gate, attack, sustain, release, ca, cr, depth, elevClip
@@ -735,12 +752,13 @@ var makeSynthDefADSR = { |name, outCodeFunc|
         var note = SelectX.kr(BinaryOpUGen('>', melo, 0) * 2,
             [
                 // Zero or negative \melo means constant value
-                freq + TRand.kr(detune.neg, detune, trig),
+                freq,
 
                 // Positive \melo asks for DegreeToKey
                 DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 12), 12, 1, freq.cpsmidi).midicps
             ]
-        );
+        )
+        + TRand.kr(detune.neg, detune, trig);
         var signal = Mix.fill(tones,
             { |index|
                 var pitches = Lag.kr(
@@ -752,11 +770,14 @@ var makeSynthDefADSR = { |name, outCodeFunc|
                     100,
                     Lag.kr(TRand.kr(0.8, 1.0, trig), lag * Rand(0.8, 1.2)),
                 )
-                * ( if(index < voices, 1, 0) );
+                * (
+                    if(index < voices, voices.reciprocal+0.2, 0)
+                );
             }
         );
-        signal = RLPF.ar(RLPF.ar(Mix.fill(10, signal), cutoff, rq), cutoff, rq);
-        signal = Limiter.ar(MidEQ.ar(signal, [200, 1400], 0.7, 8), amp * tones.reciprocal);
+        signal = MidEQ.ar(signal, [200, 1400], 0.7, 8);
+        signal = RLPF.ar(RLPF.ar(signal, cutoff, rq), cutoff, rq);
+        signal = Limiter.ar(Mix.ar(signal), amp);
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
             gate, attack, sustain, release, ca, cr, depth, elevClip

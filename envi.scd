@@ -5,42 +5,52 @@
 //
 (
 var srEnv;
-var currentDir;
-var conf, confFile, confKeys;
-var seqPathsFile, seqPaths;
-var harmonics, numHarmonics, numWavetables;
-var loadComponents, loadCommonComponents, loadComponents__test;
-var doTest;
-var ar__ROOT_NODE, kr__ROOT_NODE; // root IDs for synths
+var loadComponents, loadCommonComponents;
+var initAudioThrough;
+var doTest, loadComponents__test;
+var conf=Dictionary.new;
+var confKeys = [ // keys to save to conf file
+    'surround', 'depth',
+    'inbus', 'outbus', 'audioThruBus', 'inbus', 'outbus',
+    'receiver', 'speakers'
+];
+var harmonics, numHarmonics=1024, numWavetables = 8;
 
 var cleanPaths = { |paths|
-	// Converts each element from `paths` to absolute path,
-	// and returns unique paths.
-	var lines="";
-	paths.do { |path|
-		path = path.absolutePath;
-		if (PathName(path).isFile) {
-			if (lines.contains(path).not) {
-				lines = lines ++ format("%\n", path)
-			}
-		} {
-			postf("WARNING: Skipping path % (not a file).\n", path);
-		}
-	};
-	lines
+    // Converts each element from `paths` to absolute path,
+    // and returns unique paths.
+    var lines="";
+    paths.do { |path|
+        path = path.absolutePath;
+        if (PathName(path).isFile) {
+            if (lines.contains(path).not) {
+                lines = lines ++ format("%\n", path)
+            }
+        } {
+            postf("WARNING: Skipping path % (not a file).\n", path);
+        }
+    };
+    lines
 };
 
 var loadPaths = { |lines|
-	// Converts paths separated by "\n" to List.
-	lines.split($\n).reject({ |line| line.size == 0});
+    // Converts paths separated by "\n" to List.
+    lines.split($\n).reject({ |line| line.size == 0});
+};
+
+var isTest = thisProcess.argv.includesEqual("test");
+var currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
+var seqPathsFile = currentDir +/+ "conf/sequences.conf";
+var seqPaths = ["Load..."];
+var confFile = currentDir +/+ "conf/envi.conf";
+
+if (isTest) {
+    confFile = confFile.replace("envi.conf", "envi_test.conf");
 };
 
 // ENVIRONMENT
 //
 "Loading environment...".postln;
-currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
-confFile = currentDir +/+ "conf/environment.conf";
-conf = Dictionary.new;
 try { // to load from conf file
     conf = File(confFile, "r").readAllString.interpret;
     postf("OK\n\n");
@@ -49,29 +59,28 @@ try { // to load from conf file
 // SEQUENCES
 //
 "Loading sequences...".postln;
-seqPathsFile = currentDir +/+ "conf/sequences.conf";
-seqPaths = ["", "Load..."];
 try { // to load from settings file
-	seqPaths = seqPaths ++ loadPaths.(
-		File(seqPathsFile, "r").readAllString
-	);
+    seqPaths = seqPaths ++ loadPaths.(
+        File(seqPathsFile, "r").readAllString
+    );
     postf("OK\n\n");
 } { |err|
-	postf("WARNING: Problem loading sequences, cannot access file %\n", seqPathsFile);
+    postf("WARNING: Problem loading sequences, cannot access file %\n", seqPathsFile);
 };
 seqPaths = seqPaths.asList;
 
 srEnv = Environment.make {
     ~currentDir = currentDir;
     ~seqPaths = seqPaths;
+    // assume the World is a cube
+    ~worldSize = (Window.screenBounds.height*0.623).floor;
     // ~scsynth = Server("scsynth", NetAddr.new("192.168.1.106", 57110));
     ~scsynth = Server.internal;
     ~surround = conf.atFail(\surround, {"ambisonic"});
     ~depth = conf.atFail(\depth, {3.5});
     ~inbus = conf.atFail(\inbus, {4});
     ~outbus = conf.atFail(\outbus, {0});
-    ~audioThruBus = conf.atFail(\audioThruBus, {[12, 13]}); // two buses for audio through on skeletons hands
-    ~worldSize = conf.atFail(\worldSize, {700}); // assume the World is a cube
+    ~audioThruBus = conf.atFail(\audioThruBus, {[10, 11]}); // two buses for audio through on skeletons hands
     ~receiver = conf.atFail(\receiver, {NetAddr.new("127.0.0.1", 57120)}); // World
     ~speakers = (
         items: conf.atFail(\speakers, {
@@ -95,166 +104,129 @@ srEnv = Environment.make {
         }
     );
 
-	~sequence = ( // default empty sequence
-		title: "<none>",
+    ~sequence = ( // default empty sequence
+        title: "<none>",
 
-		// step marks (numbered) and time marks (entitled)
-		// (
-		//     0: [(event0), (event1), ...],
-		//     1: [(eventN), (eventN+1), ...],
-		//     foo: [...]
-		// )
-		events: Dictionary.new,
+        // step marks (numbered) and time marks (entitled)
+        // (
+        //     0: [(event0), (event1), ...],
+        //     1: [(eventN), (eventN+1), ...],
+        //     foo: [...]
+        // )
+        events: Dictionary.new,
 
-		// connector of time and time marks
-		// (
-		//     0_00: \foo,
-		//     1_12_354: \gee
-		// )
-		marks: Dictionary.new,
+        // connector of time and time marks
+        // (
+        //     0_00: \foo,
+        //     1_12_354: \gee
+        // )
+        marks: Dictionary.new,
 
-		// descriptions of tasks
-		// (
-		//     taskX: Task({...}),
-		//     taskY: Task({...}),
-		// )
-		tasks: Dictionary.new,
+        // descriptions of tasks
+        // (
+        //     taskX: Task({...}),
+        //     taskY: Task({...}),
+        // )
+        tasks: Dictionary.new,
 
-		// list of buffers
-		samples: List.new,
+        // list of buffers
+        samples: List.new,
 
-		// list of buffers for voice samples
-		voices: List.new,
+        // list of buffers for voice samples
+        voices: List.new,
 
-		// list of buffers for scales
-		scales: List.new,
-	);
+        // list of buffers for scales
+        scales: List.new,
+    );
+    ~specs = Dictionary[
+        \freq -> \freq.asSpec,
+        \cutoff -> \freq.asSpec,
+        \dur -> \delay.asSpec,
+        \delay -> \delay.asSpec,
+        \detune -> \detune.asSpec,
+        \rate -> \rate.asSpec,
+        \controlbus -> \controlbus.asSpec,
+        \azimuth -> ControlSpec(-1pi, 1pi, \lin, 0.01, 0),
+        \distance -> ControlSpec(0, 2.sqrt, \lin, 0.01, 0),
+        \elevation -> ControlSpec(-0.5pi, 0.5pi, \lin, 0.01, 0),
+        \velocity -> \unipolar.asSpec,
+        \depth -> ControlSpec(1, 10, \lin, 0.1, 5),
+        \offset -> \midinote.asSpec,
+        \rq -> \rq.asSpec,
+        \lfreq -> ControlSpec(0.01, 100, \lin, 0.01, 0.5, units: " Hz"), // dummy, 0.01..1.000 | 1..100
+        \min -> ControlSpec(-1, 0.99, \lin, 0.01, -1),
+        \max -> ControlSpec(-0.99,  1, \lin, 0.01, 1),
+        \amp -> ControlSpec(0, 1, \amp, 0, 1),
+        \room -> ControlSpec(0.0,  1.0, \lin, 0.01, 0.5),
+        \damp -> ControlSpec(0.0,  1.0, \lin, 0.01, 0.5),
+        \delaytime -> ControlSpec(0.001,  2.0, -3, 0.001, 0.2),
+        \decaytime -> ControlSpec(-5,  5, \lin, 0.1, 1),
+        \mul -> \unipolar.asSpec, // dummy
+        \add -> \unipolar.asSpec, // dummy
+        \dummy -> \bipolar.asSpec // dummy
+    ];
+    ~defaultParams = (
+        \ar: #[
+            \freq, \detune, \delay, \cutoff, \room, \rq, // knobs in GUI
+            \rate, \amp // sliders in GUI
+        ],
+        \kr: #[
+            \lfreq, \dummy, \min, \dummy, \max, \dummy,  // knobs in GUI
+            \dummy, \dummy // sliders in GUI
+        ],
+    );
 
     ~synths = (
-        sr__e__wasp: (
-            key: 12, // q
-            attenuate: 0.02,
-        ),
-        sr__e__radio: (
-            key: 13, // w
-            attenuate: 0.06,
-        ),
-        sr__e__humm: (
-            key: 14, // e
-            attenuate: 0.1,
-        ),
-        sr__e__gauss: (
-            key: 15, // r
-            attenuate: 0.2,
-        ),
-        sr__e__entro: (
-            key: 17, // t
-            attenuate: 0.05,
-        ),
-        sr__e__noisy: (
-            key: 16, // y
-            attenuate: 0.02,
-        ),
-        sr__e__probe: (
-            key: 32, // u
-            attenuate: 0.8,
-        ),
-        sr__e__cmb: (
-            key: 34, // i
-            attenuate: 0.5,
-        ),
-        sr__e__lowe: (
-            key: 31, // o
-            attenuate: 0.05,
-        ),
-        sr__e__melo: (
-            key: 35, // p
-            attenuate: 0.5,
-        ),
-        sr__e__ringz: (
-            key: 33, // [
-            attenuate: 0.2,
-        ),
-        sr__e__pulse: (
-            key: 30, // ]
-            attenuate: 0.1,
-        ),
-        \sr__g__reg: (
-            key: 1, // s
-            attenuate: 1,
-        ),
-        \sr__g__drone: (
-            key: 2, // d
-            attenuate: 1,
-        ),
-        \sr__g__gust: (
-            key: 3, // f
-            attenuate: 1,
-        ),
-        \sr__g__slic: (
-            key: 5, // g
-            attenuate: 1,
-        ),
-        \sr__g__loop: (
-            key: 4, // h
-            attenuate: 1,
-        ),
-        \sr__g__scratch: (
-            key: 38, // j
-            attenuate: 1,
-        ),
-        \sr__g__unst: (
-            key: 40, // k
-            attenuate: 1,
-        ),
-        \sr__g__chunk: (
-            key: 37, // l
-            attenuate: 1,
-        ),
-        \sr__e__therem: (
-            key: 41, // ;
-            attenuate: 1.5,
-        ),
-        \sr__e__growl: (
-            key: 39, // "
-            attenuate: 0.5,
-        ),
-        \sr__e__analog: (
-            key: 42, // \ (the answer to the ultimate question ))
-            attenuate: 0.05,
-        ),
-        \sr__e__silent: (
-            key: nil,
-            attenuate: 1,
-        ),
-        \sr__e__tbl: (
-            key: nil,
-            attenuate: 0.1,
-        ),
-        \sr__e__sawy: (
-            key: nil,
-            attenuate: 0.05,
-        ),
-        \sr__e__electro: (
-            key: nil,
-            attenuate: 0.05,
-        ),
-        \sr__e__wind: (
-            key: nil,
-            attenuate: 0.05,
-        ),
-        \sr__e__orbit: (
-            key: 122, // z
-            attenuate: 0.1,
-        ),
-        \sr__e__perc: (
-            key: 47, // \?
-            attenuate: 0.5,
-        ),
-        \sr__e__buzz: (
-            attenuate: 0.5,
-        ),
+        // types are: \gen - generator; \gran - granulator
+        \silent: ( \type: \gen ),
+        \atru: ( \type: \gen ),
+        \buzz: ( \type: \gen ),
+        \pole: ( \type: \gen, \params: [\freq, \detune, \room, \cutoff, \decaytime, \rq, \lfreq, \amp] ),
+        \bass: ( \type: \gen ),
+        \moog: ( \type: \gen ),
+        \lowe: ( \type: \gen ),
+        \wind: ( \type: \gen, \params: [\freq, \detune, \delay, \cutoff, \decaytime, \rq, \rate, \amp] ),
+        \komar: (\type: \gen, \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
+        \neural: ( \type: \gen ),
+        \entro: ( \type: \gen, \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
+        \humm: ( \type: \gen ),
+        \melo: ( \type: \gen, \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
+        \cmb: ( \type: \gen ),
+        \probe: ( \type: \gen ),
+        \pulse: ( \type: \gen ),
+        \therem: ( \type: \gen ),
+        \gauss: ( \type: \gen ),
+        \loop: ( \type: \gran ),
+        \loopdel: ( \type: \gran ),
+        \drone: ( \type: \gran ),
+        \greg: ( \type: \gran ),
+        \scratch: ( \type: \gran ),
+        \unst: ( \type: \gran ),
+        \gust: ( \type: \gran ),
+        \kick: ( \type: \gen ),
     );
+    ~lfos = (
+        \ksine: ( \type: \gen ),
+        \kpulse: ( \type: \gen ),
+        \ksaw: ( \type: \gen ),
+        \ktri: ( \type: \gen ),
+        \ksawprc: ( \type: \gen ),
+        \klipnoise: ( \type: \gen ),
+        \klfno0: ( \type: \gen ),
+        \klfno1: ( \type: \gen ),
+        \klfno2: ( \type: \gen ),
+        \kstepno: ( \type: \gen ),
+        \ksinmod: ( \type: \gen ),
+        \ksawmod: ( \type: \gen ),
+        \keyscale: ( \type: \gen ),
+    );
+    // fill default params if no parameters for a synth provided
+    ~synths.keys.do { |name|
+        if (~synths[name][\params].isNil) {~synths[name][\params] = ~defaultParams[\ar]};
+    };
+    ~lfos.keys.do { |name|
+        if (~lfos[name][\params].isNil) {~lfos[name][\params] = ~defaultParams[\kr]}
+    };
 
     ~clipInc = {
         // Increments `in` until `in + step` reaches `hi`, then resets to `lo`.
@@ -262,89 +234,90 @@ srEnv = Environment.make {
         ((in + step).clip(lo, hi) % hi).clip(lo, hi)
     };
 
-    ~sendToSrv = { |messages, time=0.1|
-        ~scsynth.listSendBundle(time, messages);
+    // Fills params from incoming data. Uses default value,
+    // if a param specified in a synthDict is missing.
+    //
+    //     `synth` (Dictionary) - element to which the key `params` should be added
+    //     `container` (Dictionary) - `particles` or `synthsLFO` depending on the type of synth
+    //     `synthDict` (Dictionary) - where to look for default params of the synth (~synths or ~lfos)
+    ~fillSynthParams = { |synth, synthDict|
+        var params = Dictionary.newFrom(synth[\params] ? []);
+        synthDict.at(synth[\name].asSymbol)[\params].do { |parm|
+            if (params.keys.includes(parm).not) {
+                params[parm] = ~specs[parm].default
+            }
+        };
+        params
     };
 
-    ~groupInit = { |synth, bufnum, inbus, outbus, spatial, params|
-        // Creates new group on Server, inserts synth and spatializer into it.
-        // Assigns internal bus for routing: each group of synth and its
-        // spatializer should have a separate routing bus for spatialization to
-        // take place individually.
-        var node, spatializer, generator, messages, synthPar, l=30, h=53;
 
-        node = s.nextNodeID;
+    // Creates an .ar synth on Server.
+    // Returns ID of the Node created.
+    // `synth` - short name (i.e. \moog or \buzz).
+    // `params` - anything convertable to Dictionary (i.e. list of pairs).
+    ~initSynth = { |synth, node, spatial, params|
+        var message;
+        node = node ? ~scsynth.nextNodeID;
         params = Dictionary.newFrom(params ? []);
-        if (inbus.isNil) {
-            inbus = params.removeAt(\inbus) ? ~inbus;
+        if (params.keys.includes(\in).not) {
+            params[\in] = ~inbus;
         };
-        if (outbus.isNil) {
-            outbus = params.removeAt(\outbus) ? ~outbus;
+        if (params.keys.includes(\out).not) {
+            params[\out] = ~outbus;
         };
-        ~route = ~clipInc.(~route ?? l, lo:l, hi:h); // calculate and save for subsequent assignments
-        spatial = spatial ? ~getSpatial.();
-        spatializer = [
-            "/s_new", spatial, s.nextNodeID, 1, node, // spatializer goes to a new group's tail
-            \route, ~route,
-            \outbus, outbus,
-            \depth, ~depth
-        ] ++ [\maxDist, ~speakers.maxDist]
-        ++ [\speakerAzim, $[] ++ ~speakers.collectAzim() ++ [$]]
-        ++ [\speakerDist, $[] ++ ~speakers.collectDist() ++ [$]]
-        ++ [\speakerElev, $[] ++ ~speakers.collectElev() ++ [$]];
-
-        synthPar = ~synths.atFail(synth.asSymbol, {~synths[\sr__e__silent]});
-        if (bufnum.isNil) {
-            // buffer can also be found in params
-            bufnum = params.removeAt(\bufnum) ? ~getDefaultBuffer.(synth).bufnum;
+        if (params.keys.includes(\bufnum).not) {
+            params[\bufnum] = ~getDefaultBuffer.(synth).bufnum;
         };
-        params = params.asKeyValuePairs;
-        generator = [
-            "/s_new", synth, s.nextNodeID, 0, node, // synth goes to a new group's head
-            \inbus, inbus,
-            \route, ~route,
-            \bufnum, bufnum,
-            \attenuate, synthPar[\attenuate]
-        ] ++ params;
-        messages = [
-            ["/error", 0], // turn errors off locally
-            ["/g_new", node, 0, ar__ROOT_NODE],
-            spatializer,
-            generator
-        ];
-        ~sendToSrv.(messages);
-        node // return ID of the Group created
+        synth = format("%__%", synth, (spatial ? ~spatial.()));
+        // report
+        postf("-> ~initSynth \"%\" at node %\n", synth, node);
+        params.keysValuesDo { |k,v| postf("\t%: %\n", k, v); };
+        // gather everything in place
+        message = [
+            // each new synth goes to the root group's tail
+            "/s_new", synth, node, 1, ~rootAr,
+            \depth, ~depth,
+            \maxDist, ~speakers.maxDist
+        ]
+        ++ params.asKeyValuePairs
+        ++ [\azim, $[] ++ ~speakers.collectAzim() ++ [$]]
+        ++ [\dist, $[] ++ ~speakers.collectDist() ++ [$]]
+        ++ [\elev, $[] ++ ~speakers.collectElev() ++ [$]];
+        // send
+        ~scsynth.listSendMsg(message);
+        node
     };
 
-    ~modulatorInit = { |synth, bufnum, inbus, outbus, params|
-        // Creates a .kr synth on Server. Doesn't need spatializer.
-        // Returns nil, if outbus is not given (.kr doesn't make
-        // sense without outbus).
-        var messages, node = s.nextNodeID;
-        params = params ? [];
-        if (inbus.isNil.not) {
-            params = params ++ [\inbus, inbus]
+
+    // Creates a .kr synth on Server.
+    // Returns nil, if outbus is not given (.kr doesn't make
+    // sense without outbus).
+    ~initLFO = { |synth, node, params|
+        var message;
+        node = node ? ~scsynth.nextNodeID;
+        params = Dictionary.newFrom(params ? []);
+        if (params.keys.includes(\bufnum).not) {
+            params[\bufnum] = ~getDefaultBuffer.(synth).bufnum;
         };
-        if (outbus.isNil.not) {
-            params = params ++ [\outbus, outbus];
-            messages = [
-                ["/s_new", synth, node, 0, kr__ROOT_NODE],
-                ["/n_set", node] ++ (params ? [])
-            ];
-            ~sendToSrv.(messages);
+        if (params.keys.includes(\out)) {
+            // report
+            postf("-> ~initLFO \"%\" at node %\n", synth, node);
+            params.keysValuesDo { |k,v| postf("\t%: %\n", k, v); };
+            message = ["/s_new", synth, node, 0, ~rootKr] ++ params.asKeyValuePairs;
+            ~scsynth.listSendMsg(message);
         } {
             node = nil
         };
         node
     };
 
-    ~groupInitCustom = { |data, time=0.1|
-        // Sends bundle to server, places everything mentioned to the top level group.
-        // This is different from ~groupInit by allowing for an arbitrary number of
-        // synths and flexible group's structure.
-        var node, messages;
-        node = ~scsynth.nextNodeID;
-        messages = data[\params];
+
+    // Sends bundle to server, places everything mentioned to the top level group.
+    // This allows for an arbitrary number of synths and flexible structure.
+    // Returns node for registration purposes.
+    ~initGroup = { |data, time=0.1|
+        var node = ~scsynth.nextNodeID;
+        var messages = data[\params];
         messages.do { |l, i|
             l.do { |m, j| // replace keywords with node ids
                 m.switch(
@@ -353,21 +326,28 @@ srEnv = Environment.make {
                 )
             }
         };
-        messages = [["/g_new", node, 0, ar__ROOT_NODE]] ++ messages; // add group creation
-        ~sendToSrv.(messages, time);
-        node // return node for registration purposes
+        // add group creation (tail)
+        messages = [["/g_new", node, 1, ~rootAr]] ++ messages;
+        ~scsynth.listSendBundle(time, messages);
+        // report it
+        postf("-> ~initGroup: %\n", node);
+        messages.do { |m| postf("\t%\n", m) };
+        // return group node id
+        node
     };
 
-    ~getSpatial = {
-        format("sr__s__%%", ~surround, ~speakers.items.size)
+
+    ~spatial = {
+        format("%%", ~surround[0], ~speakers.items.size)
     };
 
+
+    // Release all synths from group, wait until released, then remove
+    // group node from server.
     ~groupFree = { |node, release=2|
-        // Release all synths from group, wait until released, then remove
-        // group node from server.
         Routine({
             [
-                ["/n_set", node, \rel, release ? 2.rand, \gate, 0],
+                ["/n_set", node, \rel, release, \gate, 0],
                 ["/n_free", node]
             ].do { |msg|
                 ~scsynth.listSendMsg(msg);
@@ -376,39 +356,42 @@ srEnv = Environment.make {
         }).play;
     };
 
+
+    // Sends message to the World.
     ~sendMessage = { |msg, params, lag=0.001|
-        // Sends message to the World.
         if (msg.isNil.not) {
             ~receiver.sendBundle(lag, [msg] ++ (params ? []));
         };
     };
 
+
+    // Sends particle creation message to the World:
+    // [mass, x, y, z, age, spring, source, synth:node, synth:name, synth:params]
     ~sendParticle = { |particle, synth|
-        // Sends particle creation message to the World:
-        // [create:1, node, spring:0|1, mass:9, x:470, y:300, z:250, age:inf]
-        // Returns Server node.
-        var x, y, z, node, spring, source, age, params;
-        #x, y, z = [\x, \y, \z].collect({ |k| particle.atFail(k, { ~worldSize.rand }) });
-        particle.putAll((x: x, y: y, z: z));
-        node = ~groupInit.(synth[\name], params:synth[\params]);
-		spring = particle.atFail(\spring, {0});
-        params = [
-            1, // create
-            node,
+        var data, x, y, z, spring, source;
+        #x, y, z = [\x, \y, \z].collect({ |k|
+            particle.atFail(k, { -1 })
+        });
+        spring = particle.atFail(\spring, {0});
+        if (spring.booleanValue) {
+            source = particle.atFail(\source, {0});
+        } {
+            source = 0
+            };
+        data = [
+            particle[\mass],
+            x,
+            y,
+            z,
+            particle.atFail(\age, {inf}), // if inf, particle will be waiting for the romoval signal
             spring, // spring:0|1
-            particle.mass,
-            particle.x, particle.y, particle.z,
-            particle.atFail(\age, {inf}) // if inf, particle will be waiting for the romoval signal
-        ];
-		if (spring.booleanValue) {
-			source = particle.atFail(\source, {nil});
-			if (source.isNil.not) {
-				params = params ++ [source]
-			};
-		};
-        ~sendMessage.('/particle', params);
-        node
+            source,
+            synth.atFail(\node, {-1}), // node cannot be -1, substitute it with real node id
+            synth[\name]
+        ] ++ (synth[\params] ?? []);
+        ~sendMessage.('/particle', data);
     };
+
 
     ~valAsApec = { |param|
         param.atFail(\spec, {
@@ -421,13 +404,20 @@ srEnv = Environment.make {
         }).asSpec
     };
 
-    ~getDefaultBuffer = { |synthName|
-        var buff;
-        if (synthName.asString.beginsWith("sr__e__")) {
+
+    ~getDefaultBuffer = { |synth|
+        var container, buff;
+        synth = synth.asSymbol;
+        if (~synths.keys.includes(synth)) {
+            container = ~synths
+        } {
+            container = ~lfos
+        };
+        if (container[synth][\type] == 'gen') {
             buff = ~sequence.scales[0]
         };
-        if (synthName.asString.beginsWith("sr__g__")) {
-            buff = ~sequence.voices.choose
+        if (container[synth][\type] == 'gran') {
+            buff = ~sequence.samples.choose
         };
         if (buff.isNil) {
             buff = ~defaultBuff
@@ -435,8 +425,9 @@ srEnv = Environment.make {
         buff
     };
 
+
+    // Converts timecode to readable format.
     ~convertTime = { |timecode|
-		// Converts timecode to readable format.
         var sec=0, min=0, minstring="00", secstring="00";
         if(timecode >= 60) {
             min = trunc(timecode / 60);
@@ -450,9 +441,10 @@ srEnv = Environment.make {
         format("%:%", minstring, secstring);
     };
 
+
+    // Obtains index of val in container (list, array, etc.)
+    // WARNING! Quick and dirty, not universal!
     ~getIndex = { |container, val|
-		// Obtains index of val in container (list, array, etc.)
-		// WARNING! Quick and dirty, not universal!
         var ind;
         if (val.class == String) {
             container.do { |el, i| if (el == val) { ind = i } };
@@ -462,59 +454,58 @@ srEnv = Environment.make {
         ind
     };
 
+
+    // Stops sequence and all its events.
+    // Warning! Order matters!
     ~stopSequence = {
-        // Stops sequence and all its events.
-        // Warning! Order matters!
         fork {
-            "[...] STOPPING SEQUENCE: stopping / resetting tasks.".postln;
+            "INFO: stopping / resetting tasks".postln;
             ~sequence.tasks.keys.do { |taskName|
                 ~sequence.tasks[taskName].stop;
             };
             0.5.wait;
-            "[...] STOPPING SEQUENCE: removing objects.".postln;
+            "INFO: removing objects".postln;
             ~sendMessage.(\action, [\remove, \all]);
             0.5.wait;
-            // clean up everything including "custom" synths
-            // Warning! "Custom" synths should be placed under
-            // designated ..._ROOT_NODE in order to be cleaned.
-            postf("[...] STOPPING SEQUENCE: cleaning root nodes %, %\n", ar__ROOT_NODE, kr__ROOT_NODE);
-            ~scsynth.listSendMsg(["/n_set", ar__ROOT_NODE, \rel, 0.2, \gate, 0]);
-            ~scsynth.listSendMsg(["/n_set", kr__ROOT_NODE, \rel, 0.2, \gate, 0]);
+            "INFO: removing modulators".postln;
+            ~scsynth.listSendMsg(["/n_set", ~rootKr, \rel, 0.2, \gate, 0]);
             0.5.wait;
-            ~scsynth.listSendMsg(["/g_deepFree", ar__ROOT_NODE]);
-            ~scsynth.listSendMsg(["/g_deepFree", kr__ROOT_NODE]);
+            ~scsynth.listSendMsg(["/g_deepFree", ~rootKr]);
             0.5.wait;
-            ~scsynth.listSendMsg(["/g_freeAll", ar__ROOT_NODE]);
-            ~scsynth.listSendMsg(["/g_freeAll", kr__ROOT_NODE]);
+            ~scsynth.listSendMsg(["/g_freeAll", ~rootKr]);
             0.5.wait;
-            "[...] STOPPING SEQUENCE: freeing buffers".postln;
+            "INFO: freeing buffers".postln;
             try { ~sequence.samples.do { |buff| buff.free}};
             try { ~sequence.voices.do { |buff| buff.free}};
             try { ~sequence.scales.do { |buff| buff.free}};
             0.5.wait;
-            "[...] STOPPING SEQUENCE: done".postln;
+            "INFO: done stopping sequence".postln;
         };
     };
 
+
+    // Loads sequence from file.
     ~loadSequence = { |path|
-		// Loads sequence from file.
-        if (path.isNil) { path = ~seqPaths[2] };
+        var index = 0;
+        // if no path is given, load the top one
+        if (path.isNil) { path = ~seqPaths[1] };
         postf("Loading sequence %...\n", PathName.new(path).fileName);
         path = path.absolutePath;
         if (this.executeFile(path).isNil.not) {
             "OK...".postln;
             if (~seqPaths.asString.contains(path).not) {
-                ~seqPaths.insert(2, path); // to the top, but after ["", "Load.."]
+                ~seqPaths.insert(1, path); // to the top, but after ["Load.."]
             };
-            ~getIndex.(~seqPaths, path)
+            index = ~getIndex.(~seqPaths, path)
         } {
             "Loading sequence has failed!".postln;
             try {
                 ~seqPaths.removeAt(~getIndex.(~seqPaths, path));
             };
-            0 // if unsuccessful, return 1st element ("")
         };
+        index;
     };
+
 
     ~ensureRecDir = {
         var dirname = ~currentDir +/+ "rec";
@@ -524,8 +515,9 @@ srEnv = Environment.make {
         dirname
     };
 
+
+    // Generates the next filename for recording.
     ~setRecPath = {
-		// Generates the next filename for recording.
         var dirname, numbers=List.new;
         dirname = ~ensureRecDir.();
         PathName(dirname).filesDo { |fname|
@@ -542,8 +534,9 @@ srEnv = Environment.make {
         );
     };
 
+
+    // Records to a multichannel AIFF file set by ~recPath.
     ~recordAudio = { |start|
-		// Records to a multichannel AIFF file set by ~recPath.
         var filename, msg;
         if (start.booleanValue) {
             ~setRecPath.();
@@ -558,7 +551,7 @@ srEnv = Environment.make {
                     ~scsynth.record
                 }
             });
-            format("ENTER: recording started %\n", ~recPath)
+            format("INFO: recording started %\n", ~recPath)
         } {
             if (~recPath.isNil) {
                 "WARNING: Nothing is being recorded currently"
@@ -567,7 +560,56 @@ srEnv = Environment.make {
                 format("INFO: recording stopped %\n", ~recPath)
             }
         };
-    }
+    };
+
+
+    // Creates a tree out of server message \g_queryTree.reply
+    // Copied and re-formatted from Server.queryAllNodes
+    ~formatSrvTree = { |msg|
+        var i=2, tabs=0, printControls=false, dumpFunc, result;
+        if (msg[1] != 0) { printControls = true };
+        result = format("ROOT %\n", msg[2]);
+        if (msg[3] > 0) {
+            dumpFunc = { |numChildren|
+                var j;
+                tabs = tabs + 1;
+                numChildren.do {
+                    if (msg[i + 1] >=0) {
+                        i = i + 2
+                    } {
+                        i = i + 3 + if(printControls, {msg[i + 3] * 2 + 1}, {0});
+                    };
+                    tabs.do { result = result + "   " };
+                    result = result + msg[i]; // nodeID
+                    if (msg[i + 1] >=0) {
+                        result = format("% group\n", result);
+                        if(msg[i + 1] > 0, { dumpFunc.value(msg[i + 1]) });
+                    } {
+                        result = result + format(" %\n", msg[i + 2]); // defname
+                        if (printControls) {
+                            if (msg[i + 3] > 0) {
+                                result = result + " ";
+                                tabs.do { result = result + "   " };
+                            };
+                            j = 0;
+                            msg[i + 3].do {
+                                result = result + " ";
+                                if (msg[i + 4 + j].isMemberOf(Symbol)) {
+                                    result = result + (msg[i + 4 + j] ++ ": ");
+                                };
+                                result = result + msg[i + 5 + j];
+                                j = j + 2;
+                            };
+                            result = format("%\n", result);
+                        };
+                    };
+                };
+                tabs = tabs - 1;
+            };
+            dumpFunc.value(msg[3]);
+        };
+        result
+    };
 };
 currentEnvironment = srEnv;
 
@@ -587,11 +629,6 @@ CmdPeriod.doOnce({
     ~scsynth.addr.disconnect;
 
     "Saving environment conf...".postln;
-    confKeys = [ // keys to save to conf file
-        'surround', 'depth',
-        'inbus', 'outbus', 'audioThruBus', 'inbus', 'outbus',
-        'worldSize', 'receiver', 'speakers'
-    ];
     conf = Dictionary.newFrom(currentEnvironment);
     currentEnvironment.keysValuesDo { |envKey, envVal|
         if (confKeys.includes(envKey).not) {
@@ -609,140 +646,176 @@ CmdPeriod.doOnce({
     confFile.write(conf.asCompileString);
     confFile.close;
 
-	// Omit the first 2 items of seqPaths are [<empty>, "Load..."],
-	// save paths to sequences only if there are some.
-	if (seqPaths.size > 2) {
-		"Saving paths to sequences...".postln;
-		seqPathsFile = File.new(seqPathsFile, "w");
-		seqPathsFile.write(cleanPaths.(seqPaths[2..]));
-		seqPathsFile.close;
-	};
+    // Save ~seqPaths to sequences file, omitting the first item ("Load...")
+    if (seqPaths.size > 1) {
+        "Saving paths to sequences...".postln;
+        seqPathsFile = File.new(seqPathsFile, "w");
+        seqPathsFile.write(cleanPaths.(~seqPaths[1..]));
+        seqPathsFile.close;
+    };
 
     postf("OK\n\n");
+});
+
+
+initAudioThrough = Task({
+    // Tries to init audio through synth, waits for half a second,
+    // then sends g_queryTree until.
+    // Repeats that for 4 times, unless the synth is loaded,
+    // in which case it stops the task and frees responder.
+    var done=false;
+    var responder = OSCFunc({ |msg|
+        done = msg.includes(("atru__" ++ ~spatial.()).asSymbol);
+    }, '/g_queryTree.reply');
+
+    4.do { |j|
+        ~nodeAudioThrough = ~initSynth.(\atru);
+        0.5.wait;
+        ~scsynth.sendMsg("/g_queryTree", ~rootAr);
+        1.5.wait;
+        if (done) {
+            postf("OK\n\n");
+            responder.free;
+            initAudioThrough.stop;
+        };
+        0.5.wait
+    };
+    if (done.not) {
+        "ERROR: cannot start audio through synth, timeout 10 sec."
+    }
 });
 
 
 // MODULES
 //
 loadCommonComponents = {
-    // initial server groups
-    ar__ROOT_NODE = ~scsynth.nextNodeID;
-    kr__ROOT_NODE = ~scsynth.nextNodeID;
-    ~scsynth.sendMsg("/g_new", ar__ROOT_NODE, 0, 1);
-    ~scsynth.sendMsg("/g_new", kr__ROOT_NODE, 0, 1);
+    "Initiating top level server groups for synths and modulators...".postln;
+    ~rootAr = ~scsynth.nextNodeID;
+    ~rootKr = ~scsynth.nextNodeID;
+    ~scsynth.sendMsg("/g_new", ~rootAr, 0, 1);
+    ~scsynth.sendMsg("/g_new", ~rootKr, 0, 1);
 
-    // default scale buffer
+    "Creating default scale buffer...".postln;
     ~defaultBuff = Buffer.sendCollection(~scsynth, Scale.ahirbhairav.degrees, 1, 0.2);
 
-    // internal buffer
-    ~internalBuff = Buffer.alloc(~scsynth, ~scsynth.sampleRate, 1); // 1 seconds 1 channel
+    "Creating internal buffer (1 seconds 1 channel)...".postln;
+    ~internalBuff = Buffer.alloc(~scsynth, ~scsynth.sampleRate, 1);
 
     "Loading synth definitions...".postln;
     if (this.executeFile(~currentDir +/+ "synthdef.scd").isNil.not) {
         postf("OK\n\n")
     };
 
-    "Initiating audio-through synth".postln;
-    ~nodeAudioThrough = ~groupInit.(\sr__r__authro);
+    AppClock.sched(2.0, {
+        "Initiating audio-through synth...".postln;
+        initAudioThrough.start;
+        nil // do not repeat it
+    });
 };
 
 loadComponents = {
-	loadCommonComponents.();
+    loadCommonComponents.();
 
-    "Loading wavetables... in progress".postln;
-    numHarmonics = 1024;
-    numWavetables = 8;
-    numWavetables.do { |i| // allocate and fill tables
-        ~scsynth.sendMsg(\b_alloc, i, numHarmonics);
-        harmonics = Harmonics(numHarmonics).formant(12,
-            (i**2).linlin(0, numWavetables**2, 1, numHarmonics).ceil
-        );
-        ~scsynth.performList(\sendMsg, \b_gen, i, \sine1, n, harmonics);
+    "Loading world...".postln;
+    if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
+        postf("OK\n\n")
     };
-
-	"Loading world...".postln;
-	if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
-		postf("OK\n\n")
-	};
-
-	"Loading control matrix... in progress".postln;
-	// XXX
-	// if (this.executeFile(~currentDir +/+ "ctrlmatrix.scd").isNil.not) {
-	//     postf("OK\n\n")
-	// };
 };
 
 loadComponents__test = {
-	loadCommonComponents.();
-	doTest.();
+    postf("\n------------\nUnit testing\n------------\n");
+    loadCommonComponents.();
+    doTest.();
 };
 
 
-if (thisProcess.argv.includesEqual("test").not) {
-	// ORDINARY START
-	if (~scsynth == Server.internal) {
-		s = ~scsynth; // default server
-		s.options.numInputBusChannels = 4;
-		s.options.numOutputBusChannels = 12; // 10 outputs on the interface + one aux stereo output
-		s.options.memSize = 262144;
-		s.options.blockSize = 512;
-		s.latency = 0.05;
-		s.boot;
-		~scsynth.waitForBoot(loadComponents);
-	} {
-		{
-			try {
-				~scsynth.addr.connect;
-				s = ~scsynth; // default server
-				postf("Connected to Server % at %...\n", ~scsynth.name, ~scsynth.addr.ip);
-				~scsynth.notify;
-				~scsynth.initTree;
-				~scsynth.meter;
-				~scsynth.queryAllNodes;
-				loadComponents.()
-			} { |error|
-				postf("ERROR: server % at % is not running!\n", ~scsynth.name, ~scsynth.addr.ip);
-				error.postln;
-			}
-		}.defer(1);
-	};
+if (isTest) {
+    // UNIT-TESTING
+    ~scsynth = s = Server.internal;
+    s.boot;
+    ~scsynth.waitForBoot(loadComponents__test);
 } {
-	// UNIT-TESTING
-	~scsynth = s = Server.internal;
-	s.boot;
-	~scsynth.waitForBoot(loadComponents__test);
+    // ORDINARY START
+    if (~scsynth == Server.internal) {
+        s = ~scsynth; // default server
+        s.options.numInputBusChannels = 4;
+        s.options.numOutputBusChannels = 10; // 8 outputs on the interface + one aux stereo output
+        s.options.memSize = 262144;
+        s.options.blockSize = 512;
+        s.latency = 0.05;
+        s.boot;
+        ~scsynth.waitForBoot(loadComponents);
+    } {
+        {
+            try {
+                ~scsynth.addr.connect;
+                s = ~scsynth; // default server
+                postf("Connected to Server % at %...\n", ~scsynth.name, ~scsynth.addr.ip);
+                ~scsynth.notify;
+                ~scsynth.initTree;
+                ~scsynth.meter;
+                ~scsynth.queryAllNodes;
+                loadComponents.()
+            } { |error|
+                postf("ERROR: server % at % is not running!\n", ~scsynth.name, ~scsynth.addr.ip);
+                error.postln;
+            }
+        }.defer(1);
+    };
 };
 
 doTest = {
-	// Unit tests:
-	// $sclang /path/to/envi.scd test
-	var testDir;
-	postf("\n------------\nUnit testing\n------------\n");
+    // Unit tests:
+    // $sclang /path/to/envi.scd test
+    //
+    // WARNING! Start within working dir (where envi.scd lives).
+    //
+    var test_initSynth = {
+        // write empty output to levelsList
+        a = ~initSynth.(\moog, params: [\out, 8, \amp, 0.001]);
+        0.5.wait;
+        l = List.new;
+        o = OSCFunc({ |i| l.add(i[3..]); }, '/internalOutLevels');
+        f = OSCFunc({ |msg| k = msg }, '/n_info');
+        ~scsynth.sendMsg("/n_query", a);
+        0.5.wait;
+        ~scsynth.sendMsg("/n_free", a);
+        o.free;
+        f.free;
 
-	// --------
-	// test_cleanPaths
-	testDir = PathName(thisProcess.nowExecutingPath).pathOnly +/+ "test";
-	testDir.mkdir;
-	["kraut.scd", "buzz.scd", "solo.scd", "band.scd"].do { |name|
-		File.new(testDir +/+ name, "w").close;
-	};
-	a = List[
-		testDir +/+ "kraut.scd",
-		"test/kraut.scd",
-		"test/buzz.scd",
-		"test/solo.scd",
-		"test/band.scd",
-		testDir +/+ "solo.scd",
-		testDir +/+ "band.scd",
-		testDir
-	];
-	c = cleanPaths.(a).split($\n);
-	UnitTest.new.assertEquals(c.size, 5, "cleanPaths: size");
-	UnitTest.new.assertEquals(c[4], "", "cleanPaths: last item empty");
-	UnitTest.new.assert(c[..3].every(_.beginsWith("/")), "cleanPaths: absolute path");
-	// --------
+        UnitTest.new.assertEquals(a, k[1], "~initSynth: node id");
+        UnitTest.new.assertEquals(k[2], ~rootAr, "~initSynth: node is within root group");
+        UnitTest.new.assert(all {: x[0..15], x <-l }.flatten.every(_ == 0), "~initSynth: silent channels before");
+        UnitTest.new.assert(all {: x[20..], x <-l }.flatten.every(_ == 0), "~initSynth: silent channels after");
+        UnitTest.new.assert(all {: x[16..19], x <-l }.flatten.every(_ > 0), "~initSynth: active channels");
+    };
 
-	// exit after testing is done
-	0.exit;
+
+    var test_cleanPaths = {
+        var testDir = PathName(thisProcess.nowExecutingPath).pathOnly +/+ "test";
+        testDir.mkdir;
+        ["kraut.scd", "buzz.scd", "solo.scd", "band.scd"].do { |name|
+            File.new(testDir +/+ name, "w").close;
+        };
+        a = List[
+            testDir +/+ "kraut.scd",
+            "test/kraut.scd",
+            "test/buzz.scd",
+            "test/solo.scd",
+            "test/band.scd",
+            testDir +/+ "solo.scd",
+            testDir +/+ "band.scd",
+            testDir
+        ];
+        c = cleanPaths.(a).split($\n);
+
+        UnitTest.new.assertEquals(c.size, 5, "cleanPaths: size");
+        UnitTest.new.assertEquals(c[4], "", "cleanPaths: last item empty");
+        UnitTest.new.assert(c[..3].every(_.beginsWith("/")), "cleanPaths: absolute path");
+    };
+
+    test_initSynth.();
+    test_cleanPaths.();
+    0.exit; // exit after testing is done
 };
 )

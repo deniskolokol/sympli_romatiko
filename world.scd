@@ -2,13 +2,14 @@
 // module: World
 // ---------------
 (
-var world, worldTrace, center, skel;
-var worldParams, miscParams;
-var star, physics, particles, springs, position;
-var synths, sGroupId;
+var skel, physics, springs, particles, particle, star;
+var world, center, canvas, frame, item, color;
+var miscParams, event, updateWorldParm;
 var oscParticle, oscPhysics, oscAction,
     oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
-    oscRemoveFunc, oscGroupTree;
+    oscGroupTree, reportOSC, reportEvent;
+var drawCalibration, drawSkel, drawSkelJoints, drawSkelParticle,
+    drawCube, drawGraph, drawStrob;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
@@ -19,48 +20,173 @@ var skeleton, skeletonParticles, skeletonRemove,
     defineGuide, getGuide, defineSource, chooseSource,
     jointVisible, springSrcSkel;
 var getParticlesOnSprings, getParticlesSkelVis, getParticlesHidden;
-var mag3D, sigmoid, xyz, xyz2ade, ade2xyz, xyz2plane;
+var mag3D, sigmoid, xyz, xyz2ade, ade2xyz, xyz2plane, getPointPlane;
 var ax, ay, az, azimuth, distance, elevation,
-    guide, gx, gy, gz,
-    gAzimuth, gDistance, gElevation;
+    guide, gx, gy, gz, gAzimuth, gDistance, gElevation;
+var transX, transY, transZ, transRate=0.005;
 var attractionsPhysical, springsPhysical, springMissed,
     particlesOnSprings, particlesSkelVis, particlesHidden,
     partColor, partSize;
-var listenerPos, currSpeaker, getSynthName;
-var win, viewTop, viewTopLeft, viewTopCenter, viewTopRight,
-    viewWorld, viewLeft, viewRight, viewBottom,
+var listenerPos, currSpeaker;
+var ccCurrSynthParam, labelAr, labelKr, guiAr, guiKr, guiSynthCtrls, mute;
+var win, viewTop, viewSeqList, viewTopCenter, viewSeqTime,
+    viewWorld, viewConn, viewLeft, viewRight, viewBottom,
+    panelSrvLeft, panelSrvRight, viewSeqEvents, stPastEvents, stFutureEvents,
     paneWidth, paneHeight, compView, compViewFlow, panel,
-    sText, dropdown, slider, button, buttonCheckbox, updateButtonLabel;
-var postListener, postMaxSize=1e+5;
+    sText, dropdown, listView, slider, knob, button, buttonCheckbox,
+    scrollInfo;
+var winSrv, palette, meterView;
+var postView, postMaxSize=1500;
 var scale, translate, focal;
 var paramsChanged;
-var stat, clean;
-var trigSynth, synthNames, trigCodes;
-var keyboardFunc, postMsg, fileNames;
+var cleanExit;
+var fileNames;
+var postMsg, updatePostColors, getMsgColor, postColors=List.new;
 var eventInfo, switchEvent, processEvents, getKey;
-var groupNew, groupRemove, sendPhysics, sendSNew, sendNSet, taskPlay;
-var animateSeq, shade, current, next, count=0, blinked=0;
-var ddSequence, btCurrNum, stCurrInfo, btNextNum, stNextInfo, timeLabel, updateGui;
-var internalInLevels, internalOutLevels,
-    oscInternalInLevels, oscInternalOutLevels;
+var groupNew, groupRemove, sendSNew, sendNSet, taskPlay;
+var animateSeq, shade, current, next, count=0, blinked=0, tick=0;
+var ddSequence, btCurrNum, stCurrInfo, btNextNum, stNextInfo, timeLabel;
+var updateGui, updateGuiElement;
 var transparent=Color.grey(alpha:0.01),
+    techColor=Color.green(0.5),
     font=Font("Monaco", 14),
     fontSmall=Font("Monaco", 10),
+    fontMedium=Font("Monaco", 12),
     fontLarge=Font("Monaco", 14),
     fontLarge1=Font("Monaco", 18),
     fontGiant=Font("Monaco", 24),
-    fontColor=Color.gray(0.8);
+    fontColor=Color.gray(0.7),
+    colorStar=Color.red,
+    colorJoint=Color.new255(173, 58, 0),
+    colorParticle=Color.white;
 var waitNextEvent= -1;
-var tmp;
+var kwargs;
+var patt = Pn(Pshuf(#[0, 0, 0, 0, 0.1, 0.25, 0.5, 0.75, 1, 1], 8), inf).asStream;
+var tmp; // Warning: use this variable only in drawFunc!
+
+// // XXX 3d
+// var cubes=Dictionary.new;
+// var registerCube = { |particle|
+//     if (particle == star) { color = Color.red } { color = Color.green };
+//     item = Canvas3DItem.cube
+//     .color_(color)
+//     .width_(0.5)
+//     .transform(Canvas3D.mScale(0.1));
+//     canvas.add(item);
+//     cubes[particle] = item
+// };
+
+//
+var prettyPrintDict = { |data, output="", level=0|
+    var report = { |k, v|
+        format("%%: %\n", "".catList(Array.fill(level, "    ")), k, v ? '');
+    };
+    data.keysValuesDo { |key, val|
+        if ([Dictionary, Event].includes(val.class)) {
+            output = prettyPrintDict.(val, output ++ report.(key), level+1)
+        } {
+            output = output ++ report.(key, val);
+        }
+    };
+    output
+};
+var eventPool = (
+    items: List.new,
+    append: { |self, item|
+        self.report(item);
+        self.items.add(item)
+    },
+    delete: { |self, index=0|
+        try {
+            self.items.removeAt(index)
+        } { |err|
+            postMsg.(format("% (%)\n", err.errorString, err.class))
+        }
+    },
+    popItem: { |self|
+        var top = self.items[0];
+        self.delete;
+        top
+    },
+    report: { |self, item|
+        postMsg.(format("$> added to eventPool\n"));
+        postMsg.(format("%\n", prettyPrintDict.(item, level:1)));
+    }
+);
+
+// XXX - experimental
+var pointFrom, pointTo, numUnitsX, numUnitsY,
+    gridUnit=10, isGrid=false, scaleDepth=1, focalPoint=3, renew=100, hold=0,
+    lineColor, xyA, xyB, xyDevA, xyDevB, deviation;
+var drawLine = { |pointA, pointB, lineColor, lineWidth=1|
+    Pen.width = lineWidth;
+    Pen.strokeColor = lineColor ? Color.white;
+    Pen.moveTo(pointA.x@pointA.y);
+    Pen.lineTo(pointB.x@pointB.y);
+    Pen.stroke;
+};
+var focalStream = Pbrown(0.3, Pwrand([0.7, 1, 3], #[10, 2, 1].normalizeSum, inf), 0.1, inf).asStream;
+var scaleStream = Pgbrown(0.3, Pwrand([0.7, 1, 1.5], #[5, 2, 1].normalizeSum, inf), 0.1, inf).asStream;
+var randomize = { |n, dev, factor=0.25|
+    n + (1.rand2 * rrand(dev, dev * factor))
+};
+var visCount=0;
+var paths = [
+    [
+        [\head, \neck],
+        [\l_hand, \l_elbow, \l_shoulder, \l_hip, \l_knee, \l_foot],
+        [\r_hand, \r_elbow, \r_shoulder, \r_hip, \r_knee, \r_foot],
+        [\r_shoulder, \l_shoulder],
+        [\r_hip, \l_hip],
+    ],
+    [
+        [\head, \neck, \torso],
+        [\l_hand, \l_elbow, \l_shoulder, \neck, \r_shoulder, \r_elbow, \r_hand],
+        [\l_shoulder, \torso, \r_shoulder],
+        [\l_foot, \l_knee, \l_hip, \torso, \r_hip, \r_knee, \r_foot]
+    ],
+    [
+        [\head, \neck, \torso],
+        [\l_hand, \l_elbow, \l_shoulder, \r_hip, \r_knee, \r_foot],
+        [\r_hand, \r_elbow, \r_shoulder, \l_hip, \l_knee, \l_foot],
+    ],
+    [
+        [\head, \neck, \torso],
+        [\l_hand, \l_elbow, \l_shoulder, \l_hip, \l_knee, \l_foot],
+        [\r_hand, \r_elbow, \r_shoulder, \r_hip, \r_knee, \r_foot],
+    ],
+    [
+        [\head, \neck, \torso],
+        [\l_hand, \l_elbow, \l_shoulder, \r_shoulder, \r_elbow, \r_hand],
+        [\l_foot, \l_knee, \l_hip, \r_hip, \r_knee, \r_foot],
+    ],
+    [
+        [\head, \neck, \torso],
+        [\l_hand, \l_elbow, \l_shoulder, \l_hip, \l_knee, \l_foot],
+        [\r_hand, \r_elbow, \r_shoulder, \r_hip, \r_knee, \r_foot],
+        [\l_hand, \r_hand],
+        [\l_elbow, \r_elbow],
+        [\l_shoulder, \r_shoulder],
+        [\l_hip, \r_hip],
+        [\l_knee, \r_knee],
+        [\l_foot, \r_foot],
+    ]
+];
+var currPath = paths.choose;
+// XXX - experimental end
+
 
 // INITIAL
 //
+// dictionary of the synths symbolic IDs vs. server Nodes
+var synths = Dictionary.new;
+
 // XXX - re-factor
 // `physics` -> `world`::`EnTraerWorld`(TraerParticleSystem) // EnTraer == Entropia of Traer Physics
 // all functions that work with particles and springs -> methods of `world`
 //
 //
-worldParams = (
+var worldParams = (
     drag: (
         label: "drag",
         minval: 0.000,
@@ -136,12 +262,12 @@ worldParams = (
         default: 2,
         midicc: 33,
     ),
-    // particles
-    particles: (
+    // particle system
+    particleSystem: (
         label: "particl",
         default: false,
         midinote: 45,
-        hint: "run particles",
+        hint: "run particle system",
     ),
     partSigmoidRatio: (
         label: "sigmoid",
@@ -182,41 +308,77 @@ worldParams = (
     ),
     partSynth: (
         label: "part synth",
-        default: \sr__e__pulse,
+        default: "pulse",
+    ),
+    // misc
+    skelSimulSpeed: (
+        label: "simul vel",
+        minval: 0.001,
+        maxval: 0.005,
+        default: 0.002,
+        midicc: 34,
+        hint: "speed of skeleton simulation",
     ),
     mutualAttraction: (
         label: "mutual",
         default: true,
         midinote: 44,
     ),
-    calibration: (
-        label: "calibr",
-        default: true,
-        midinote: 69,
-        hint: "display image if in calibration mode",
-    ),
     internalBuf: (
         label: "internal buf",
         default: false,
         hint: "granular synths use internal buffer instead of samples",
     ),
+    draw: (
+        label: "drawing mode",
+        default: \calibration,
+        hint: "drawing mode description",
+    ),
 );
 
-// The World is a cube.
-world = Dictionary.new;
-world = (
-    width: Window.screenBounds.height*0.82,
-    height: Window.screenBounds.height*0.82,
-    depth: Window.screenBounds.height*0.82
-);
-worldParams.keysValuesDo { |k, v| world[k] = v[\default] }; // set default params
+var reshape = { |src|
+    var rec, res=List.new;
+    src.keys.do { |k|
+        rec = (
+            id: k,
+            node: src[k][\node],
+            synth: src[k][\synth],
+            params: src[k].atFail(\params, {Dictionary.new}),
+        );
+        rec[\out] = rec[\params].atFail(\out, {~outbus});
+        res.add(rec)
+    };
+    res
+};
+// WARNING! all synths of a particular class should be help in the same dict for display!
+// .ar - sorted by node
+var synthsAr = ( );
+// .kr - dictionary of LFOs with node as a key
+var synthsLFO = ( );
+// .kr - sorted by outbus
+var synthsKr = ( );
+// Skeleton simulation
+var skelData;
+var loadSkelData = {
+    postf("Reading skeleton simulation data\n");
+    skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
+};
+var skelSimul = Task({
+    var i=0, coords;
+    inf.do {
+        // process
+        if (i == skelData.size) {i = 0};
+        coords = skelData[i][1..];
+        ~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
+        i = i + 1;
+        world.skelSimulSpeed.wait;
+    }
+});
 
-worldTrace = Dictionary.newFrom(world); // tracing changes of the world
-
-// dictionary of the synths symbolic IDs vs. server Nodes
-synths = Dictionary.new;
-sGroupId = s.nextNodeID; // Group for synths not connected to objects.
-s.sendMsg("/g_new", sGroupId);
+// The World is a cube with measurements relative to the screen height.
+world = (width: ~worldSize, height: ~worldSize, depth: ~worldSize);
+// set default params
+worldParams.keysValuesDo { |k, v| world[k] = v[\default]};
 
 // skeletons
 skel = (waitBeforeRemove: 5, limit: 1);
@@ -231,62 +393,53 @@ listenerPos = ( // as default - center of the world
     z: world.depth * 0.5
 );
 
-// Keycodes for triggering obj creation with a synth.
-trigCodes = [
-    12, "q", 13, "w", 14, "e", 15, "r", 17, "t", 16, "y",
-    32, "u", 34, "i", 31, "o", 35, "p", 33, "[", 30, "]",
-    1,  "s", 2,  "d", 3,  "f", 5,  "g", 4,  "h", 38, "j", 40, "k",
-    37, "l", 41, ";", 39, "\"", 42, "\\", 47, "\?"
-];
-
-// collect keys and synths in a form of dict, unsorted
-synthNames = Dictionary.newFrom(
-    (all {: [~synths[k][\key], k],
-        k <- ~synths.keys,
-        trigCodes.includes(~synths[k][\key])
-    }).flatten
-);
-
-// sort it according to the order of elements in trigCodes
-trigSynth = (
-    all {: [key, synthNames[key]],
-        key <- all{: k, k <- trigCodes, trigCodes.indexOf(k).even}
-    }
-).flatten;
-
-// convert trigCodes to dictionary for easier access
-trigCodes = Dictionary.newFrom(trigCodes);
-
 fileNames = { |paths|
-	// Get only filenames from sequence paths.
-	paths[..1] ++ paths[2..].collect({ |path|
-		PathName(path.asString.asAbsolutePath).fileName;
-	});
+    // Get only filenames from sequence paths.
+    paths.collect { |path|
+        PathName(path.asString.asAbsolutePath).fileName;
+    };
 };
 
 // Miscelaneous parameters for GUI elements controllable by MIDI.
 miscParams = Dictionary.new;
 
-updateGui = { |params|
-	// Updates value of a GUI element upon sending a message to the world.
-	// Sets .value, not .valueAction, because the action is performed already.
+
+
+// Updates value of a GUI element.
+// If `action` is true, .valueAction is performed otherwise .value.
+updateGuiElement = { |parm, val, action=false|
+    if (worldParams[parm].keys.includes(\gui)) {
+        if (action) {
+            { worldParams[parm][\gui].valueAction_(val) }.defer
+        } {
+            { worldParams[parm][\gui].value_(val) }.defer
+        }
+    }
+};
+
+
+// Updates values of multiple GUI elements.
+// If `action` is true, .valueAction is performed otherwise .value.
+updateGui = { |params, action=false|
     params.pairsDo { |parm, val|
-        try { worldParams[parm][\gui].value_(val) }
+        updateGuiElement.(parm, val, action);
     }
 };
 
 // SEQUENCE
 //
+
+// Obtains the key next/prev to current.
 getKey = { |curr, next=1|
-	// Obtain the key next/prev to current.
     var k, c;
     k = ~sequence.events.keys.asArray.asInteger.sort;
     c = k.indexOf(curr) ? -1;
     k[c + next] ? k[0]; // Go back to beginning upon reaching the upper threshold.
 };
 
+
+// Converts all event's [\info] keys into info string.
 eventInfo = { |k=nil, lim=50|
-	// Converts all event's [\info] keys into info string.
     var infoStr, val, sF;
     val = ~sequence.events.atFail(k, {[]});
     sF = { |l| format(" %\n", if (l.size <= lim) {l} {l[..lim] ++ "..."})};
@@ -295,31 +448,53 @@ eventInfo = { |k=nil, lim=50|
     infoStr[..(infoStr.size-2)]; // cut last \n
 };
 
-updateButtonLabel = { |btn, label|
-	// Sets a label to a button in a current state.
-    var states=btn.states;
-    states[btn.value][0] = label;
-    btn.states = states;
+
+//
+scrollInfo = { |curr, next|
+    var updateButtonLabel = { |btn, label|
+        // Sets a label to a button in a current state.
+        var states=btn.states;
+        states[btn.value][0] = label;
+        btn.states = states;
+    };
+    var eventsFeed = { |start, stop, feed=""|
+        ~sequence.events.keys.select((_ >= start) && (_ < stop))
+        .asArray.sort.do { |key|
+            feed = feed ++ eventInfo.(key) ++ "\n\n"
+        };
+        feed[..(feed.size-2)]; // cut one last \n
+    };
+    updateButtonLabel.(btCurrNum, curr);
+    updateButtonLabel.(btNextNum, next);
+    stCurrInfo.string = eventInfo.(curr);
+    stNextInfo.string = eventInfo.(next);
+
+    stPastEvents.string = eventsFeed.(0, curr, "".catList("\n" ! 5));
+    stPastEvents.select(stPastEvents.string.size, 1); // autoscroll
+    stPastEvents.stringColor = fontColor;
+
+    stFutureEvents.string = eventsFeed.(next+1, ~sequence.events.keys.maxItem+1);
+    stFutureEvents.stringColor = fontColor;
 };
 
+
+// Switches to the next or prev event in a sequence
+// and updates GUI.
 switchEvent = { |nxt=1|
-	// Switches to the next or prev event in a sequence
-	// and updates GUI.
     var wait;
     if (~sequence.isNil.not) {
         if (~sequence.size > 0) {
             current = getKey.(current, nxt);
-            updateButtonLabel.(btCurrNum, current);
-            stCurrInfo.string = eventInfo.(current);
-
             next = getKey.(current, 1);
-            updateButtonLabel.(btNextNum, next);
-            stNextInfo.string = eventInfo.(next);
+            scrollInfo.(current, next);
 
             // bring it on!
             blinked = 0; // blinking several times with red, then change to grey.
             if (animateSeq.not && (nxt > 0)) { animateSeq = true };
             processEvents.(current);
+
+            // reset the clock
+            if (current == 0) { count = 0 };
 
             // reset waiting time globally
             waitNextEvent = -1;
@@ -329,24 +504,14 @@ switchEvent = { |nxt=1|
             };
             // update waiting time until the next event
             waitNextEvent = wait.maxItem;
-            postMsg.(format("Waiting time for next event: %\n", waitNextEvent));
+            postMsg.(format("INFO: Waiting time for next event: %\n\n", waitNextEvent));
         }
     }
 };
 
-sendPhysics = { |params|
-	// Send World parameter(s).
-    params = Dictionary.newFrom(params);
-    params.keysValuesDo { |k, v|
-        if (v == \default) { params[k] = worldParams[k][\default] }
-    };
-    params = params.asKeyValuePairs;
-    ~sendMessage.('/physics', params);
-    updateGui.(params)
-};
 
+// Run or stop task.
 taskPlay = { |task, play=false|
-	// Run or stop task.
     try {
         if (play) {
             task.play(doReset:true)
@@ -354,73 +519,118 @@ taskPlay = { |task, play=false|
             task.stop.reset;
         }
     } { |err|
-        postMsg.(format("Error while trying to switch task % on or off:\n%\n", task, err));
+        postMsg.(format("ERROR: cannot switch task % on or off:\n%\n", task, err));
     };
 };
 
-// XXX - move this to envi.scd
+
+// Sends synth to server, registers node in `synths`.
 sendSNew = { |data|
-	// Send synth to server.
-    var node;
-    node = s.nextNodeID;
-    try { // Ignore the case when doneAction = 2.
-        synths.put(data[\synth][\id], node);
-    };
-    ~scsynth.listSendMsg(["/s_new", data[\synth][\name], node, 0, sGroupId]
-        ++ data[\synth].atFail(\params, {[]})
-    );
+    var node = ~initSynth.(data[\name], params: data[\params]);
+    synths.put(data[\id], node);
 };
 
+
+// Sends \n_set message to server.
 sendNSet = { |data|
-	// Send \n_set message to server.
-    ~scsynth.listSendMsg(["/n_set",
-        synths.at(data[\synth].atFail(\id), {nil})]
+    var node, params;
+    if (data[\synth].keys.includes(\id)) {
+        node = synths.at(data[\synth][\id])
+    };
+    if (data[\synth].keys.includes(\node)) {
+        node = data[\synth][\node];
+        params = data[\synth].atFail(\params, {[]});
+        // update particles dict param
+        particles.keysValuesDo { |p, dict|
+            if (dict[\node] == node) {
+                Dictionary.newFrom(params).keysValuesDo { |key, val|
+                    dict[\params][key] = val
+                };
+            }
+        };
+    };
+    ~scsynth.listSendMsg(["/n_set", node]
         ++ data[\synth].atFail(\params, {[]})
     )
 };
 
+
+// Sends group to server, registers node in `synths`.
 groupNew = { |data, time=0.1|
-    synths.put(data[\id], ~groupInitCustom.(data, time));
+    var node = ~initGroup.(data, time);
+    synths.put(data[\id], node);
 };
 
+
+// Release all synths from group, wait until released,
+// then remove group node from server.
 groupRemove = { |data|
-	// Release all synths from group, wait until released,
-	// then remove group node from server.
     var params=();
     try { params.putPairs(data.atFail(\params, {[]})) };
-    ~groupFree.(synths[data[\id]], params.atFail(\release, {2}));
+    ~groupFree.(synths[data[\id]], params.atFail(\release, { 1 }));
     synths.removeAt(data[\id]);
 };
 
 
-processEvents = { |key|
-	// Process specific key from sequence.
-    ~sequence.events.atFail(key, {[]}).do { |d, l|
-        d[\message].switch(
+// Updates world[`parm`] with `val` (substitutes 'default' keyword if needed),
+// sets a proper value to the GUI controlling given world param.
+updateWorldParm = { |parm, val|
+    if (val == \default) {
+        val = worldParams[parm][\default];
+    };
+    try { world[parm] = val };
+    updateGuiElement.(parm, val);
+    val
+};
+
+
+// Process specific num from sequence.
+processEvents = { |num|
+    ~sequence.events.atFail(num, {[]}).do { |data, l|
+        reportEvent.(num, data[\message], l);
+        data[\message].switch(
             \physics, {
-                sendPhysics.(d[\params])
+                data[\params].keysValuesDo { |k, v|
+                    eventPool.append((
+                        message: \physics,
+                        params: [k, updateWorldParm.(k, v)]
+                    ))
+                };
             },
             \audio, {
-                ~sendMessage.('/audio', d[\params])
+                ~sendMessage.('/audio', data[\params])
             },
             \particle, {
-                ~sendParticle.(d[\particle], d[\synth])
+                eventPool.append(data);
+            },
+            \lfo, {
+                data[\synth][\params] = ~fillSynthParams.(data[\synth], ~lfos);
+                data[\synth][\node] = ~initLFO.(
+                    data[\synth][\name],
+                    node: data[\synth][\node],
+                    params: data[\synth][\params]
+                );
+                // LFOs container's id is node
+                synthsLFO.put(data[\synth][\node], (
+                    synth: data[\synth][\name],
+                    node: data[\synth][\node],
+                    params: data[\synth][\params]
+                ));
             },
             \task, {
-                taskPlay.(~sequence.tasks[d[\name]], d[\act].booleanValue)
+                taskPlay.(~sequence.tasks[data[\name]], data[\act].booleanValue)
             },
-            \s_new, { sendSNew.(d) },
-            \n_set, { sendNSet.(d) },
-            \g_new, { groupNew.(d) },
-            \g_free, { groupRemove.(d) },
-            { ~sendMessage.(d[\message], d[\params]) }
+            \s_new, { sendSNew.(data) },
+            \n_set, { sendNSet.(data) },
+            \g_new, { groupNew.(data) },
+            \g_free, { groupRemove.(data) },
+            { ~sendMessage.(data[\message], data[\params]) }
         )
     }
 };
 
 
 // GUI: elements
-//
 paneWidth = { |par, scale=1| (par.bounds.width * scale - 6).floor };
 paneHeight = { |par, scale=1| (par.bounds.height * scale - 6).floor };
 compView = { |par, color, scaleW=1, scaleH=1|
@@ -448,6 +658,18 @@ sText = { |par, string, stringColor, stringFont, scaleH, scaleW=0.5|
     st.stringColor = stringColor ? fontColor;
     st
 };
+listView = { |par, items, action, initVal=0, scaleH=1, scaleW=1|
+    var labelWidth=0, listView;
+    listView = ListView(par, paneWidth.(par, scaleW)@paneHeight.(par, scaleH))
+    .items_(items)
+    .action_(action)
+    .font_(fontMedium)
+    .background_(transparent)
+    .stringColor_(fontColor)
+    .hiliteColor_(Color.grey(alpha:0.6))
+    .selectedStringColor_(Color.white);
+    listView
+};
 dropdown = { |par, label, items, action, initVal=0, initAction=false, scale=1|
     var ezpum, labelWidth=0;
     if (label.isNil.not) { labelWidth = label.size * 9};
@@ -473,7 +695,7 @@ dropdown = { |par, label, items, action, initVal=0, initAction=false, scale=1|
 button = { |par, label, labelColor, bgColor, scaleH=1, scaleW=1|
     Button(par, paneWidth.(par, scaleW)@paneHeight.(par, scaleH))
     .states_([[label, labelColor ? fontColor, bgColor ? transparent]])
-    .font_(font)
+    .font_(fontMedium)
     .canFocus_(false)
 };
 buttonCheckbox = { |par, label, labelColor, bgColor, scaleH=1, scaleW=1|
@@ -482,7 +704,7 @@ buttonCheckbox = { |par, label, labelColor, bgColor, scaleH=1, scaleW=1|
         [label, labelColor ? fontColor, bgColor ? transparent],
         [label, bgColor ? transparent, labelColor ? fontColor]
     ])
-    .font_(font)
+    .font_(fontMedium)
     .canFocus_(false)
 };
 slider = { |par, name, val, layout='horz', scale=1|
@@ -491,9 +713,16 @@ slider = { |par, name, val, layout='horz', scale=1|
     label = format(" % ", val.atFail(\label, { name }).asString);
     if (layout != 'horz') { bounds = 40@(paneHeight.(par) * max(scale, 0.9)) };
     ezs = EZSlider(par, bounds, label, ~valAsApec.(val),
-        { |ez| ~sendMessage.('/physics', [name, ez.value]) },
+        { |ez|
+            eventPool.append((
+                message: \physics,
+                params: [name, updateWorldParm.(name, ez.value)]
+            ));
+        },
         layout:layout, labelWidth:80, numberWidth:40)
     .font_(fontSmall);
+    ezs.numberView.canFocus = false;
+    ezs.sliderView.canFocus = false;
 
     ezs.setColors(
         stringColor:fontColor,
@@ -503,45 +732,65 @@ slider = { |par, name, val, layout='horz', scale=1|
         background:transparent
     );
 };
+knob = { |par, label, spec, action, initVal=0, layout='vert', scaleW=1, scaleH=1|
+    EZKnob(par,
+        paneWidth.(par, scaleW)@paneHeight.(par, scaleH),
+        label, spec,
+        { |ez| action.(ez.value) }, initVal,
+        layout: layout
+    )
+    .font_(fontSmall)
+    .setColors(subtract(par.background, par.background.alpha));
+};
 
-
-// GUI: Window
-win = Window("world", Window.screenBounds.width@Window.screenBounds.height, false);
-win.view.decorator = FlowLayout(win.view.bounds, 1@1, 1@1);
-win.background = Color.black;
-
-// GUI: Top-level layout
-viewTop = compViewFlow.(win, scaleH:0.07);
-viewLeft = compViewFlow.(win,
-    scaleW:(0.5*(win.bounds.width-world.width)/win.bounds.width),
-    scaleH:world.height/win.bounds.height
+// GUI: Server window
+winSrv = Window.new(
+    ~scsynth.name ++ " levels (dBFS)",
+    Rect(0, Window.screenBounds.height-200, 590, 660),
+    resizable: false, border: false
 );
-viewWorld = UserView(win, world.width@world.height);
-viewRight = compViewFlow.(win,
-    scaleW:(0.5*(win.bounds.width-world.width)/win.bounds.width),
-    scaleH:world.height/win.bounds.height
-);
-viewBottom = compViewFlow.(win,
-    scaleH:(win.bounds.height-(viewWorld.bounds.height+viewTop.bounds.height))/win.bounds.height
-);
+winSrv.view.decorator = FlowLayout(winSrv.view.bounds, 1@1, 1@1);
+palette = QPalette.dark;
+palette.setColor(Color.black, \window);
+winSrv.view.palette = palette;
 
-// GUI: scheduler
-viewTopLeft = compViewFlow.(viewTop, scaleW:0.16);
-viewTopCenter = compViewFlow.(viewTop, gap:8@4, scaleW:0.7);
-viewTopRight = compViewFlow.(viewTop, scaleW:0.14);
+// internal levels
+panelSrvLeft = compViewFlow.(winSrv, scaleW:0.57);
+panel = compViewFlow.(panelSrvLeft, scaleH:0.3);
+meterView = EntroServerMeterView(~scsynth, panel, 0@0, 210);
+
+// GUI: sequence panel
+panelSrvRight = compViewFlow.(winSrv, scaleW:0.43);
+viewSeqList = compViewFlow.(panelSrvRight, scaleH:0.1, scaleW:0.65);
+viewSeqTime = compViewFlow.(panelSrvRight, margin:5@5, gap:5@5, scaleH:0.1, scaleW:0.35);
+viewSeqEvents = compViewFlow.(panelSrvRight, gap:8@4, scaleH:0.86);
+// time elapsed since the start
+timeLabel = sText.(viewSeqTime, ~convertTime.(0), stringFont:fontLarge1, scaleW:1, scaleH:0.7);
+timeLabel.align = \center;
+stPastEvents = TextView(viewSeqEvents, viewSeqEvents.bounds.width@(viewSeqEvents.bounds.height*0.25))
+    .editable_(false)
+    .font_(fontMedium)
+    .stringColor_(fontColor)
+    .background_(transparent)
+    .hasVerticalScroller_(false)
+    .canFocus_(false)
+    .string_("...\n...\n...");
 
 // current event number and info
-stCurrInfo = sText.(viewTopCenter, "...", stringFont:fontLarge1, scaleW:0.44, scaleH:1);
-stCurrInfo.align = \right;
-btCurrNum = button.(viewTopCenter, ">>",
-    bgColor:Color.gray(0.15), scaleW:0.05
-).action_({ |bt| switchEvent.(-1)});
+btCurrNum = button.(viewSeqEvents, ">>", bgColor:Color.gray(0.15), scaleH: 0.05)
+    .action_({ |bt| switchEvent.(-1) });
+stCurrInfo = sText.(viewSeqEvents, "[...]", stringFont:fontLarge, scaleW:1, scaleH:0.15);
 // next (awaiting) event number and info
-btNextNum = button.(viewTopCenter, "<<",
-    bgColor:Color.gray(0.15), scaleW:0.05
-).action_({ |bt|
-    switchEvent.(1)
-});
+btNextNum = button.(viewSeqEvents, "<<", bgColor:Color.gray(0.15), scaleH: 0.05)
+    .action_({ |bt| switchEvent.(1) });
+stNextInfo = sText.(viewSeqEvents, "...next", stringFont:fontLarge, scaleW:1, scaleH:0.12);
+stFutureEvents = TextView(viewSeqEvents, viewSeqEvents.bounds.width@(viewSeqEvents.bounds.height*0.8))
+    .editable_(false)
+    .font_(fontMedium)
+    .stringColor_(fontColor)
+    .background_(transparent)
+    .hasVerticalScroller_(false)
+    .canFocus_(false);
 miscParams[\prev] = (
     midinote: 46,
     gui: btCurrNum
@@ -550,154 +799,126 @@ miscParams[\next] = (
     midinote: 43,
     gui: btNextNum
 );
-stNextInfo = sText.(viewTopCenter, "", stringFont:fontLarge1, scaleW:0.44, scaleH:1);
-
-// time elapsed since the start
-timeLabel = sText.(viewTopRight, ~convertTime.(0), stringFont:fontGiant, scaleW:1);
-timeLabel.align = \right;
-
 // open file with sequence
-ddSequence = dropdown.(viewTopLeft, "sequence",
+ddSequence = dropdown.(
+    viewSeqList,
     items: fileNames.(~seqPaths),
-    initVal: if (~seqPaths.size > 2) { 2 } { 0 },
+    initVal: if (~seqPaths.size > 0) { 1 } { 0 },
     action: { |element|
-        var val, path, top=2;
+        var val, path;
         animateSeq = false;
-        case
-        { element.value == 1 } { // open dialog to load sequence
+        removeAll.();
+        if (element.value == 0) {
+            // open dialog to load sequence
             Dialog.openPanel({ |path|
-                removeAll.();
                 val = ~loadSequence.(path);
                 element.items = fileNames.(~seqPaths);
                 element.value = val;
             });
-        }
-        { element.value > 1 } { // load seqence from file
-            removeAll.();
-			path = ~seqPaths[element.value].asString;
-            postMsg.(format("Loading sequence %...\n",
+        } {
+            // load seqence from file
+            path = ~seqPaths[element.value].asString;
+            postMsg.(format("INFO: Loading sequence %...\n",
                 PathName.new(path).fileName
             ));
             val = ~loadSequence.(path); // open from file
-            if (val > top) { // place at the top
-                ~seqPaths.insert(top, ~seqPaths.pop(val));
+            if (val > 0) { // place at the top
+                ~seqPaths.insert(1, ~seqPaths.removeAt(val));
                 element.items = fileNames.(~seqPaths);
-                element.value = top;
+                element.value = 1;
+                postMsg.("OK...")
+            } {
+                postMsg.("ERROR!")
             };
-            if (val == 0) {postMsg.("FAIL!")} {postMsg.("OK...")};
         };
         current = -1;
-        updateButtonLabel.(btNextNum, getKey.(current, 1).asString);
-        stNextInfo.string = eventInfo.(0);
+        scrollInfo.(current, 0);
     },
     initAction: true
 );
-
-button.(viewTopLeft,
-    "stop", bgColor:Color.grey(0.2), scaleW:0.41, scaleH:0.5
+button.(viewSeqList,
+    "stop", bgColor:Color.grey(0.2), scaleW:0.41, scaleH:0.55
 ).action_({ |bt|
+    "INFO: removing custom groups / synths".postln;
+    synths.keys.do { |k| groupRemove.((id: k)) };
+    synthsLFO = ();
     ~stopSequence.();
     animateSeq = false; // stop clock
-    count = 0; // reset clock
 });
-button.(viewTopLeft,
-    "reload", bgColor:Color.grey(0.2), scaleW:0.6, scaleH:0.5
+button.(viewSeqList,
+    "reload", bgColor:Color.grey(0.2), scaleW:0.63, scaleH:0.55
 ).action_({ |bt|
     ddSequence.valueAction_(ddSequence.value);
 });
-
-// GUI: internal levels (dBFS)
-panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:0.1);
-sText.(panel, "0", stringFont:fontSmall, scaleH:0.15, scaleW:0.8).align_(\right);
-sText.(panel, "", stringFont:fontSmall, scaleH:0.65, scaleW:1); // gap
-sText.(panel, "-80", stringFont:fontSmall, scaleH:0.2, scaleW:0.8).align_(\right);
-
-internalInLevels = Array.fill(s.options.numInputBusChannels, {nil});
-internalOutLevels = Array.fill(s.options.numOutputBusChannels, {nil});
-
-tmp = s.options.numInputBusChannels / (
-    s.options.numInputBusChannels + s.options.numOutputBusChannels
+miscParams[\rec] = (
+    gui: buttonCheckbox.(panelSrvRight,
+        "REC.", labelColor: Color.red, bgColor:Color.black, scaleW:0.5, scaleH:0.06
+    ).action_({ |bt| postMsg.(~recordAudio.(bt.value)) })
 );
-panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:tmp);
-s.options.numInputBusChannels.do { |j|
-    internalInLevels[j] = LevelIndicator(panel, 19@(panel.bounds.height*0.8))
-    .background_(Color.clear)
-    .warning_(0.7)
-    .critical_(0.9)
-    .numTicks_(11)
-    .numMajorTicks_(3)
-    .drawsPeak_(true)
-};
-sText.(panel, "inputs", stringFont:fontSmall, scaleH:0.15, scaleW:1);
-tmp = 0.85 * s.options.numOutputBusChannels / (
-    s.options.numInputBusChannels + s.options.numOutputBusChannels
+miscParams[\intBuf] = (
+    gui: buttonCheckbox.(panelSrvRight,
+        "int buf", labelColor: Color.red, bgColor:Color.black, scaleW:0.5, scaleH:0.06
+    )
+    .action_({ |bt|
+        var synthIn;
+        if (bt.value == 1) {
+            //recording synth
+            synthIn = Synth(\buffloop, [
+                \bufnum, ~internalBuff.bufnum,  \busnum, ~inbus,
+                \volIn, 1, \loop, 1, \gate, 1, \dur, 1
+            ]);
+        } {
+            synthIn.free;
+        };
+        updateWorldParm.(\internalBuf, bt.value);
+    })
 );
-panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.15, scaleW:tmp);
-s.options.numOutputBusChannels.do { |j|
-    var w = (panel.bounds.width / s.options.numOutputBusChannels)-3;
-    internalOutLevels[j] = LevelIndicator(panel, w@(panel.bounds.height*0.8))
-    .background_(Color.clear)
-    .warning_(-6.dbamp)
-    .critical_(-3.dbamp)
-    .numTicks_(11)
-    .numMajorTicks_(3)
-    .drawsPeak_(true)
-};
-sText.(panel, "outputs", stringFont:fontSmall, scaleH:0.15, scaleW:1);
 
-// GUI: post window
-panel = compViewFlow.(viewLeft, margin:10@10, scaleH:0.85);
-sText.(panel, "", scaleH:0.05, scaleW:1); // gap
-panel.decorator.nextLine;
-postListener = TextView(panel, (panel.bounds.width-15)@(panel.bounds.height*0.94))
-   .editable_(false)
-   .font_(fontSmall)
-   .stringColor_(fontColor)
-   .background_(transparent)
-   .hasVerticalScroller_(false)
-   .canFocus_(false);
+winSrv.front;
 
-// GUI: stat panel
-stat = Dictionary.new;
-panel = compViewFlow.(viewRight, margin:5@5, scaleH:0.15);
-[
-    (label: "particles", func: { physics.particles.size }),
-    (label: "springs", func: { physics.springs.size }),
-    (label: "attractions", func: { physics.attractions.size }),
-    // (label: "entropy", func: {
-    //     1.38065e-23 * log( // XXX - find and manage a proper formula!
-    //         physics.particles.size.max(1)*
-    //         physics.springs.size.max(1)*
-    //         physics.attractions.size.max(1)
-    //     )
-    // }),
-    (label: "skeletons", func: { format("% %", skeleton.size, skeleton.keys.asArray) }),
-].do { |item|
-    var key;
-    sText.(panel, format("\t%", item.label), scaleW:0.7);
-    item[\gui] = sText.(panel, "0", scaleW:0.3);
-    key = item.label.asString.toLower.replace(" ", "_").asSymbol;
-    stat[key] = item;
-};
 
-// slider controllers for physics params
-panel = compViewFlow.(viewRight, scaleH:0.5, margin:10@30);
+// GUI: World window
+win = Window("world",
+    Rect(winSrv.bounds.width, 22,
+        Window.screenBounds.width-winSrv.bounds.width,
+        Window.screenBounds.height-22
+    ),
+    resizable:false, border:false
+);
+win.view.decorator = FlowLayout(win.view.bounds, 1@1, 1@1);
+win.background = Color.black;
+
+// GUI: Top-level layout
+//
+// viewLeft is a container for world and internal post window
+viewLeft = compViewFlow.(win, scaleW: (world.width+8)/win.bounds.width);
+viewTop = compViewFlow.(viewLeft, scaleH:0.001); // placeholder
+viewWorld = UserView(viewLeft, world.width@world.height);
+viewBottom = compViewFlow.(viewLeft,
+    scaleH:(win.bounds.height-(viewWorld.bounds.height+viewTop.bounds.height))/win.bounds.height
+);
+viewRight = compViewFlow.(win,
+    scaleW:(win.bounds.width-viewLeft.bounds.width)/win.bounds.width,
+);
+
+// GUI: slider controllers for physics params
+panel = compViewFlow.(panelSrvLeft, scaleH:0.56);
 [
     \drag, \repulsion, \starMass,
     \gravX, \gravY, \gravZ,
     \springRestLen, \springStrength, \springDamp,
     \maxVel, \partInitAccel, \partFreq,
-    \partDefaultMass, \partAgeThresh, \partSigmoidRatio,
+    \partDefaultMass, \partAgeThresh, \skelSimulSpeed
 ].do { |key, n|
     worldParams[key][\gui] = slider.(panel, key, worldParams[key]);
-    if ((n+1) % 3 == 0) { compViewFlow.(panel, scaleH:0.05)} // gap after every 3rd slider
+    if ((n+1) % 3 == 0) { compViewFlow.(panel, scaleH:0.04)} // gap after every 3rd slider
 };
 
 // slider controllers for misc params
-panel = compViewFlow.(viewRight, scaleH:0.15, margin:10@30);
+panel = compViewFlow.(panelSrvLeft, scaleH:0.1);
 miscParams[\serverVolume] = (
     midicc: 12,
-	spec: \db,
+    spec: \db,
     gui: slider.(panel, "sVol", (label: "s.vol", spec: \db))
     .action_({ |sl| ~scsynth.volume.volume = sl.value })
     .value_(1)
@@ -705,50 +926,41 @@ miscParams[\serverVolume] = (
 tmp = [0.5, 30.0, \lin, 0.1, ~speakers.maxDist].asSpec;
 miscParams[\maxDist] = (
     midicc: 14,
-	spec: tmp,
-	gui: slider.(panel, "maxDist", (
-		label: "max dist", minval: tmp.minval, maxval: tmp.maxval,
-		step: tmp.step, default: tmp.default
-	))
+    spec: tmp,
+    gui: slider.(panel, "maxDist", (
+        label: "max dist", minval: tmp.minval, maxval: tmp.maxval,
+        step: tmp.step, default: tmp.default
+    ))
     .action_({ |sl| ~speakers.maxDist = sl.value })
     .value_(~speakers.maxDist)
 );
 tmp = [1, 10, \lin, 0.1, ~depth].asSpec;
 miscParams[\depth] = (
     midicc: 15,
-	spec: tmp,
+    spec: tmp,
     gui: slider.(panel, "depth", (
-		label: "depth", minval: tmp.minval, maxval: tmp.maxval,
-		step: tmp.step, default: tmp.default
-	))
-	.action_({ |ez|
+        label: "depth", minval: tmp.minval, maxval: tmp.maxval,
+        step: tmp.step, default: tmp.default
+    ))
+    .action_({ |ez|
         ~depth = ez.value;
         ~sendMessage.('/audio', [\depth, ~depth])
     })
 );
 
-panel = compViewFlow.(viewRight, scaleH:0.2, margin:30@30, gap:10@10);
-// button based physics params
-[\particles, \mutualAttraction, \calibration].do { |key|
-    worldParams[key][\gui] = buttonCheckbox.(
-        panel,
-        worldParams[key][\label],
-        bgColor:Color.black, scaleW:0.267, scaleH:0.2
-    )
-    .value_(worldParams[key][\default])
-    .action_({ |bt| sendPhysics.([key, bt.value]) })
-};
+panel = compViewFlow.(panelSrvLeft, margin:5@5, gap:5@5, scaleH:0.1);
 // button based misc params
 miscParams[\removeall] = (
     midinote: 70,
     gui: button.(panel,
-        "X", bgColor:Color.black, scaleW:0.267, scaleH:0.2
+        "X", bgColor:Color.black, scaleW:0.19, scaleH:0.7
     ).action_({ |bt| removeAll.() })
 );
+// reset physics params to defaults
 miscParams[\reset] = (
     midinote: 58,
     gui: button.(panel,
-        "RESET", bgColor:Color.black, scaleW:0.267, scaleH:0.2
+        "RESET", bgColor:Color.black, scaleW:0.19, scaleH:0.7
     ).action_({ |bt|
         worldParams.values.do { |element|
             if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
@@ -757,75 +969,375 @@ miscParams[\reset] = (
         }
     })
 );
-panel.decorator.nextLine;
-miscParams[\rec] = (
+miscParams[\skelsimul] = (
+    midinote: 70,
     gui: buttonCheckbox.(panel,
-        "REC.", labelColor: Color.red, bgColor:Color.black, scaleW:0.267, scaleH:0.2
-    ).action_({ |bt| postMsg.(~recordAudio.(bt.value)) })
+        "skel", bgColor:Color.black, scaleW:0.19, scaleH:0.7
+    ).action_({ |bt|
+        if (bt.value.booleanValue) {
+            if (skelData.isNil) {loadSkelData.()};
+            skelSimul.start
+        } {
+            skelSimul.stop
+        }
+    })
 );
-miscParams[\intBuf] = (
-    gui: buttonCheckbox.(panel,
-        "int buf", labelColor: Color.red, bgColor:Color.black, scaleW:0.267, scaleH:0.2
+sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
+// button based physics params
+[\particleSystem, \mutualAttraction].do { |key|
+    worldParams[key][\gui] = buttonCheckbox.(
+        panel,
+        worldParams[key][\label],
+        bgColor:Color.black, scaleW:0.19, scaleH:0.7
     )
+    .value_(worldParams[key][\default])
     .action_({ |bt|
-		var synthIn;
-		if(bt.value == 1, {
-            //recording synth
-			synthIn = Synth(\sr__r__buffloop, [
-                \bufnum, ~internalBuff.bufnum,  \busnum, ~inbus,
-                \volIn, 1, \loop, 1, \gate, 1, \dur, 1]);
-		}, {
-			synthIn.free;
-		});
-        sendPhysics.([\internalBuf, bt.value])
-	})
-);
-
-keyboardFunc = { |synthName, params, spring=0, mass=1|
-	// GUI: trigger objects keyboard
-    params = params ? [];
-    worldParams[\internalBuf].booleanValue.postln;
-    if (world[\internalBuf].booleanValue && params.includes(\bufnum).not) {
-        params = params ++ [\bufnum, ~internalBuff.bufnum]
-    };
-    ~sendParticle.(
-        particle:(spring:spring, mass:mass),
-        synth:(name: synthName, params: params)
-    )
+        eventPool.append((
+            message: \physics,
+            params: [key, updateWorldParm.(key, bt.value)]
+        ))
+    })
 };
-panel = compViewFlow.(viewBottom, margin:5@10);
-trigSynth.do { |key, i|
-    var vw;
-    if (trigCodes[key].isNil.not) {
-        vw = compViewFlow.(panel, scaleW:synthNames.size.reciprocal);
-        vw.decorator = FlowLayout(vw.bounds);
-        sText.(vw,
-            synthNames[key].asString.replace("sr__e__", "").replace("sr__g__", ""),
-            scaleW:1
+
+
+// GUI: local post window
+panel = compViewFlow.(viewBottom);
+postView = TextView(panel, panel.bounds.width@panel.bounds.height)
+    .editable_(false)
+    .font_(fontMedium)
+    .stringColor_(fontColor)
+    .background_(transparent)
+    .hasVerticalScroller_(false)
+    .canFocus_(false);
+
+// GUI: running synths and connections
+viewConn = UserView(viewRight, viewRight.bounds.width@(viewWorld.bounds.height*0.85));
+viewConn.drawFunc = { |view|
+    var ind, unit, grid=6, gridMargin=60;
+    // synths width depending on the synth type
+    var wdtKr = if (synthsLFO.size == 0) {view.bounds.width/4} {(view.bounds.width/synthsLFO.size)-5};
+    var wdtAr = (view.bounds.width/particles.size)-5 / ~defaultParams[\ar].size / 2;
+    var drawSynth = { |syn, oX, oY, boxWidth, parm, ctl|
+        // `parm`: params label (for example, "node [outbus]"), displayed under the synth name
+        // `ctl`: [mute, solo], each value is Boolean
+        var rect, coords;
+        if (ctl.isNil) {ctl=[true, true]};
+        oX = oX * (boxWidth + 5); // adjust to the boxWidth
+        // main synth container
+        coords = [oX, oY, boxWidth, 45]; // save box coords for identifying mouse click
+        rect = Rect.fromArray(coords);
+        Pen.strokeColor = Color.white;
+        try {
+            if (syn[\current]) {
+                Pen.fillColor = Color.grey(0.15);
+                Pen.fillRect(rect);
+            };
+        };
+        Pen.strokeRect(rect);
+        // synth name and node
+        Pen.color = fontColor;
+        Pen.stringAtPoint(syn[\synth].asString, [oX+5, oY+5].asPoint);
+        Pen.stringAtPoint(parm.asString, [oX+5, oY+25].asPoint);
+        // ctrl panel: "remove"
+        Pen.strokeRect(Rect(oX+(boxWidth-16), oY, 15, 15));
+        Pen.stringAtPoint("x", [oX+(boxWidth-12), oY].asPoint);
+        // ctrl panel: "mute"
+        if (ctl[0]) {
+            try {
+                if (syn.params[\amp] <= 0) {
+                    Pen.fillColor = Color.red(0.75);
+                    Pen.fillRect(Rect(oX+(boxWidth-16), oY+15, 15, 15));
+                    Pen.color = fontColor;
+                };
+            };
+            Pen.strokeRect(Rect(oX+(boxWidth-16), oY+15, 15, 15));
+            Pen.stringAtPoint("M", [oX+(boxWidth-12), oY+15].asPoint);
+        };
+        // ctrl panel: "solo"
+        if (ctl[1]) {
+            Pen.strokeRect(Rect(oX+(boxWidth-16), oY+30, 15, 15));
+            Pen.stringAtPoint("S", [oX+(boxWidth-12), oY+30].asPoint);
+        };
+        coords
+    };
+    var drawConnection = { |synFro, synTo, parmName, wdt, num|
+        //
+        var parmCoords;
+        // stroke param connector in .ar synth
+        Pen.strokeColor = techColor;
+        Pen.strokeRect(Rect(
+            synFro[\coords][0]+(num*wdt*2),
+            synFro[\coords][1]-5,
+            wdt, 5));
+        // stroke param name box
+        try {
+            parmCoords = synFro[\connCoords][parmName]
+        } { |err|
+            postMsg.(format("%: No coords for %", err, parmName));
+        };
+        parmName = parmName.asString;
+        if (parmCoords.isNil) {
+            parmCoords = [
+                synTo[\coords][0] + (wdtKr*0.5) - (parmName.size*5),
+                (view.bounds.height - (gridMargin*2)) / grid * (min(num+1, grid)) + 10,
+                parmName.size*10, 20
+            ]
+        };
+        Pen.width = 2;
+        Pen.fillColor = Color.black;
+        Pen.strokeColor = techColor;
+        Pen.fillRect(Rect.fromArray(parmCoords));
+        Pen.strokeRect(Rect.fromArray(parmCoords));
+        Pen.fillColor = Color.green;
+        Pen.stringAtPoint(parmName, [parmCoords[0]+5, parmCoords[1]+5].asPoint);
+        Pen.strokeColor = Color.grey(0.5);
+        // start from .ar synth param
+        Pen.moveTo(Point(
+            synFro[\coords][0]+(num*wdt*2)+(wdt/2),
+            synFro[\coords][1]-5
+        ));
+        // connect with param name box
+        Pen.lineTo(Point(
+            parmCoords[0]+(parmCoords[2]*0.5),
+            parmCoords[1]+parmCoords[3]
+        ));
+        // start from param name box
+        Pen.moveTo(Point(
+            parmCoords[0]+(parmCoords[2]*0.5),
+            parmCoords[1]+parmCoords[3]-20
+        ));
+        // connect with .kr synth
+        Pen.lineTo(Point(
+            synTo[\coords][0]+(synTo[\coords][2]*0.5),
+            synTo[\coords][1]+synTo[\coords][3]+5
+        ));
+        Pen.stroke;
+        Pen.width = 1;
+        parmCoords // return connection coordinates for future use
+    };
+
+    // stroke grid
+    Pen.strokeColor = Color.grey(0.2);
+    (view.bounds.width / wdtKr).floor.do { |i|
+        tmp = wdtKr * (i + 0.5) + (i * 5);
+        Pen.moveTo(Point(tmp, gridMargin));
+        Pen.lineTo(Point(tmp, view.bounds.height-gridMargin));
+    };
+    grid.do { |i|
+        tmp = ((view.bounds.height - (gridMargin * 2)) / grid) * (i + 0.5) + gridMargin;
+        Pen.moveTo(Point(20, tmp));
+        Pen.lineTo(Point(view.bounds.width-20, tmp));
+    };
+    Pen.stroke;
+
+    // set 'nerd-ish' font to the whole view
+    Pen.font_(Font("Andale Mono")).smoothing_(true);
+
+    // .kr
+    synthsKr = reshape.(synthsLFO).sortBy('out');
+    synthsKr.do { |syn, i|
+        syn[\coords] = drawSynth.(
+            syn, oX: i, oY: 5,
+            boxWidth: wdtKr,
+            parm: format("% [%]",
+                syn[\node],
+                syn[\params].atFail(\out, {~outbus})
+            ),
+            ctl: [false, false]
         );
-        button.(vw, trigCodes[key].toUpper, bgColor:Color.black, scaleH:0.4)
-        .action_({ |bt|
-            keyboardFunc.(synthNames[key], spring:1)
-        });
-        NumberBox(vw, (vw.bounds.width*0.9)@20)
-            .clipLo_(0.01)
-            .clipHi_(2)
-            .step_(0.01)
-            .align_(\right)
-            .font_(font)
-            .normalColor_(fontColor)
-            .background_(Color.grey(alpha:0.5))
-            .action_({ |nb|
-                ~synths[synthNames[key]][\attenuate] = nb.value;
-            })
-            .value_(
-                ~synths.atFail(
-                        synthNames[key],
-                        {~synths[\sr__e__silent]}
-                )[\attenuate]
-            )
+        // input for ctrl bus
+        Pen.fillColor = Color.white;
+        Pen.fillRect(Rect(syn[\coords][0]+(wdtKr*0.5)-2.5, 50, 5, 5));
+    };
+
+    // .ar
+    synthsAr = reshape.(particles).sortBy('node');
+    synthsAr.do { |sn, i|
+        unit = particles[sn[\id]];
+        unit[\coords] = drawSynth.(
+            unit, oX: i, oY: view.bounds.height-50,
+            boxWidth: (view.bounds.width/particles.size)-5,
+            parm: unit[\node]
+        );
+        // params ctrl buses
+        ~synths[unit[\synth].asSymbol][\params].do { |name, num|
+            Pen.fillColor = Color.white;
+            Pen.fillRect(Rect(
+                unit[\coords][0]+((wdtAr*2)*num),
+                unit[\coords][1]-5,
+                wdtAr, 5));
+            try {
+                if (unit[\params][name].asString.toLower.beginsWith("c")) {
+                    ind = unit[\params][name].asString.replace("c", "").asInteger;
+                    if (unit.keys.asArray.includes(\connCoords).not) {
+                        unit[\connCoords] = ( );
+                    };
+                    unit[\connCoords][name] = drawConnection.(
+                        unit, synthsKr[ind], name, wdtAr, num
+                    );
+                }
+            };
+        };
+    };
+};
+viewConn.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
+    var sX, sY, sW, sH;
+    particles.keysValuesDo { |part, synth|
+        if (synth.keys.includes(\coords)) {
+            #sX, sY, sW, sH = synth.coords;
+            // main synth area
+            if ((x > sX) && (x < (sX+sW-15)) && (y > sY) && (y < (sY+sH))) {
+                particles[part].put(\current, true);
+                labelAr.string = format("% [%]", synth[\synth], synth[\node]);
+                ~synths[synth[\synth].asSymbol][\params].do { |parm, i|
+                    guiAr[i].labelView.string = parm;
+                    guiAr[i].controlSpec = ~specs[parm];
+                    try {
+                        guiAr[i].value = synth[\params][parm]
+                    } {
+                        guiAr[i].value = ~defaultParams.ar[i]
+                    };
+                };
+            } {
+                particles[part].put(\current, false)
+            };
+            // close [x] button
+            if ((x > (sX+sW-15)) && (x < (sX+sW)) && (y > sY) && (y < (sY+15))) {
+                unregisterParticle.(synth[\node]);
+                removeParticle.(part);
+            };
+            // mute [M] button
+            if ((x > (sX+sW-15)) && (x < (sX+sW)) && (y > (sY+15)) && (y < (sY+sH-15))) {
+                mute.(synth);
+            };
+            // solo [S] button
+            if ((x > (sX+sW-15)) && (x < (sX+sW)) && (y > (sY+sH-15)) && (y < (sY+sH))) {
+                particles.keysValuesDo { |pt, sy|
+                    if (pt != part) { mute.(sy) }
+                };
+            };
+        }
     }
 };
+mute = { |synth|
+    if (synth.keys.includes(\params).not) {
+        synth[\params] = ( );
+    };
+    if (synth[\params].keys.includes(\amp).not) {
+        synth[\params][\amp] = 1
+    };
+    synth.params[\amp] = synth.params[\amp].neg;
+    ~scsynth.sendMsg("/n_set", synth.node, \amp, max(0, synth.params[\amp]));
+};
+
+
+// GUI: .ar synths selection
+tmp = 1-(viewConn.bounds.height/viewRight.bounds.height).round(0.01);
+panel = compViewFlow.(viewRight, scaleW: 0.2, scaleH: tmp);
+listView.(panel, items: ~synths.keys.asArray.sort)
+.enterKeyAction_({ |lv|
+    ~sendParticle.(
+        particle: (spring:1, mass:1),
+        synth: (name: lv.items.at(lv.value).asSymbol)
+    );
+});
+
+// synth params
+ccCurrSynthParam = { |sType, ctlInd, val|
+    var curr, parmName;
+    if (sType == \ar) {
+        particles.values.do { |sy| if (sy[\current]) { curr = sy }};
+    } {
+        synthsLFO.values.do { |sy| if (sy[\current]) { curr = sy }};
+    };
+    parmName = ~synths[curr[\synth].asSymbol][\params][ctlInd];
+    if (curr.keys.includes(\params).not) {
+        curr[\params] = ( );
+    };
+    curr[\params][parmName] = val; // update param value
+    if (curr.isNil.not) {
+        ~scsynth.sendMsg("/n_set", curr[\node], parmName.asString, val);
+    };
+};
+
+guiSynthCtrls = { |panel, synthType|
+    var stripeWidth = (panel.bounds.width/2).round;
+    var pan = compViewFlow.(panel, scaleW: 0.5);
+    // label
+    var stSynth = sText.(pan,
+        "<synthname>",
+        stringFont:fontMedium, scaleW:1, scaleH: 0.1
+    );
+    // controls
+    var ctrls = Array.fill(8, {nil});
+    // knobs
+    6.do({ |j|
+        ctrls[j] = EZKnob(pan,
+            Rect(
+                (j/3).trunc*30+10,
+                stSynth.bounds.height+(j%3*90)+30,
+                stripeWidth*0.45,
+                stripeWidth*0.6
+            ),
+            ~defaultParams[synthType][j],
+            ~specs.at(~defaultParams[synthType][j]),
+            { |ez| ccCurrSynthParam.(synthType, j, ez.value)},
+            layout: \vert2
+        )
+        .enabled_(~defaultParams[synthType][j] != \dummy)
+        .font_(fontSmall)
+        .setColors(
+            stringBackground:transparent,
+            stringColor:fontColor,
+            numBackground:Color.grey(alpha:0.5),
+            numNormalColor:fontColor,
+            background:transparent,
+        );
+        ctrls[j].knobView.canFocus = false;
+        ctrls[j].numberView.canFocus = false;
+
+    });
+    // sliders
+    2.do { |j|
+        sText.(pan, "", scaleW:0.15, scaleH: 0.35);
+        ctrls[j+6] = EZSlider(pan,
+            Rect(
+                j%2*60+10,
+                (pan.bounds.height*0.55).trunc,
+                stripeWidth*0.3,
+                pan.bounds.height*0.4
+            ),
+            ~defaultParams[synthType][j+6],
+            ~specs.at(~defaultParams[synthType][j+6]),
+            { |ez| ccCurrSynthParam.(synthType, j+6, ez.value)},
+            unitWidth:30, numberWidth:60, layout:\vert
+        )
+        .enabled_(~defaultParams[synthType][j+6] != \dummy)
+        .font_(fontSmall)
+        .setColors(
+            stringColor:fontColor,
+            sliderBackground:Color.black,
+            numBackground:Color.grey(alpha:0.5),
+            numNormalColor:fontColor,
+            background:transparent
+        );
+        ctrls[j+6].sliderView.canFocus = false;
+        ctrls[j+6].numberView.canFocus = false;
+    };
+    // return gui elements themselves
+    [stSynth, ctrls]
+};
+panel = compViewFlow.(viewRight, scaleW: 0.635, scaleH: tmp);
+#labelAr, guiAr = guiSynthCtrls.(panel, \ar);
+#labelKr, guiKr = guiSynthCtrls.(panel, \kr);
+
+// .kr synths selection
+panel = compViewFlow.(viewRight, scaleW: 0.2, scaleH: tmp);
+listView.(
+    panel,
+    items: ~lfos.keys.asArray,
+    action: { |lv| lv.items.at(lv.value).postln }
+);
 
 
 viewWorld.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
@@ -850,6 +1362,7 @@ viewWorld.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
         };
 
         if (processed.not) { // process speakers only if no particles were processed
+            // XXX - add here sending updated speakers positions to all nodes in `synths`
             ~speakers.items.do { |speaker, i|
                 speakerPos = ade2xyz.(speaker, ~speakers.maxDist);
                 speakerSize = speakerPos.z.linlin(0, world.depth, 40, 15);
@@ -892,11 +1405,11 @@ viewWorld.mouseUpAction = {
 };
 
 win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
-    [view, char, modifiers, unicode, keycode].postln;
+    // [view, char, modifiers, unicode, keycode].postln;
     case
     { keycode == 8 } { // C
         if (modifiers == 262144) { // Ctrl + C
-            clean.();
+            cleanExit.();
         }
     }
     { keycode == 3 } { // F
@@ -944,28 +1457,17 @@ win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
     }
 };
 
-viewWorld.drawFunc = { |view|
-    // update stat
-    stat.keysValuesDo { |key, unit|
-        unit[\gui].string = unit.func.();
-    };
 
-    Pen.smoothing_(true);
-    if (world.calibration.booleanValue) {
-        Pen.scale(1, 1);
-        Pen.translate(0, 0);
-        center = [world.width/2, world.height/2].asPoint;
-        scale = star.position.z.linlin(0, world.depth, 0.2, 1);
-        translate = scale.linlin(0.2, 1, world.height/2, 0);
-        focal = star.position.x.linlin(0, world.width, 0, 100);
-        // Pen.scale(scale, scale);
-        // Pen.translate(translate, translate);
-    } {
-        center = xyz2plane.(
-            [world.width/2, world.height/2],
-            world, scale, focal
-        ).asPoint;
-    };
+// Animation func for the basic calibration layout (top view).
+drawCalibration = { |view, kwargs|
+    view.background = transparent;
+    Pen.font_(Font("Andale Mono")).smoothing_(true);
+    Pen.scale(1, 1);
+    Pen.translate(0, 0);
+    center = [world.width/2, world.height/2].asPoint;
+    scale = star.position.z.linlin(0, world.depth, 0.2, 1);
+    translate = scale.linlin(0.2, 1, world.height/2, 0);
+    focal = star.position.x.linlin(0, world.width, 0, 100);
 
     // draw floor
     Pen.color = Color.white;
@@ -1039,57 +1541,6 @@ viewWorld.drawFunc = { |view|
         );
     };
 
-    paramsChanged = false;
-    if (worldTrace != world) {
-        paramsChanged = true;
-        worldTrace = Dictionary.newFrom(world);
-        // some should be updated directly
-        star.mass = world.starMass;
-        physics.setGravity(world.gravX, world.gravY, world.gravZ);
-        physics.setDrag(world.drag);
-    };
-
-    // Control skeletons.
-    skeleton.keys.do { |id|
-        try {
-            if ((Date.getDate.secStamp.asInteger - skeleton[id][\update].asInteger) >= skel.waitBeforeRemove) {
-                skeletonRemove.(id);
-                paramsChanged = true;
-            }
-        }
-    };
-
-    // Particle system.
-    if (world.particles.booleanValue) {
-        if (view.frame % (view.frameRate * world.partFreq).round == 0) {
-            particleSystem.(defineGuide.())
-        }
-    };
-
-    // Springs should stick to hands even after skeleton is lost and then appears again.
-    // Track connections of springs in a global dictionary.
-    springsPhysical = all {: g.identityHash, g <- physics.springs} ? [];
-    springs.keysValuesDo { |springId, end|
-        if (springsPhysical.includes(springId).not) {
-			// end = [ <joint id e.g. \r_hand>, TraerParticle ]
-            springMissed = applySpring.(end[1], end[0]);
-        }
-    };
-    // Update global dictionary of springs.
-    if (springMissed.isNil.not) { // only if new springs created
-        springs = IdentityDictionary.new;
-        registerSprings.(physics.springs);
-    };
-
-    // Remove attractions that stuck after a particle's death.
-    attractionsPhysical = Array.newFrom(physics.attractions);
-    attractionsPhysical.do { |attr|
-        if (
-            physics.particles.includes(attr.getOneEnd).not ||
-            physics.particles.includes(attr.getTheOtherEnd).not
-        ) { removeAttraction.(attr) }
-    };
-
     // WARNING!
     // The following block of code should go BEFORE particle for the sake of better
     // visualisation of particles as connectors of skeleton joins, springs and attractions.
@@ -1109,7 +1560,7 @@ viewWorld.drawFunc = { |view|
         Pen.stroke;
     };
     // Visualize joins connections.
-    Pen.color = Color.green(0.5);
+    Pen.color = techColor;
     skeleton.values.do { |sk|
         jointVisible.size.do { |j|
             try {
@@ -1123,104 +1574,21 @@ viewWorld.drawFunc = { |view|
                 Pen.stroke;
             }
         };
-
-        // XXX
-        //
-        // var curve;
-        // var drawCurve = { |crv, j|
-        //     try {
-        //         Pen.moveTo(Point(sk[crv[j]].position.x, sk[crv[j]].position.y));
-        //         Pen.lineTo(Point(sk[crv[j+1]].position.x, sk[crv[j+1]].position.y));
-        //         Pen.stroke;
-        //     }
-        // };
-        // if (world.calibration.booleanValue) {
-        //     curve = ['head', 'neck', 'torso'];
-        //     curve.do { |joint, j| drawCurve.(curve, j) };
-        //     curve = ['l_hand', 'l_elbow', 'l_shoulder', 'neck', 'r_shoulder', 'r_elbow', 'r_hand'];
-        //     curve.do { |joint, j| drawCurve.(curve, j) };
-        //     curve = ['l_foot', 'l_knee', 'l_hip', 'torso', 'r_hip', 'r_knee', 'r_foot'];
-        //     curve.do { |joint, j| drawCurve.(curve, j) };
-        // } {
-        //     jointVisible.size.do { |j|
-        //         try {
-        //             Pen.moveTo(Point(sk[jointVisible[j]].position.x, sk[jointVisible[j]].position.y));
-        //             Pen.lineTo(Point(sk[jointVisible[j+1]].position.x, sk[jointVisible[j+1]].position.y));
-        //             Pen.stroke;
-        //         }
-        //     }
-        // };
     };
     // WARNING - end
 
-    // Manage particles.
-    particlesSkelVis = getParticlesSkelVis.();
-    particlesHidden = getParticlesHidden.();
-    particlesOnSprings = getParticlesOnSprings.();
-    Array.newFrom(physics.particles).do { |particle|
-        // Re-apply world forces, if there was any change in its parameters
-        if (paramsChanged) {
-            if (particlesOnSprings.includes(particle)) {
-                // if particle is on spring, change spring's properties
-                setSpringProp.(particle:particle);
-            } {
-                // if particle isn't on spring, re-apply attractions
-                if (particlesHidden.includes(particle).not) { // exclude hidden particles
-                    applyAttractions.(particle, world.mutualAttraction);
-                }
-            };
-        };
-        handleBoundaryCollisions.value(particle);
-
-        // send parameters to the group on Server
-        if (particles.keys.includes(particle)) {
-            #ax, ay, az = xyz.(particle.position);
-            #azimuth, distance, elevation = xyz2ade.(particle.position);
-            if (particlesOnSprings.includes(particle)) {
-                guide = getGuide.(particle);
-                #gx, gy, gz = xyz.(guide.position);
-                #gAzimuth, gDistance, gElevation = xyz2ade.(guide.position);
-            } { // in the absense of guide, a particle is a guide for itself.
-                guide = particle;
-                #gx, gy, gz = [ax, ay, az];
-                #gAzimuth, gDistance, gElevation = [azimuth, distance, elevation];
-            };
-            s.sendMsg("/n_set", particles[particle][\node],
-                // particle params
-                \ax, ax,
-                \ay, ay,
-                \az, az,
-                \azimuth, azimuth,
-                \distance, distance,
-                \elevation, elevation,
-                \velocity, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
-                \amp, (
-                    particle.mass.clip(0.01, 0.8) // the main contributor to object's loudness is its mass
-                    + (mag3D.(particle.velocity) * 0.01) // subtle "colors" due to velocity
-                ).clip(0, 1),
-
-                // guide params
-                \gx, gx,
-                \gy, gy,
-                \gz, gz,
-                \gzimuth, gAzimuth,
-                \gDistance, gDistance,
-                \gElevation, gElevation,
-
-                // general
-                \depth, ~depth,
-            );
-        };
-
-        // Visualize particles.
-        if (particlesHidden.includes(particle).not) {
+    // Visualize particles.
+    physics.particles.do { |particle|
+        if (kwargs[\partHidden].includes(particle).not) {
             case
             {particle == star} {
-                partColor = Color.red(alpha:star.position.z.linlin(0, world.depth, 0.7, 0.3));
+                partColor = colorStar;
+                partColor.alpha = star.position.z.linlin(0, world.depth, 0.7, 0.3);
                 partSize = 40
             }
-            { particlesSkelVis.includes(particle) } {
-                partColor = Color.white;
+            { kwargs[\partSkel].includes(particle) } {
+                partColor = colorJoint;
+                partColor.alpha = particle.position.z.linlin(0, world.depth, 0.7, 0.3);
                 partSize = 10
             }
             {
@@ -1238,14 +1606,466 @@ viewWorld.drawFunc = { |view|
             Pen.color = partColor;
             z = partSize * particle.position.z.linlin(0, world.depth, 1, 0.1);
             Pen.fillOval(Rect.aboutPoint(Point(particle.position.x, particle.position.y), z, z));
-        };
 
+            // radiation effect
+            if (
+                kwargs[\partSkel].includes(particle).not &&
+                kwargs[\partHidden].includes(particle).not
+            ) {
+                10.do {
+                    Pen.color = Color.red(rrand(0.0, 1), rrand(0.0, 0.5));
+                    Pen.addArc(
+                        particle.position.x@particle.position.y,
+                        rrand(z*1.1, z*1.8),
+                        2pi.rand,
+                        pi
+                    );
+                    Pen.perform([\stroke, \fill].choose);
+                }
+            }
+        };
+    };
+
+    // draw stat (on top of everything else, all values updated in a current cycle)
+    Pen.color = techColor;
+    Pen.stringAtPoint("particles", [world.width*0.5-260, world.height-20].asPoint);
+    Pen.color = Color.green;
+    Pen.stringAtPoint(physics.particles.size.asString, [world.width*0.5-185, world.height-20].asPoint);
+
+    Pen.color = techColor;
+    Pen.stringAtPoint("skeletons", [world.width*0.5-155, world.height-20].asPoint);
+    Pen.color = Color.green;
+    Pen.stringAtPoint(format("% %", skeleton.size, skeleton.keys.asArray), [world.width*0.5-75, world.height-20].asPoint);
+
+    Pen.color = techColor;
+    Pen.stringAtPoint("springs", [world.width*0.5+30, world.height-20].asPoint);
+    Pen.color = Color.green;
+    Pen.stringAtPoint(physics.springs.size.asString, [world.width*0.5+90, world.height-20].asPoint);
+
+    Pen.color = techColor;
+    Pen.stringAtPoint("attractions", [world.width*0.5+120, world.height-20].asPoint);
+    Pen.color = Color.green;
+    Pen.stringAtPoint(physics.attractions.size.asString, [world.width*0.5+210, world.height-20].asPoint);
+};
+
+
+drawGraph = { |view, kwargs|
+    var drawParticle = { |particle, box, label, color, origin, wedgeNum=10|
+        var radius;
+        Pen.font_(Font("Andale Mono")).smoothing_(true);
+        radius = particle.position.z.linlin(
+            0, view.bounds.width,
+            20.rand, box*rrand(0.45, 0.5)
+        );
+        #azimuth, distance, elevation = xyz2ade.(particle.position);
+        wedgeNum.do {
+            color.alpha = particle.position.z.linlin(0, world.depth, 0.7, 0.3);
+            Pen.color = color;
+            Pen.addAnnularWedge(
+                (origin[0]+(box*rrand(0.4, 0.6)))@(origin[1]+(box*rrand(0.4, 0.6))), // fuzzy center
+                radius.rand,
+                rrand(radius, radius*1.5),
+                azimuth+pi + 0.1.rand2,
+                mag3D.(particle.velocity).linlin(0, 1, pi, rrand(1.8pi, 2pi));
+            );
+            Pen.perform([\stroke, \fill].wchoose([0.8, 0.2]));
+        };
+        // draw stat (on top of everything else, all values updated in a current cycle)
+        tmp = origin[1] + box - 20;
+        Pen.color = techColor;
+        Pen.stringAtPoint(label, [origin[0], origin[1]].asPoint);
+        Pen.color = techColor;
+        Pen.stringAtPoint("#a", [origin[0], tmp].asPoint);
+        Pen.color = Color.green;
+        Pen.stringAtPoint((azimuth/pi).round(0.001).asString ++ "pi", [origin[0]+20, tmp].asPoint);
+        if (box > (origin[0]+80)) {
+            Pen.color = techColor;
+            Pen.stringAtPoint("#d", [origin[0]+80, tmp].asPoint);
+            Pen.color = Color.green;
+            Pen.stringAtPoint(distance.round(0.001).asString, [origin[0]+100, tmp].asPoint);
+            Pen.color = techColor;
+            Pen.stringAtPoint("#^", [origin[0]+150, tmp].asPoint);
+            Pen.color = Color.green;
+            Pen.stringAtPoint((elevation/pi).round(0.001).asString ++ "pi", [origin[0]+170, tmp].asPoint);
+        }
+    };
+    view.background = transparent;
+
+    // star
+    drawParticle.(star,
+        box: view.bounds.width*0.5,
+        label: format("% (star)", star.hash),
+        color: colorStar,
+        origin: [0, 0],
+        wedgeNum: 30
+    );
+    // joints
+    skeleton.values.do { |sk|
+        jointVisible.do { |j, i|
+            drawParticle.(sk[j],
+                box: view.bounds.width*0.163, //*0.5*0.33,
+                label: j,
+                color: colorJoint,
+                origin: [
+                    (i % 3 * view.bounds.width * 0.163),
+                    view.bounds.height * ((i/3).trunc * 0.163 + 0.5)
+                ]
+            );
+        };
+    };
+    // // hidden particles
+    // kwargs[\partHidden].do { |particle, i|
+    //     partColor = Color.grey;
+    //     drawParticle.(particle,
+    //         box: view.bounds.height/kwargs[\partHidden].size,
+    //         label: particle.hash.asString,
+    //         color: partColor,
+    //         origin: [
+    //             view.bounds.width*0.5,
+    //             (view.bounds.height/kwargs[\partHidden].size) * i
+    //         ]
+    //     );
+    // };
+    // ordinary particles
+    tmp = all {: p, p <- physics.particles,
+        kwargs[\partSkel].includes(p).not,
+        kwargs[\partHidden].includes(p).not,
+        p != star
+    };
+    tmp.do { |particle, i|
+        partColor = Color(
+            particle.mass.linlin(0, 1, 0.2, 1), // the heavier the object, the redder it appears
+            particle.mass.linlin(0, 1, 0.7, 1),
+            particle.mass.linlin(0, 1, 1, 0.1)
+        );
+        drawParticle.(particle,
+            box: view.bounds.width*0.3,
+            label: particle.hash.asString,
+            color: partColor,
+            origin: [
+                view.bounds.width*0.65,
+                (view.bounds.height*0.3) * i
+            ]
+        );
+    };
+};
+
+
+// Simple stroboscope.
+drawStrob = { |view|
+    view.background = transparent;
+    tmp = patt.next;
+    Pen.translate(world.width*0.5, world.height*0.5); //offset drawing to the centre
+    Pen.fillColor = Color.white; //always fill with white color
+    tmp = 1 - tmp; // invert the mapping
+    Pen.fillRect(
+        Rect.aboutPoint(
+            Point(0, 0),
+            tmp*world.width.rand,
+            tmp*(world.height*0.5).rand
+        )
+    );
+};
+
+
+// Animation for the skeleton based calibration layout (front view).
+drawSkel = { |view|
+    // variable space depth for "jumping picture" effect
+    visCount = visCount + 1;
+    if (visCount % 100.rand == 0) {
+        focalPoint = focalStream.next;
+        scaleDepth = scaleStream.next;
+        gridUnit = focalPoint.linlin(0, 3, 10, 2);
+    };
+    // variable background
+    if (visCount % renew == 0) {
+        view.background = [
+            Color.black,
+            Color.grey(1.0.rand),
+            Color.red(1.0.rand),
+            Color.white,
+        ].choose;
+        isGrid = 0.5.coin;
+        renew = rrand(10, 100);
+
+        currPath = paths.choose;
+        hold = [0, 18.rand].choose;
+
+        if (visCount >= 1e+3) {visCount = 0};
+    };
+
+    if (hold > 0) {
+        hold = hold - 1;
+        Pen.translate(
+            scaleDepth*(hold.linlin(0, 9, 500, 50)),
+            focalPoint*(hold.linlin(0, 9, 200, 10))
+        );
+        Pen.scale(scaleDepth, scaleDepth);
+        Pen.skew(scaleDepth.rand2, scaleDepth.rand2);
+    };
+
+    // draw skeletons
+    skeleton.values.do { |skel|
+        // WARNING! Technically this is a wrong approach,
+        // since it will draw particles two times.
+        // but it doesn't matter, because only one skel is used.
+        if (skel[\head].position.y > star.position.y) {
+            drawSkelParticle.();
+            drawSkelJoints.(skel, currPath);
+        } {
+            drawSkelJoints.(skel, currPath);
+            drawSkelParticle.();
+        };
+    };
+    // draw grid
+    Pen.strokeColor = Color.grey(0.3);
+    Pen.width = 0.5;
+    Pen.use {
+        if (isGrid) {
+            deviation = [world.width, world.height] / 9;
+            rrand(600, 1000).do {
+                Pen.beginPath;
+                Pen.moveTo(Point(10.rand * deviation[0], 10.rand * deviation[1]));
+                Pen.lineTo(Point(10.rand * deviation[0], 10.rand * deviation[1]));
+                Pen.stroke;
+            };
+        } {
+            numUnitsX = (world.width / gridUnit).ceil;
+            numUnitsY = (world.height / gridUnit).ceil;
+            rrand(600, 1000).do {
+                Pen.beginPath;
+                pointFrom = Point(numUnitsX.rand*gridUnit, numUnitsY.rand*gridUnit);
+                pointTo = Point(numUnitsX.rand*gridUnit, numUnitsY.rand*gridUnit);
+                Pen.moveTo(pointFrom);
+                Pen.lineTo(pointTo);
+                Pen.stroke;
+            };
+        }
+    };
+};
+
+
+// A frame of movement of a skeleton in the drawSkel mode.
+drawSkelJoints = { |skel, currPath|
+    currPath.do { |path|
+        path.do { |jo, j|
+            if (j < (path.size-1)) {
+                lineColor = Color.grey(
+                    skel[jo].position.y.linlin(0, world.depth, 1, 0)
+                );
+                deviation = skel[jo].position.y.lincurve(0, world.depth, 1, 20, -4);
+                xyA = getPointPlane.(skel[jo]);
+                xyB = getPointPlane.(skel[path[j+1]]);
+                drawLine.(
+                    pointA:(x:xyA[0], y:xyA[1]),
+                    pointB:(x:xyB[0], y:xyB[1]),
+                    lineColor:lineColor
+                );
+                // intenionally messy lines around each "bone"
+                10.do {
+                    xyDevA = (
+                        x: randomize.(xyA[0], deviation),
+                        y: randomize.(xyA[1], deviation)
+                    );
+                    xyDevB = (
+                        x: randomize.(xyB[0], deviation),
+                        y: randomize.(xyB[1], deviation),
+                    );
+                    drawLine.(xyDevA, xyDevB, lineColor);
+                    // additional lines for the head
+                    if (jo == \head) {
+                        xyDevA = (
+                            x: randomize.(xyA[0]-gridUnit, deviation),
+                            y: randomize.(xyA[1]+gridUnit, deviation)
+                        );
+                        xyDevB = (
+                            x: randomize.(xyA[0]+gridUnit, deviation),
+                            y: randomize.(xyA[1]+gridUnit, deviation),
+                        );
+                        drawLine.(xyDevA, xyDevB, lineColor);
+                    };
+                };
+            };
+        };
+    };
+};
+
+
+// A frame of movement of particles (excluding skeletal joints)
+// in the drawSkel mode.
+drawSkelParticle = {
+    physics.particles.do { |particle|
+        if (particle.isFree) {
+            xyA = getPointPlane.(particle);
+            lineColor = Color.grey(
+                particle.position.y.linlin(0, world.depth, 1, 0.3)
+            );
+            deviation = particle.position.y.lincurve(
+                0, world.depth,
+                1, if (particle == star) {15} {10},
+                -4
+            );
+            if (particle == star, {80}, {20}).do {
+                xyDevA = (
+                    x: randomize.(xyA[0]-gridUnit, deviation),
+                    y: randomize.(xyA[1]+gridUnit, deviation)
+                );
+                xyDevB = (
+                    x: randomize.(xyA[0]+gridUnit, deviation),
+                    y: randomize.(xyA[1]+gridUnit, deviation),
+                );
+                drawLine.(xyDevA, xyDevB, lineColor);
+            }
+        }
+    }
+};
+
+
+// Animation func for the basic calibration layout (top view).
+drawCube = { |view|
+
+};
+
+// Physics ticks here!
+viewWorld.drawFunc = { |view|
+    // Process an event from eventPool before going on with the rest.
+    paramsChanged = false;
+    if (eventPool.items.size > 0) {
+        // any change (even a new particle) is a World change
+        paramsChanged = true;
+        // process only one event in the current cycle
+        event = eventPool.popItem;
+        event[\message].switch(
+            \physics, {
+                // some should be updated directly
+                event[\params][0].switch(
+                    \starMass,  {star.mass = world.starMass.asFloat},
+                    \drag, {physics.setDrag(world.drag)},
+                    { if (#[\gravX, \gravY, \gravZ].includes(event[\params][0])) {
+                        physics.setGravity(
+                            world.gravX, world.gravY, world.gravZ
+                        )
+                    }}
+                );
+            },
+            \particle, {
+                particle = initParticle.(event[\particle]);
+                event[\synth][\node] = ~initSynth.(
+                    event[\synth][\name],
+                    node: event[\synth].atFail(\node, {nil}),
+                    params: event[\synth][\params]
+                );
+                registerParticle.(particle, event[\synth]);
+                if (event[\particle][\spring].booleanValue) {
+                    // If "spring" specified but failed, attractions will be applied.
+                    registerSpring.(
+                        applySpring.(particle, event[\particle][\source])
+                    );
+                };
+            };
+        );
+    };
+
+    // Control skeletons.
+    skeleton.keys.do { |id|
+        try {
+            if ((Date.getDate.secStamp.asInteger - skeleton[id][\update].asInteger) >= skel.waitBeforeRemove) {
+                skeletonRemove.(id);
+                paramsChanged = true;
+            }
+        }
+    };
+
+    // Particle system.
+    if (world[\particleSystem].booleanValue) {
+        if (view.frame % (view.frameRate * world.partFreq).round == 0) {
+            guide = defineGuide.();
+            particleSystem.(guide);
+        }
+    };
+    // Springs should stick to hands even after skeleton is lost and then appears again.
+    // Track connections of springs in a global dictionary.
+    springsPhysical = all {: g.identityHash, g <- physics.springs} ? [];
+    springs.keysValuesDo { |springId, end|
+        if (springsPhysical.includes(springId).not) {
+            // end = [ <joint id e.g. \r_hand>, TraerParticle ]
+            springMissed = applySpring.(end[1], end[0]);
+        }
+    };
+    // Update global dictionary of springs.
+    if (springMissed.isNil.not) { // only if new springs created
+        springs = IdentityDictionary.new;
+        registerSprings.(physics.springs);
+    };
+
+    // Remove attractions that stuck after a particle's death.
+    attractionsPhysical = Array.newFrom(physics.attractions);
+    attractionsPhysical.do { |attr|
+        if (
+            physics.particles.includes(attr.getOneEnd).not ||
+            physics.particles.includes(attr.getTheOtherEnd).not
+        ) { removeAttraction.(attr) }
+    };
+
+    // Manage particles.
+    particlesSkelVis = getParticlesSkelVis.();
+    particlesHidden = getParticlesHidden.();
+    particlesOnSprings = getParticlesOnSprings.();
+    physics.particles.do { |particle|
+        // Re-apply world forces, if there was any change in its parameters
+        if (paramsChanged) {
+            if (particlesOnSprings.includes(particle)) {
+                // if particle is on spring, change spring's properties
+                setSpringProp.(particle: particle);
+            } {
+                // if particle isn't on spring, re-apply attractions
+                if (particlesHidden.includes(particle).not) { // exclude hidden particles
+                    applyAttractions.(particle, world.mutualAttraction);
+                }
+            };
+        };
+        handleBoundaryCollisions.value(particle);
         // Age control: particles age "backwards",
         // i.e. age = 0 is a death and positive age is afterlife.
         if (particle.age >= 0) { particle.dead = true };
         if (particle.dead) {
-            unregisterParticle.(particles[particle][\node]);
-            removeParticle.(particle)
+            try {
+                unregisterParticle.(particles[particle][\node]);
+            };
+            removeParticle.(particle);
+        };
+        // send parameters to the group on Server
+        if (particles.keys.includes(particle)) {
+            #ax, ay, az = xyz.(particle.position);
+            #azimuth, distance, elevation = xyz2ade.(particle.position);
+            if (particlesOnSprings.includes(particle)) {
+                guide = getGuide.(particle);
+                #gx, gy, gz = xyz.(guide.position);
+                #gAzimuth, gDistance, gElevation = xyz2ade.(guide.position);
+            } { // in the absense of guide, a particle is a guide for itself.
+                guide = particle;
+                #gx, gy, gz = [ax, ay, az];
+                #gAzimuth, gDistance, gElevation = [azimuth, distance, elevation];
+            };
+            ~scsynth.sendMsg("/n_set", particles[particle][\node],
+                // particle params
+                \ax, ax,
+                \ay, ay,
+                \az, az,
+                \azimuth, azimuth,
+                \distance, distance,
+                \elevation, elevation,
+                \momentum, mag3D.(particle.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
+                // guide params
+                \gx, gx,
+                \gy, gy,
+                \gz, gz,
+                \gzimuth, gAzimuth,
+                \gDistance, gDistance,
+                \gElevation, gElevation,
+                // general
+                \depth, ~depth,
+            );
         };
     };
 
@@ -1258,7 +2078,7 @@ viewWorld.drawFunc = { |view|
     };
     #ax, ay, az = xyz.(guide.position);
     #azimuth, distance, elevation = xyz2ade.(guide.position);
-    s.sendMsg("/n_set", ~nodeAudioThrough,
+    ~scsynth.sendMsg("/n_set", ~nodeAudioThrough,
         // particle params
         \ax, ax,
         \ay, ay,
@@ -1266,10 +2086,7 @@ viewWorld.drawFunc = { |view|
         \azimuth, azimuth,
         \distance, distance,
         \elevation, elevation,
-        \velocity, mag3D.(guide.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
-        \amp, (0.9 // static guide's loudness
-            + (mag3D.(guide.velocity) * 0.01) // subtle "colors" due to velocity
-        ).clip(0, 1),
+        \momentum, mag3D.(guide.velocity).distort.pow(10), // scale by sigmoid func (distort), smooth by .pow
 
         // guide params
         \gx, ax,
@@ -1283,11 +2100,25 @@ viewWorld.drawFunc = { |view|
         \depth, ~depth,
     );
 
+    // XXX - apply Canvas3D hto all drawings!
+    //
+    // select drawing mode
+    kwargs = (partSkel: particlesSkelVis, partHidden: particlesHidden);
+    world[\draw].switch(
+        \calibration, { drawCalibration.(view, kwargs: kwargs)},
+        \skel, { drawSkel.(view) },
+        \skelfull, { drawStrob.(view) },
+        \graph, { drawGraph.(view, kwargs: kwargs) },
+        \cube, { drawCube.(view) }, // TODO
+        { drawCalibration.(view, kwargs: kwargs) }
+    );
+
     physics.tick;
 };
 
+
 handleBoundaryCollisions = { |p|
-	// Handle collisions with World boundaries.
+    // Handle collisions with World boundaries.
     if (p.position.x < 0 or:{p.position.x > world.width}) {
         p.velocity.set(-0.9 * p.velocity.x, p.velocity.y, p.velocity.z);
     };
@@ -1304,8 +2135,8 @@ handleBoundaryCollisions = { |p|
 };
 
 decodeParticle = { |particle|
-	// Returns display of a particle "role" (a Star,
-	// a skeleton's joint or an ordinary particle).
+    // Returns display of a particle "role" (a Star,
+    // a skeleton's joint or an ordinary particle).
     var result;
     if (particle == star) {
         result = "Star"
@@ -1323,7 +2154,7 @@ decodeParticle = { |particle|
 };
 
 registerSpring = { |spring|
-	// Register individual spring in the global dictionary.
+    // Register individual spring in the global dictionary.
     var endA, endB;
     if (spring.isNil.not) {
         #endA, endB = [spring.a, spring.b];
@@ -1338,44 +2169,44 @@ registerSpring = { |spring|
 };
 
 getParticlesSkelVis = {
-	//
+    //
     all {: v[k], v <- skeleton.values, k <- v.keys,
         jointVisible.includes(k)
     } ? []
 };
 
 getParticlesHidden = {
-	//
+    //
     all {: v[k], v <- skeleton.values, k <- v.keys,
         jointVisible.includes(k).not
     } ? []
 };
 
 getParticlesOnSprings = {
-	//
-	(
+    //
+    (
         all {: [g.a, g.b], g <- physics.springs} ? []
     ).flatten
 };
 
 registerSprings = { |springsList|
-	// Registers all springs from List in the global dictionary.
+    // Registers all springs from List in the global dictionary.
     springsList.do { |spring|
         registerSpring.(spring)
     }
 };
 
 resolveSpringEnd = { |end|
-	// Translates spring end from joint name to particle.
-	try {
-		skeleton[skeleton.keys.asArray[0]][end]
-	} { |error|
-		nil
-	};
+    // Translates spring end from joint name to particle.
+    try {
+        skeleton[skeleton.keys.asArray[0]][end]
+    } { |error|
+        nil
+    };
 };
 
 getSpringForParticle = { |particle|
-	// Finds spring connected by any of its ends to a given particle.
+    // Finds spring connected by any of its ends to a given particle.
     var spring;
     physics.springs.do { |sp|
         if ([sp.a, sp.b].includes(particle)) { spring = sp }
@@ -1383,30 +2214,8 @@ getSpringForParticle = { |particle|
     spring
 };
 
-getSynthName = { |shortName, node, particle|
-	// Figures out full synth name in a form "\sr__%__%"
-	// based on its short name, or a node, or a living particle.
-    var synthName="", checkNames;
-    if (particle.isNil.not) {
-        shortName = particles[particle][\synth]
-    };
-    if (node.isNil.not) {
-        shortName = all {: particles[p][\synth], p <- particles, p[\node] == node};
-        shortName = shortName[0]
-    };
-    if (shortName.isNil.not) {
-        checkNames = all {: format("\sr__%__%", nm, shortName.asString), nm <- ["e", "g", "p"]};
-        checkNames.do { |name|
-            if (~synths.keys.includes(name.asSymbol)) {
-                synthName = name
-            };
-        };
-    };
-    synthName.asSymbol
-};
-
 setSpringProp = { |spring, particle|
-	// Sets worlds parameters to spring.
+    // Sets worlds parameters to spring.
     if (spring.isNil) {
         spring = getSpringForParticle.(particle)
     };
@@ -1416,10 +2225,10 @@ setSpringProp = { |spring, particle|
 };
 
 applySpring = { |particle, src, ks, d, r|
-	// Apply spring: choose a source and connect particle to it.
+    // Apply spring: choose a source and connect particle to it.
     var spring, source;
     source = resolveSpringEnd.(src);
-	if (source.isNil) { source = defineSource.() };
+    if (source.isNil) { source = defineSource.() };
     if (source.isNil.not && particle.isNil.not) {
         spring = physics.makeSpring(source, particle,
             ks ? world.springStrength, d ? world.springDamp, r ? world.springRestLen);
@@ -1428,11 +2237,11 @@ applySpring = { |particle, src, ks, d, r|
 };
 
 applyAttractions = { |particle, mutual=false|
-	// Apply forces:
-	// - skeleton's hands ALWAYS attracts all particles,
-	//   including Star, regardless of the `mutual` state
-	// - Star ALWAYS attract all objects, excluding skeleton's hands
-	// - ordinary objects attract each other only if `mutual` is true
+    // Apply forces:
+    // - skeleton's hands ALWAYS attracts all particles,
+    //   including Star, regardless of the `mutual` state
+    // - Star ALWAYS attract all objects, excluding skeleton's hands
+    // - ordinary objects attract each other only if `mutual` is true
     var skeletonParticles=List.new, excludeParticles=List.new;
     List.newFrom(physics.attractions).do { |attr|
         if ((attr.a == particle) || (attr.b == particle)) {
@@ -1482,7 +2291,7 @@ applyAttractions = { |particle, mutual=false|
 };
 
 chooseSource = {
-	// Choose a source (skeleton with the "lightest" hand).
+    // Choose a source (skeleton with the "lightest" hand).
     var mass, sources = IdentityDictionary.new;
     skeleton.keysValuesDo { |num, skel|
         springSrcSkel.do { |joint|
@@ -1504,7 +2313,7 @@ chooseSource = {
 };
 
 defineSource = { |starAllowed=false|
-	// Select source of force depending on the presence of skeleton.
+    // Select source of force depending on the presence of skeleton.
     if (skeleton.keys.size > 0) {
         chooseSource.()
     } {
@@ -1512,8 +2321,9 @@ defineSource = { |starAllowed=false|
     }
 };
 
+
+// Defines guide (where obj appears) depending on objects velocity.
 defineGuide = {
-	// Define guide (where obj appears) depending on objects velocity.
     var guides = IdentityDictionary[star -> mag3D.(star.velocity)];
     skeleton.keysValuesDo { |skel, joints|
         springSrcSkel.do { |jt|
@@ -1529,8 +2339,9 @@ defineGuide = {
     guides.findKeyForValue(guides.values.wchoose(guides.values.exp.normalizeSum))
 };
 
+
+// Returns particle's guide, if any, otherwise nil.
 getGuide = { |particle|
-	// Get object's guide, if any.
     var spring, guide;
     spring = getSpringForParticle.(particle);
     if (spring.isNil.not) {
@@ -1539,60 +2350,87 @@ getGuide = { |particle|
     guide
 };
 
-initParticle = { |mass, x, y, z, age, vel|
-	// Init new particle.
-    var particle, guide;
-    if ([x, y, z].any({ |i| i < 0 })) { // negative coordinates ask for guide
+
+// Init new particle.
+// `params` is an Event with mass, x, y, z, age, and vel.
+initParticle = { |params|
+    var particle, guide, x, y, z;
+    #x, y, z = [
+        params[\x] ? world.width.rand,
+        params[\y] ? world.height.rand,
+        params[\z] ? world.depth.rand
+    ];
+    // Negative coordinates ask for guide.
+    if ([x, y, z].any({ |i| i < 0 })) {
         guide = defineGuide.();
-        #x, y, z = [guide.position.x, guide.position.y, guide.position.z];
-    } {
-        #x, y, z = [x ? world.width.rand, y ? world.height.rand, z ? world.depth.rand]
+        #x, y, z = [guide.position.x, guide.position.y, guide.position.z]
     };
-    particle = physics.makeParticle(mass ? world.partDefaultMass, x, y, z);
-    try {
-        particle.velocity.set(vel[0], vel[1], vel[2])
+    particle = physics.makeParticle(
+        params[\mass] ? world.partDefaultMass,
+        x, y, z
+    );
+    // Velocity is TraerVector3D.
+    if (params.keys.includes(\vel)) {
+        particle.velocity.set(params[\vel].x, params[\vel].y, params[\vel].z)
     };
     // Particles age "backwards": age == 0 is death, age >= 0 is afterlife.
     try {
-        particle.age = (age * 60).abs.neg;
+        particle.age = (params[\age] * 60).abs.neg;
     } {
         particle.age = inf.neg;
     };
     particle
 };
 
+
+// Particle system.
 particleSystem = { |guide|
-	// Particle system.
-    var vel, prob;
     // probability of the birth of particle depends on the guide's velocity
-    vel = guide.velocity;
-    if (vel == 0) { vel = world.maxVel };
-    prob = sigmoid.(
-        ratio:world.partSigmoidRatio,
-        value:mag3D.(vel).linlin(0, world.maxVel, world.maxVel.neg, world.maxVel));
-    if (prob.coin.booleanValue) {
-        registerParticle.(
-            initParticle.(0.2, guide.position.x, guide.position.y, guide.position.z,
-                world.partAgeThresh.logistic,
-                [vel.x, vel.y, vel.z].neg * world.partInitAccel.max(0.01)),
-            ~groupInit.(world.partSynth, params:[\att, 2.0.rand])
-        );
-    }
+    var vel = if (guide.velocity != 0) {
+        guide.velocity
+    } {
+        TraerVector3D(
+            x: world[\maxVel].rand,
+            y: world[\maxVel].rand,
+            z: world[\maxVel].rand
+        )
+    };
+    var prob = sigmoid.(
+        ratio: world.partSigmoidRatio,
+        value: mag3D.(vel).linlin(
+            0, world[\maxVel],
+            world[\maxVel].neg, world[\maxVel])
+    );
+    if (prob.coin) {
+        vel = ([vel.x, vel.y, vel.z].neg * world[\partInitAccel]).max(0.1);
+        eventPool.append((
+            message: \particle,
+            particle: (
+                mass: 0.2,
+                age: world[\partAgeThresh].logistic,
+                vel: TraerVector3D(x: vel[0], y: vel[1], z: vel[2]),
+                x: guide.position.x,
+                y: guide.position.y,
+                z: guide.position.z
+            ),
+            synth: (
+                name: world[\partSynth],
+                params: [\attack, 0.5.rand]
+            )
+        ));
+    };
 };
 
 removeSpring = { |spring|
-	//
     springs.removeAt(spring.identityHash);
     physics.removeSpring(spring);
 };
 
 removeAttraction = { |attraction|
-	//
     physics.removeAttraction(attraction);
 };
 
 removeParticle = { |particle|
-	//
     // remove springs
     physics.springs.do { |spring|
         if ([spring.a, spring.b].includes(particle)) {
@@ -1615,35 +2453,33 @@ removeParticle = { |particle|
 };
 
 removeAll = {
-	// Remove all particles from the world and stop all synths.
+    // Remove all particles from the world and stop all synths.
     particles.keys.do { |p, i|
         unregisterParticle.(particles[p][\node]);
         removeParticle.(p);
     }
 };
 
-registerParticle = { |particle, nodeId|
-	// Register and unregister particle are separate functions
-	// from init and remove to support the case when an existing
-	// particle is being re-attached to a different node on the server.
-	//
-	// Register particle in the dictionary along with Server nodeId.
-    var taskSendMsg, keys=[];
-    particles.put(particle, (node: nodeId));
-    taskSendMsg = Task({
-        inf.do { |j|
-            try { keys = particles[particle].keys } { keys = [] };
-            if ((keys.includes("synth")) || (j >= 20)) { // wait 2sec
-                taskSendMsg.stop;
-            };
-            s.sendMsg("/g_queryTree", nodeId); // to fill out synth name
-            0.1.wait;
-        };
-    }).start;
+
+// Register particle in the dictionary along with Server nodeId.
+// Fill params fpr synth attached to the particle.
+//
+// Register and unregister particle are separate functions
+// from init and remove to support the case when an existing
+// particle is being re-attached to a different node on the server.
+registerParticle = { |particle, synth|
+    particles.put(particle, (
+        node: synth[\node],
+        synth: synth[\name],
+        params: ~fillSynthParams.(synth, ~synths)
+    ));
+
+    // // XXX 3d
+    // registerCube.(particle)
 };
 
 unregisterParticle = { |nodeId|
-	// Removes particle record from the dictionary.
+    // Removes particle record from the dictionary.
     var particle;
     particles.keysValuesDo { |part, dict|
         if (dict[\node] == nodeId) { particle = part }
@@ -1657,7 +2493,7 @@ unregisterParticle = { |nodeId|
 // SKELETON
 //
 skeletonParticles = { |id, joint, x, y, z|
-	// Creates a particle for each joint of the skeleton.
+    // Creates a particle for each joint of the skeleton.
     var part;
     if (skeleton.keys.includes(id).not) {
         if (skeleton.keys.asArray.size < skel.limit) {
@@ -1667,9 +2503,12 @@ skeletonParticles = { |id, joint, x, y, z|
     if (joint.isNil.not) {
         if (skeleton.keys.includes(id)) {
             if (skeleton[id].keys.includes(joint).not) {
-                part = initParticle.(world.starMass, x, y, z);
+                part = initParticle.((mass: world.starMass, x: x, y: y, z: z));
                 part.makeFixed;
                 skeleton[id][joint] = part;
+
+                // // XXX 3d
+                // registerCube.(part)
             };
             skeleton[id][joint].position.set(x, y, z);
             skeleton[id][\update] = Date.getDate.secStamp;
@@ -1678,8 +2517,8 @@ skeletonParticles = { |id, joint, x, y, z|
 };
 
 skeletonRemove = { |id|
-	// Removes skeleton particles (cannot be removed
-	// as ordinary particles).
+    // Removes skeleton particles (cannot be removed
+    // as ordinary particles).
     var springsPhysical;
     skeleton[id].do { |p|
         List.newFrom(physics.springs).do { |spring|
@@ -1700,11 +2539,11 @@ skeletonRemove = { |id|
 
 // HELPER FUNCTIONS
 //
+// 3-d vector(s) magnitude.
+// `vec` can be either dictionary-like object (x:x, y:y, z:z), in which case
+// a siggle float value of the magnitude is returned, or a collection of such
+// objects, which result in a collection of magnitudes.
 mag3D = { |vec|
-	// 3-d vector(s) magnitude.
-	// `vec` can be either dictionary-like object (x:x, y:y, z:z), in which case
-	// a siggle float value of the magnitude is returned, or a collection of such
-	// objects, which result in a collection of magnitudes.
     var func = { |vector| (vector.x.sumsqr(vector.y) + vector.z.pow(2)).sqrt};
     var result = 0;
     try {
@@ -1718,14 +2557,15 @@ mag3D = { |vec|
 };
 
 sigmoid = { |ratio, value|
-	//
-	1 / (1 + exp((ratio * value).neg))
+    //
+    1 / (1 + exp((ratio * value).neg))
 };
 
+
+// Project 3D coordinates on the plane.
+// pos = Dictionary[x, y, z]
+// space = Dictionary[width, height, depth]
 xyz2plane = { arg pos, space, scale=1, focal=0.5;
-	// Project 3D coordinates on the plane.
-	// pos = Dictionary[x, y, z]
-	// space = Dictionary[width, height, depth]
     var x, y, z, ox, oy;
     z = space.depth - pos.z / (space.depth * scale);
     z = z.linlin(0, space.depth, focal, 1);
@@ -1736,8 +2576,24 @@ xyz2plane = { arg pos, space, scale=1, focal=0.5;
     [ox, oy]
 };
 
+
+// Standard plane poiint in the ~world.
+getPointPlane = { |obj|
+    xyz2plane.(
+        (
+            x: obj.position.x.round(gridUnit),
+            y: obj.position.z.round(gridUnit),
+            z: obj.position.y
+        ),
+        world,
+        scale:scaleDepth,
+        focal:focalPoint
+    )
+};
+
+
+// Returns azimuth, distance and elevation for a position defined as [x, y, z]
 xyz2ade = { |position|
-	// Returns azimuth, distance and elevation for a position defined as [x, y, z]
     var pos, elev;
     pos = Complex(
         position.x.linlin(0, world.width, 1, -1), // y
@@ -1751,8 +2607,9 @@ xyz2ade = { |position|
     ]
 };
 
+
+// Converts (azimuth, distance, elevation) to (x, y, z)
 ade2xyz = { |position, maxDist|
-	// Converts (azimuth, distance, elevation) to (x, y, z)
     var pos, distAdj;
     var mC = 2.sqrt; // max in Cartesian plane (from center to wall)
     distAdj = position.dist.linlin(0, maxDist, 0, mC); // adjust distance on [0, maxDist]
@@ -1764,8 +2621,9 @@ ade2xyz = { |position, maxDist|
     )
 };
 
+
+// Returns x, y and z in required format.
 xyz = { |position|
-	// Returns x, y and z in required format.
     [
         position.x / world.width,
         position.y / world.height,
@@ -1773,108 +2631,120 @@ xyz = { |position|
     ]
 };
 
-// XXX - change this with re-directing all POST messages
+
+// Updates post colors when postView size shrinks.
+updatePostColors = { |colors, start|
+    colors.size.do { |i|
+        colors[i][\start] = colors[i][\start] - start
+    };
+    all {: k, k <-colors, k[\start] > 0 };
+};
+
+
+//
+getMsgColor = { |msg|
+    case
+    { msg.beginsWith("INFO") || msg.beginsWith("->") } { Color.new255(11, 96, 224) }
+    { msg.beginsWith("DEBUG") || msg.beginsWith("$>") } { Color.new255(55, 157, 0) }
+    { msg.beginsWith("WARNING") } { Color.white }
+    { msg.beginsWith("ERROR") } { Color.new255(158, 33, 33) }
+    { fontColor };
+};
+
+
+// Posts message to local listener.
 postMsg = { |msg|
-	// post message to local listener
+    var msgColor, start, color;
     msg = msg.asString;
     if (msg.endsWith("\n").not) { msg = msg ++ "\n" };
+    msgColor = getMsgColor.(msg);
     {
-        if (postListener.string.size > postMaxSize) { // do not grow too long
-            postListener.string = postListener.string[(postListener.string.size-postMaxSize)..]
+        // do not grow too long
+        if (postView.string.size > postMaxSize) {
+            start = postView.string.size - postMaxSize;
+            postView.string = postView.string[start..];
+            postColors = updatePostColors.(postColors, start);
         };
-        postListener.string = postListener.string ++ msg ++ "\n";
-        postListener.stringColor_(fontColor);
-        postListener.select(postListener.string.size, 1); // autoscroll
+        postColors.add((start: postView.string.size, num: msg.size, color: msgColor));
+        postView.string = postView.string ++ msg;
+        postColors.do { |c|
+            postView.setStringColor(c[\color], c[\start], c[\num]);
+        };
+        postView.select(postView.string.size, 1); // autoscroll
     }.defer;
-    msg.post;
+};
+
+
+//
+reportOSC = { |msg, time, addr, recvPort|
+    postMsg.(format(
+        "-> OSC msg \"%\" at % from %:%\n",
+        msg[0], Date.getDate.format("%d/%m/%Y %T"),
+        addr.ip, addr.port
+    ));
+};
+
+
+//
+reportEvent = { |num, msg, j|
+    postMsg.(format("-> event %, message % (%)\n", num, msg, j))
 };
 
 
 // OSC
 //
-// Catch messages related to particles.
+// Catches messages related to particles,
+// converts a message to format suitable for an event,
+// and saves in the eventPool.
 oscParticle = OSCFunc({ |msg, time, addr, recvPort|
-    var particle, node, age, source, mass, x, y, z, spring, registered;
-	postMsg.(format("from % received %\n", addr, msg));
-    node = msg[2];
-    msg[1].switch(
-        1, { // create particle
-            mass = msg[4];
-            try {
-                #x, y, z, age, source = msg[5..]
-            } {
-                #x, y, z, age, source = nil ! 5
-            };
-            particle = initParticle.(mass, x, y, z, age);
-            registerParticle.(particle, node);
-            if (msg[3].booleanValue) {
-                spring = applySpring.(particle, source);
-                registered = registerSpring.(spring);
-            };
-            if (msg[3].booleanValue.not || registered.isNil) {
-                // "spring" can be specified, but failed
-                // in this case apply attractions
-                applyAttractions.(particle, world.mutualAttraction)
-            };
-        },
-        0, { // remove particle
-            particle = unregisterParticle.(node);
-            removeParticle.(particle);
-        }
+    var data;
+    data = (
+        message: \particle,
+        particle: (
+            mass: msg[1],
+            x: msg[2],
+            y: msg[3],
+            z: msg[4],
+            age: msg[5],
+            spring: msg[6],
+            source: msg[7]
+        ),
+        synth: (
+            node: msg[8],
+            name: msg[9],
+            params: Dictionary.newFrom(msg[10..])
+        )
     );
+    if (data[\synth][\node] == -1) {
+        data[\synth].removeAt(\node)
+    };
+    if (data[\particle][\source] == 0) {
+        data[\particle].removeAt(\source)
+    };
+
+    // report
+    reportOSC.(msg, time, addr, recvPort);
+    eventPool.append(data);
 }, '/particle');
 
 
 // Catch messages related to physics.
 oscPhysics = OSCFunc({ |msg, time, addr, recvPort|
-    var x, y, z;
-    // postf("from % received %\n", addr, msg);
-    postMsg.(format("from % received %\n", addr, msg));
-    msg[1].switch(
-        \gravity, {
-            #x, y, z = msg[2..].asFloat;
-            world.gravX = x;
-            world.gravY = y;
-            world.gravZ = z;
-        },
-        \gravX, { world.gravX = msg[2].asFloat },
-        \gravY, { world.gravY = msg[2].asFloat },
-        \gravZ, { world.gravZ = msg[2].asFloat },
-        \drag, { world.drag = msg[2].asFloat },
-        \repulsion, { world.repulsion = msg[2].asFloat },
-        \mutualAttraction, { world.mutualAttraction = msg[2].asInteger },
-        \particles, { world.particles = msg[2].asInteger },
-        \star, {
-            msg[2].switch(
-                \fixed, { star.makeFixed },
-                \free, { star.makeFree },
-                \mass, {
-                    try {
-                        world.starMass = msg[3].asFloat
-                    }
-                },
-                \pos, {
-                    try {
-                        #x, y, z = msg[3..].asFloat
-                    } {
-                        #x, y, z = [world.width.rand, world.height.rand, world.depth.rand]
-                    };
-                    star.position.set(x, y, z);
-                }
-            );
-        },
-        { // default action
-            try { world[msg[1]] = msg[2]};
-        }
-    );
+    reportOSC.(msg, time, addr, recvPort);
+    msg[1..].pairsDo { |key, val|
+        eventPool.append((
+            message: \physics,
+            params: [key, updateWorldParm.(key, val)]
+        ))
+    };
 }, '/physics');
 
 
 // Catch action messages.
 oscAction = OSCFunc({ |msg, time, addr, recvPort|
     var data, synthId;
-    // postf("from % received %\n", addr, msg);
-    postMsg.(format("from % received %\n", addr, msg));
+    postMsg.(reportOSC.(msg, time, addr, recvPort));
+    postMsg.(format("\t%: %\n", msg[1], msg[2..]));
     msg[1].switch(
         \remove, {
             if (msg[2] == \all) {
@@ -1890,8 +2760,9 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
                 { btNextNum.valueAction_(true) }.defer
             }
         },
-        \add, {
-            // What other acts can be sent to the World?
+        \draw, {
+            world[\draw] = msg[2].asSymbol;
+            // canvas.visible = (msg[2].asSymbol == \cube) // XXX 3d
         },
         // XXX - finish it
         \srv_msg, {
@@ -1915,15 +2786,13 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
 
 // Catch messages related to skeleton.
 oscSkeletonLost = OSCFunc({ |msg, time, addr, recvPort|
-    // postf("from % received %\n", addr, msg);
-    postMsg.(format("from % received %\n", addr, msg));
+    postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
     skeletonRemove.(msg[1]);
 }, '/lost_skel');
 
 
 oscSkeletonNew = OSCFunc({ |msg, time, addr, recvPort|
-    // postf("from % received %\n", addr, msg);
-    postMsg.(format("from % received %\n", addr, msg));
+    postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
     skeletonParticles.(msg[1]);
 }, '/new_skel');
 
@@ -1932,76 +2801,45 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
     // postf("from % received %\n", addr, msg);
     id = msg[2].asInteger;
     joint = msg[1];
+
+    // // XXX front view
+    // #x, y, z = [
+    //     msg[3].linlin(0.0, 1.0, 0, world.width),
+    //     msg[4].linlin(0.0, 1.0, 0, world.height),
+    //     msg[5].linlin(0.65, 2.8, 0, world.depth)
+    // ];
+
+    // XXX top view
     #x, y, z = [
         msg[3].linlin(0.0, 1.0, 0, world.width),
-        msg[5].linlin(0.0, 5.0, 0, world.height),
+        msg[5].linlin(0.65, 2.8, 0, world.height),
         msg[4].linlin(0.0, 1.0, 0, world.depth)
     ];
-    // XXX
-    // if (world.calibration.booleanValue) {
-    //     #x, y, z = [
-    //         msg[3].linlin(-0.1, 1.1, 0, world.width),
-    //         msg[4].linlin(-0.15, 0.99, 0, world.depth),
-    //         msg[5].linlin(0.3, 3.4, 0, world.height)
-    //     ];
-    // } {
-    //     #x, y, z = [
-    //         msg[3].linlin(-0.1, 1.1, 0, world.width),
-    //         msg[5].linlin(0.3, 3.4, 0, world.height),
-    //         msg[4].linlin(-0.15, 0.99, 0, world.depth)
-    //     ];
-    // };
     skeletonParticles.(id, joint, x, y, z);
 }, '/joint');
 
-
 oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
-    var synth, i=0, node=msg[2].asInteger;
-    // postf("from % received %\n", addr, msg);
-    { synth.isNil }.while({
-        i = i + 1;
-        if ("sr__(e|g|p)__".matchRegexp(msg[i].asString)) {
-            synth = msg[i].asString.stripWhiteSpace;
-            synth = synth[7..]; // only synth type and name
-        };
-        if ((i >= msg.size) && (synth.isNil)) { synth = node.asString };
-    });
-    particles.keysValuesDo { |part, dict|
-        if (dict[\node] == node) { dict[\synth] = synth }
+    // Parses /g_queryTree.reply:
+    // [ /g_queryTree.reply, 0, 1008, 2, 1014, -1, bass__a2, 1010, 2, 1012, -1, atru__a2, ... ]
+    // and fills out synth name for a particle as well as formats server tree
+    var name, part;
+    // postMsg.(format("%:%: %\n", addr.ip, addr.port, msg));
+    part = particles.select { |p| p.at(\synth).isNil };
+    part.keysValuesDo { |p, dict|
+        try {
+            name = msg[msg.indexOf(dict[\node])+2];
+            name = name.asString.split($_);
+            dict[\synth] = name[0];
+        }
+    };
+    // fill out srv tree
+    if (msg[2] == 0) {
+        postf(
+            "-> /g_queryTree.reply (%:%)\n%\n",
+            addr.ip, addr.port, ~formatSrvTree.(msg)
+        );
     };
 }, '/g_queryTree.reply');
-
-// XXX - GET msgs from remote server!
-oscInternalInLevels = OSCFunc({ |msg, time, addr, recvPort|
-    {
-        internalInLevels.do { |elem, j|
-            elem.peakLevel = msg[3+(j*2)].ampdb.linlin(-80, 0, 0, 1);
-            elem.value = msg[3+(j*2+1)].ampdb.linlin(-80, 0, 0, 1);
-        }
-    }.defer;
-}, '/internalInLevels');
-
-oscInternalOutLevels = OSCFunc({ |msg, time, addr, recvPort|
-    {
-        internalOutLevels.do { |elem, j|
-            try {
-                elem.peakLevel = msg[3+(j*2)].ampdb.linlin(-80, 0, 0, 1);
-                elem.value = msg[3+(j*2+1)].ampdb.linlin(-80, 0, 0, 1);
-            }
-        }
-    }.defer;
-}, '/internalOutLevels');
-
-oscRemoveFunc = {
-	// Remove all OSC functions.
-    oscParticle.free;
-    oscSkeletonNew.free;
-    oscSkeletonLost.free;
-    oscSkeletonJoint.free;
-    oscGroupTree.free;
-    oscInternalInLevels.free;
-    oscInternalOutLevels.free;
-};
 
 
 // PHYSICS
@@ -2011,14 +2849,65 @@ particles = IdentityDictionary.new;
 springs = IdentityDictionary.new;
 
 // Star is in the center.
-star = initParticle.(world.starMass, world.width/2, world.height/2, world.depth/2);
+star = initParticle.((
+    mass: world.starMass, x: world.width/2, y: world.height/2, z: world.depth/2
+));
 applyAttractions.(star, world.mutualAttraction);
+// // XXX 3d
+// registerCube.(star);
+
+// XXX 3d
+// // 3-D CANVAS
+// //
+// canvas = Canvas3D(viewWorld, Rect(0, 0, world[\width], world[\height]))
+// .background_(Color.black)
+// .scale_(200)
+// .perspective_(0.2)
+// .distance_(1);
+// canvas.add(frame = Canvas3DItem.cube
+//     .color_(Color.white)
+//     .width_(0.5)
+// );
 
 // Animate!
 viewWorld.animate = true;
 
+// // XXX 3d
+// if (world[\draw] == \cube) {
+//     canvas.animate = true;
+//     canvas.animate(40) { |t|
+//         canvas.transforms = [ // spin the canvas
+//             Canvas3D.mRotateY(t*transRate*1.0 % 2pi),
+//             Canvas3D.mRotateX(t*transRate*1.5 % 2pi)
+//         ];
+//         frame.transforms = canvas.transforms;
+//         cubes.keysValuesDo { |particle, item|
+//             transX = particle.position.x.linlin(0, world[\width], -1, 1);
+//             transY = particle.position.y.linlin(0, world[\height], -1, 1);
+//             transZ = particle.position.z.linlin(0, world[\depth], -1, 1);
+//             if (particle == b) {transZ.postln};
+//             item.transforms = frame.transforms ++ [
+//                 Canvas3D.mRotateZ(t*transRate*5 % 2pi),
+//                 Canvas3D.mRotateX(t*transRate*2 % 2pi),
+//                 Canvas3D.mTranslate(transX, transY, transZ),
+//                 Canvas3D.mScale(transZ)
+//             ];
+//         }
+//     }
+// } {
+//     canvas.animate = true
+// };
+
+
 { // GLOBAL APP CLOCK. Resolution: 100 milliseconds (0.1 of a second)
     while {win.isClosed.not} {
+        // report nodes every now and then
+        tick = tick + 1;
+        if (tick >= 500) {
+            ~scsynth.sendMsg("/g_queryTree", 0);
+            tick = 0;
+        };
+
         if (animateSeq) {
             count = count + 1;
             shade = (count % 8) * 0.1;
@@ -2042,8 +2931,11 @@ viewWorld.animate = true;
             waitNextEvent = waitNextEvent - 0.1;
             if ((waitNextEvent <= 0.0) && (waitNextEvent > -0.2)) {
                 ~sendMessage.('/action', [\event, 1]);
-            }
+            };
         };
+
+        viewConn.refresh;
+
         0.1.wait;
     }
 }.fork(AppClock);
@@ -2069,16 +2961,28 @@ MIDIIn.connectAll;
     }
 };
 
-clean = {
-	// clean everything on exit
-    oscRemoveFunc.();
+cleanExit = {
+    // clean world from particles
     removeAll.();
+    // remove OSC functions
+    oscParticle.free;
+    oscPhysics.free;
+    oscAction.free;
+    oscSkeletonNew.free;
+    oscSkeletonLost.free;
+    oscSkeletonJoint.free;
+    oscGroupTree.free;
+    // stop meter view explicitly to remove synths for internal levels
+    meterView.stop;
+    // close all windows
     win.close;
-    MIDIIn.disconnectAll;
+    winSrv.close;
+    // disconnect MIDI
+    // MIDIIn.disconnectAll;
 };
 
 CmdPeriod.doOnce({
-    clean.();
+    cleanExit.();
 });
 
 win.front;

@@ -28,7 +28,7 @@ scales = [
     FloatArray[0, 2, 5, 7, 10], // the rest are specific to sequence's parts
     FloatArray[0, 2, 4, 8, 10],
     FloatArray[0, 1, 4, 5, 7, 11],
-    FloatArray[0, 4, 5, 7, 11 ] //["c# 3", "d 3", "f# 3", "g 3", "a 3"].
+    FloatArray[0, 4, 5, 7, 11 ] //["c# 3", "d 3", "f# 3", "g 3", "a 3"].notemidi
 ];
 scales.do { |c, i|
     ~sequence.scales.add(Buffer.sendCollection(~scsynth, c));

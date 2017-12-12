@@ -404,7 +404,6 @@ fileNames = { |paths|
 miscParams = Dictionary.new;
 
 
-
 // Updates value of a GUI element.
 // If `action` is true, .valueAction is performed otherwise .value.
 updateGuiElement = { |parm, val, action=false|
@@ -2764,6 +2763,32 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
             world[\draw] = msg[2].asSymbol;
             // canvas.visible = (msg[2].asSymbol == \cube) // XXX 3d
         },
+        \fullscreen, {
+            // bookmark
+            if (msg[2].booleanValue) {
+                {
+                    viewLeft.bounds = win.bounds;
+                    viewWorld.bounds = viewLeft.bounds;
+                    // viewBottom.bounds = Rect(0, win.bounds.height, win.bounds.width, 0);
+                    // viewRight.bounds = Rect(win.bounds.width, 0, 0, win.bounds.height);
+                    win.fullScreen
+                }.defer
+            } {
+                {
+                    win.endFullScreen;
+                }.defer
+                // viewLeft = compViewFlow.(win, scaleW: (world.width+8)/win.bounds.width);
+                // viewLeft.bounds = Rect(0, 0, win.bounds.width, 0); (win, scaleW: (world.width+8)/win.bounds.width);
+                // viewTop = compViewFlow.(viewLeft, scaleH:0.001); // placeholder
+                // viewWorld = UserView(viewLeft, world.width@world.height);
+                // viewBottom = compViewFlow.(viewLeft,
+                //     scaleH:(win.bounds.height-(viewWorld.bounds.height+viewTop.bounds.height))/win.bounds.height
+                // );
+                // viewRight = compViewFlow.(win,
+                //     scaleW:(win.bounds.width-viewLeft.bounds.width)/win.bounds.width,
+                // );
+            }
+        },
         // XXX - finish it
         \srv_msg, {
             msg[2].switch(
@@ -2978,7 +3003,7 @@ cleanExit = {
     win.close;
     winSrv.close;
     // disconnect MIDI
-    // MIDIIn.disconnectAll;
+    MIDIIn.disconnectAll;
 };
 
 CmdPeriod.doOnce({

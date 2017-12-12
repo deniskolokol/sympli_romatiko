@@ -47,7 +47,6 @@ var confFile = currentDir +/+ "conf/envi.conf";
 if (isTest) {
     confFile = confFile.replace("envi.conf", "envi_test.conf");
 };
-
 // ENVIRONMENT
 //
 "Loading environment...".postln;

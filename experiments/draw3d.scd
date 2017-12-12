@@ -1,7 +1,29 @@
 (
-var width=500, height=500, depth=500, rate=0.005;
-var win, color, canvas, item, frame;
-var physics, mouse, b, c, world=( );
+// the world is a cube stretched to a screen height
+var worldSize = Window.screenBounds.height;
+var width=Window.screenBounds.width;
+var height=Window.screenBounds.height;
+var depth=Window.screenBounds.height;
+var rate=0.005;
+var color, canvas, item, frame, clean;
+
+// Pretty pint hierarchical structure.
+var prettyPrintDict = { |data, output="", level=0|
+    var report = { |k, v|
+        format("%%: %\n", "".catList(Array.fill(level, "    ")), k, v ? '');
+    };
+    data.keysValuesDo { |key, val|
+        if ([Dictionary, Event].includes(val.class)) {
+            output = prettyPrintDict.(val, output ++ report.(key), level+1)
+        } {
+            output = output ++ report.(key, val);
+        }
+    };
+    output
+};
+var world=(
+    particles: ( ),
+);
 var transX, transY, transZ;
 var handleBoundaryCollisions = { |p|
 	if(p.position.x<0 or:{p.position.x>width}, {
@@ -20,12 +42,12 @@ var handleBoundaryCollisions = { |p|
     );
 };
 
-win = Window("3d canvas demo", Rect(128, 64, width, height), false);
-physics = TraerParticleSystem.new;
-mouse = physics.makeParticle(1, 0, 0, 0);
+var win = Window("3d canvas demo", Window.screenBounds.width@Window.screenBounds.height, false);
+var physics = TraerParticleSystem.new;
+var mouse = physics.makeParticle(1, 0, 0, 0);
+var b = physics.makeParticle(1, width.rand, height.rand, depth.rand);
+var c = physics.makeParticle(1, width.rand, height.rand, depth.rand);
 mouse.makeFixed;
-b = physics.makeParticle(1, width.rand, height.rand, depth.rand);
-c = physics.makeParticle(1, width.rand, height.rand, depth.rand);
 physics.makeAttraction(mouse, b, 10000, 10);
 physics.makeAttraction(mouse, c, 10000, 10);
 physics.makeAttraction(b, c, -10000, 5);
@@ -36,6 +58,7 @@ canvas = Canvas3D(win, Rect(0, 0, width, height))
 .perspective_(0.2)
 .distance_(1);
 
+// frame is The World
 canvas.add(frame = Canvas3DItem.cube
     .color_(Color.white)
     .width_(0.5)
@@ -48,10 +71,8 @@ physics.particles.do { |particle|
     .width_(0.5)
     .transform(Canvas3D.mScale(0.1));
     canvas.add(item);
-    world.put(particle, item);
+    world.particles.put(particle, item);
 };
-
-world.postln;
 
 canvas.animate(40) { |t|
 	handleBoundaryCollisions.value(b);
@@ -63,11 +84,11 @@ canvas.animate(40) { |t|
         Canvas3D.mRotateX(t*rate*1.5 % 2pi)
     ];
     frame.transforms = canvas.transforms;
-    world.keysValuesDo { |particle, item|
+    world.particles.keysValuesDo { |particle, item|
         transX = particle.position.x.linlin(0, width, -1, 1);
         transY = particle.position.y.linlin(0, height, -1, 1);
         transZ = particle.position.z.linlin(0, depth, -1, 1);
-        if (particle == b) {transZ.postln};
+        // if (particle == b) {transZ.postln}; // XXX
         item.transforms = frame.transforms ++ [
             Canvas3D.mRotateZ(t*rate*5 % 2pi),
             Canvas3D.mRotateX(t*rate*2 % 2pi),
@@ -97,10 +118,46 @@ canvas.mouseMoveAction = canvas.mouseDownAction;
 canvas.animate = true;
 win.front;
 
+win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
+    [char, modifiers, unicode, keycode].postln;
+    case
+    { keycode == 8 } { // C
+        // ^C - exit
+        if (modifiers == 262144) {
+            clean.();
+        }
+    }
+    { keycode == 3 } { // F
+        // ^F - toggle full screen
+        if (modifiers == 262144) {
+            if (win.bounds == Window.screenBounds) {
+                win.endFullScreen
+            } {
+                win.fullScreen
+            }
+        }
+    }
+    { keycode == 53 } { // ESC
+        // ESC - end full screen
+        if ([0, 256].includes(modifiers)) {
+            if (win.bounds == Window.screenBounds) {
+                win.endFullScreen
+            }
+        }
+    }
+    { keycode == 34 } { // I
+        // ^I - info
+        if (modifiers == 262144) {
+            prettyPrintDict.(world)
+        }
+    }
+};
+
+clean = {
+    win.close;
+};
+
 CmdPeriod.doOnce({
-    world.keysValuesDo { |k, v|
-        postf("% (%): % (%)\n", k, k.class, v, v.class)
-    };
-    win.close
+    clean.();
 });
 )

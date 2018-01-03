@@ -839,7 +839,7 @@ var makeSynthDefADSR = { |name, outCodeFunc|
                 ),
                 5666 // zero or negative cutoff means constant
             ]
-        ).poll;
+        );
         rq = SelectX.kr(BinaryOpUGen('==', cutoff, 5666) * 2,
             [ // If cutoff is variable, RQ depends on momentum.
                 momentum.linlin(0, 1, 0.5, 0.1),

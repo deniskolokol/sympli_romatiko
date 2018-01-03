@@ -155,7 +155,7 @@ srEnv = Environment.make {
         \lfreq -> ControlSpec(0.01, 100, \lin, 0.01, 0.5, units: " Hz"), // dummy, 0.01..1.000 | 1..100
         \min -> ControlSpec(-1, 0.99, \lin, 0.01, -1),
         \max -> ControlSpec(-0.99,  1, \lin, 0.01, 1),
-        \amp -> ControlSpec(0, 1, \amp, 0, 1),
+        \amp -> ControlSpec(0, 1, \amp, 0, 0),
         \room -> ControlSpec(0.0,  1.0, \lin, 0.01, 0.5),
         \damp -> ControlSpec(0.0,  1.0, \lin, 0.01, 0.5),
         \delaytime -> ControlSpec(0.001,  2.0, -3, 0.001, 0.2),

@@ -501,19 +501,22 @@ guideBuff = Buffer.readChannel(~scsynth,
         //
         // A new particle's age spans over to the next object birth (no gaps).
         // The lighter the object the faster it dies, but demography is denser.
-        var key, next, synth, x, y, z, mass, age, node;
+        var key, next, name, synth, mass, age;
+        var params = (
+            komar: [\cutoff, 12000, \rq, 0.7, \amp, 0.05],
+            humm: [\bufnum, ~sequence.scales[4].bufnum, \amp, 0.9],
+            lowe: [\amp, 0.05]
+        );
         loop {
             key = msetObjSeq.dict.keys.asArray.sort.wchoose([0.1, 10, 1].normalizeSum);
             dictObjSeq[key.asInteger][0].choose.do{ |i|
                 next = msetObjSeq.next(key);
                 age = next * (1 + (1/(next.pow(0.33))));
                 mass = next.sqrt.clip(0.1, 0.3);
+                name = ["humm", "komar"][i % 2]; // alternate
                 synth = (
-                    name: ["humm", "komar"][i % 2], // alternate
-                    params:[
-                        \attack, rrand(1, 3),
-                        \bufnum, ~sequence.scales[4].bufnum
-                    ]
+                    name: name,
+                    params: [\attack, rrand(1, 3)] ++ params[name.asSymbol]
                 );
                 ~sendParticle.(
                     synth: synth,
@@ -521,8 +524,10 @@ guideBuff = Buffer.readChannel(~scsynth,
                 );
 
                 if (0.7.coin) {
+                    name = ["lowe", "komar", "humm"].wchoose([0.6, 0.2, 0.2]);
                     synth = (
-                        name: ["lowe", "komar", "humm"].wchoose([0.6, 0.2, 0.2])
+                        name: name,
+                        params: [\attack, rrand(1, 3)] ++ params[name.asSymbol]
                     );
                     ~sendParticle.(
                         synth: synth,

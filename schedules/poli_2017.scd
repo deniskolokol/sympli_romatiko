@@ -59,11 +59,9 @@ scales.do { |c, i|
                 \springDamp, 2,
                 \maxVel, 150,
             ]
-        )
-    ],
-    5: [
+        ),
         (
-            info: "CMB: LFO \kstepno",
+            info: "LFO \kstepno, \klfno2",
             message: \lfo,
             synth: (
                 name: "kstepno",
@@ -90,6 +88,146 @@ scales.do { |c, i|
             ),
         ),
     ],
+
+    // TEST
+    2: [
+        (
+            info: "TEST",
+            message: \physics,
+            params: [
+                \drag, 0.5,
+                \springRestLen, 2,
+                \springStrength, 1,
+                \springDamp, 2,
+                \maxVel, 10,
+            ]
+        ),
+        // two high pole
+        (
+            message: \particle,
+            synth: (
+                name: "pole",
+                node: 1040,
+                params: [
+                    \attack, 1,
+                    \freq, "g 3".notemidi.midicps,
+                    \amp, 0.4,
+                ]
+            ),
+            particle: (mass: 1, spring: 1, source: \l_hand)
+        ),
+        (
+            message: \particle,
+            synth: (
+                name: "pole",
+                node: 1041,
+                params: [
+                    \attack, 1,
+                    \freq, "a 3".notemidi.midicps,
+                    \amp, 0.4,
+                ]
+            ),
+            particle: (mass: 1, spring: 1, source: \r_hand)
+        ),
+        // one bass
+        (
+            message: \particle,
+            synth: (
+                name: "bass",
+                node: 1042,
+                params: [
+                    \attack, 1,
+                    \freq, "f 3".notemidi.midicps,
+                    \amp, 0.86,
+                ]
+            ),
+            particle: (mass: 1, spring: 1, source: \l_hand)
+        ),
+        // one lowe
+        (
+            message: \particle,
+            synth: (
+                name: "lowe",
+                node: 1043,
+                params: [
+                    \attack, 1,
+                    \freq, 10900,
+                    \amp, 0.86,
+                ]
+            ),
+            particle: (mass: 1, spring: 1, source: \r_hand)
+        ),
+    ],
+    3: [
+        (
+            info: "TEST goes melo",
+            message: \n_set,
+            synth: (
+                node: 1040,
+                params: [
+                    \bufnum, ~sequence.scales[4].bufnum,
+                    \melo, 1,
+                    \lfreq, \c0,
+                ]
+            ),
+        ),
+        (
+            message: \n_set,
+            synth: (
+                node: 1041,
+                params: [
+                    \bufnum, ~sequence.scales[4].bufnum,
+                    \melo, 1,
+                    \lfreq, \c1,
+                ]
+            ),
+        ),
+        (
+            message: \n_set,
+            synth: (
+                node: 1042,
+                params: [
+                    \bufnum, ~sequence.scales[4].bufnum,
+                    \melo, 1
+                ]
+            ),
+        ),
+    ],
+    4: [
+        (
+            info: "TEST switchScaleAndOffset",
+            message: \task, name: \switchScaleAndOffset, act: 1
+        ),
+    ],
+    5: [
+        (
+            info: "TEST goes momentum controlled",
+            message: \n_set,
+            synth: (
+                node: 1040,
+                params: [\ampc, 1]
+            ),
+        ),
+        (
+            message: \n_set,
+            synth: (
+                node: 1041,
+                params: [\ampc, 1]
+            ),
+        ),
+    ],
+    6: [
+        (
+            info: "TEST remove all",
+            message: \action,  params: [\remove, \all]
+        ),
+        (
+            info: "switchScaleAndOffset STOP",
+            message: \task, name: \switchScaleAndOffset, act: 0
+        ),
+    ],
+    // TEST end
+
     10: [
         (
             info: "AIRY: 2 heavy <probe>\n wait 120s",
@@ -245,12 +383,12 @@ scales.do { |c, i|
         ),
         (
             message: \particle,
-            synth: (name: "komar", params: [\freq, 53.39, \cutoff, 11932.07, \rq, 0.07]),
+            synth: (name: "komar", params: [\freq, 53.39, \cutoff, 11932.07, \rq, 0.07, \amp, 0.25]),
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand) // radio must be on r_hand!
         ),
         (
             message: \particle,
-            synth: (name: "komar", params: [\freq, 291.16]),
+            synth: (name: "komar", params: [\freq, 291.16, \amp, 0.25]),
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand) // radio must be on r_hand!
         ),
     ],
@@ -490,8 +628,12 @@ scales.do { |c, i|
                     \freq, 52.08,
                     \min, -0.83,
                     \max, 0.87,
-                    \cutoff, 19500,
-                    \rq, 0.25
+                    \cutoff, \c1, // 19500,
+                    \rq, 0.25,
+                    \maxdelaytime, 0.25,
+                    \delaytime, 0.15,
+                    \decaytime, 1.5,
+                    \amp, 0.2
                 ]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
@@ -508,8 +650,12 @@ scales.do { |c, i|
                     \freq, 252.08,
                     \min, -0.83,
                     \max, 0.87,
-                    \cutoff, 19500,
-                    \rq, 0.25
+                    \cutoff, \c1, // 19500,
+                    \rq, 0.25,
+                    \maxdelaytime, 0.25,
+                    \delaytime, 0.15,
+                    \decaytime, \c4,
+                    \amp, 0.2
                 ]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
@@ -530,8 +676,10 @@ scales.do { |c, i|
                     \attack, 10,
                     \release, 10,
                     \freq, 282.56,
-                    \cutoff, 18500,
-                    \rq, 0.35
+                    \cutoff, \c1, // 18500,
+                    \rq, 0.35,
+                    \decaytime, \c4,
+                    \amp, 0.12
                 ]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
@@ -546,7 +694,8 @@ scales.do { |c, i|
                     \release, 10,
                     \freq, 382.56,
                     \cutoff, 18500,
-                    \rq, 0.35
+                    \rq, 0.35,
+                    \amp, 0.12
                 ]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
@@ -566,7 +715,7 @@ scales.do { |c, i|
             synth: (
                 node: 1161,
                 params: [
-                    \freq, "d 2".notemidi.midicps,
+                    \freq, "d 3".notemidi.midicps,
                     \bufnum, ~sequence.scales[3].bufnum,
                     \melo, 1,
                 ]
@@ -577,7 +726,7 @@ scales.do { |c, i|
             synth: (
                 node: 1162,
                 params: [
-                    \freq, "c#2".notemidi.midicps,
+                    \freq, "c#3".notemidi.midicps,
                     \bufnum, ~sequence.scales[3].bufnum,
                     \melo, 1,
                 ]
@@ -882,6 +1031,24 @@ scales.do { |c, i|
 // Tasks dictionary.
 //
 ~sequence.tasks = (
+    switchScaleAndOffset: Task({
+        var sca = ~sequence.scales[3..4];
+        var offset = [
+            "e 1", "g 1", "a# 1", "c# 1",
+            "a# 1", "e 1", "g 1", "a 1"
+        ];
+        var note;
+        inf.do{ |i|
+            postf("DEBUG scale %\n", scales[i % sca.size]);
+            ~scsynth.sendMsg("/n_set", nil, \bufnum, sca[i % sca.size].bufnum);
+            (6..9).choose.wait;
+
+            note = offset[i % offset.size].notemidi + (12* (1..4).choose);
+            postf("DEBUG note % (%:%)\n", note.midinote, note, note.midicps);
+            ~scsynth.sendMsg("/n_set", nil, \freq, note.midicps);
+            (1..15).choose.wait;
+        }
+    }),
     randomCMBMelo: Task({
         var x, y, z, synthName = ["cmb", "melo"];
         inf.do { |j|

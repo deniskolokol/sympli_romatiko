@@ -969,7 +969,6 @@ miscParams[\reset] = (
     })
 );
 miscParams[\skelsimul] = (
-    midinote: 70,
     gui: buttonCheckbox.(panel,
         "skel", bgColor:Color.black, scaleW:0.19, scaleH:0.7
     ).action_({ |bt|

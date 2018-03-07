@@ -430,8 +430,8 @@ var makeSynthDefADSR = { |name, outCodeFunc|
         var raw, signal;
         var rate=1, delayL, delayR, pos=0.0, pulse, mix, n=8;
         rate = az.linlin(0, 1, 2, 0.2);
-        delayL = az.linlin(0, 1, 0.01, 0.05);
-        delayR = ax.linlin(0, 1, 0.01, 0.05);
+        // delayL = az.linlin(0, 1, 0.01, 0.05);
+        // delayR = ax.linlin(0, 1, 0.01, 0.05);
         pulse = LFNoise0.kr(rrand(0.2,1.0), 1,1).squared * rate;
         mix = Klank.ar(
             `[Array.fill(n, {exprand(1.0,20.0)}),
@@ -638,7 +638,7 @@ var makeSynthDefADSR = { |name, outCodeFunc|
                 mul: momentum.scurve
             )
         );
-        var signal = Mix.ar(raw) * amp * 0.5;
+        var signal = Mix.ar(raw) * amp;
         signal = RLPF.ar(RLPF.ar(signal, cutoff, rq), cutoff, rq); // XXX profile this contruct: RLPF(RLPF) w/same params
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
@@ -734,13 +734,14 @@ var makeSynthDefADSR = { |name, outCodeFunc|
 
     // "POLE - POLyphonic Electronic synth"
     // XXX - former \sr__e__growl
+    // XXX - add flag to switch to continuous \amp vs. controlled by momentum
     SynthDef("pole__" ++ name, {
         arg bufnum=0, in=30, out=0, trigID=80, freq=73, amp=1.0, dur=0.1,
             gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
             ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.1,
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
             depth=5, elevClip=0.01pi,
-            voices=10, lfreq=1.5, melo=0;
+            voices=10, lfreq=1.5, melo=0, ampc=0;
         var rq = momentum.lincurve(0, 1, 0.6, 0.01, 4);
         var mul = momentum.lincurve(0, 1, 400, 2000, 4);
         var add = momentum.lincurve(0, 1, 600, 10000, 4);
@@ -749,6 +750,7 @@ var makeSynthDefADSR = { |name, outCodeFunc|
         var lag = momentum.lincurve(0, 1, 0.5, 0.05, -4);
         var detune = momentum.lincurve(0, 1, 0.4, 0.5, 4);
         var tones = 20;
+        var ampli;
         var note = SelectX.kr(BinaryOpUGen('>', melo, 0) * 2,
             [
                 // Zero or negative \melo means constant value
@@ -777,7 +779,16 @@ var makeSynthDefADSR = { |name, outCodeFunc|
         );
         signal = MidEQ.ar(signal, [200, 1400], 0.7, 8);
         signal = RLPF.ar(RLPF.ar(signal, cutoff, rq), cutoff, rq);
-        signal = Limiter.ar(Mix.ar(signal), amp);
+        ampli = SelectX.kr(BinaryOpUGen('>', ampc, 0) * 2,
+            [
+                // Zero or negative \ampc means constant value
+                amp,
+
+                // Positive \ampc switches amp control to momentum
+                (amp * momentum).scurve
+            ]
+        );
+        signal = Limiter.ar(Mix.ar(signal), ampli);
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
             gate, attack, sustain, release, ca, cr, depth, elevClip

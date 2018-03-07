@@ -158,6 +158,7 @@ srEnv = Environment.make {
         \amp -> ControlSpec(0, 1, \amp, 0, 0),
         \room -> ControlSpec(0.0,  1.0, \lin, 0.01, 0.5),
         \damp -> ControlSpec(0.0,  1.0, \lin, 0.01, 0.5),
+        \maxdelaytime -> ControlSpec(0.001,  2.0, -3, 0.001, 0.2),
         \delaytime -> ControlSpec(0.001,  2.0, -3, 0.001, 0.2),
         \decaytime -> ControlSpec(-5,  5, \lin, 0.1, 1),
         \mul -> \unipolar.asSpec, // dummy
@@ -185,7 +186,7 @@ srEnv = Environment.make {
         \moog: ( \type: \gen ),
         \lowe: ( \type: \gen ),
         \wind: ( \type: \gen, \params: [\freq, \detune, \delay, \cutoff, \decaytime, \rq, \rate, \amp] ),
-        \komar: (\type: \gen, \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
+        \komar: (\type: \gen, \params: [\freq, \maxdelaytime, \cutoff, \delaytime, \rq, \decaytime, \detune] ),
         \neural: ( \type: \gen ),
         \entro: ( \type: \gen, \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
         \humm: ( \type: \gen ),

@@ -88,147 +88,7 @@ scales.do { |c, i|
             ),
         ),
     ],
-
-    // TEST
-    2: [
-        (
-            info: "TEST",
-            message: \physics,
-            params: [
-                \drag, 0.5,
-                \springRestLen, 2,
-                \springStrength, 1,
-                \springDamp, 2,
-                \maxVel, 10,
-            ]
-        ),
-        // two high pole
-        (
-            message: \particle,
-            synth: (
-                name: "pole",
-                node: 1040,
-                params: [
-                    \attack, 1,
-                    \freq, "g 3".notemidi.midicps,
-                    \amp, 0.4,
-                ]
-            ),
-            particle: (mass: 1, spring: 1, source: \l_hand)
-        ),
-        (
-            message: \particle,
-            synth: (
-                name: "pole",
-                node: 1041,
-                params: [
-                    \attack, 1,
-                    \freq, "a 3".notemidi.midicps,
-                    \amp, 0.4,
-                ]
-            ),
-            particle: (mass: 1, spring: 1, source: \r_hand)
-        ),
-        // one bass
-        (
-            message: \particle,
-            synth: (
-                name: "bass",
-                node: 1042,
-                params: [
-                    \attack, 1,
-                    \freq, "f 3".notemidi.midicps,
-                    \amp, 0.86,
-                ]
-            ),
-            particle: (mass: 1, spring: 1, source: \l_hand)
-        ),
-        // one lowe
-        (
-            message: \particle,
-            synth: (
-                name: "lowe",
-                node: 1043,
-                params: [
-                    \attack, 1,
-                    \freq, 10900,
-                    \amp, 0.86,
-                ]
-            ),
-            particle: (mass: 1, spring: 1, source: \r_hand)
-        ),
-    ],
-    3: [
-        (
-            info: "TEST goes melo",
-            message: \n_set,
-            synth: (
-                node: 1040,
-                params: [
-                    \bufnum, ~sequence.scales[4].bufnum,
-                    \melo, 1,
-                    \lfreq, \c0,
-                ]
-            ),
-        ),
-        (
-            message: \n_set,
-            synth: (
-                node: 1041,
-                params: [
-                    \bufnum, ~sequence.scales[4].bufnum,
-                    \melo, 1,
-                    \lfreq, \c1,
-                ]
-            ),
-        ),
-        (
-            message: \n_set,
-            synth: (
-                node: 1042,
-                params: [
-                    \bufnum, ~sequence.scales[4].bufnum,
-                    \melo, 1
-                ]
-            ),
-        ),
-    ],
-    4: [
-        (
-            info: "TEST switchScaleAndOffset",
-            message: \task, name: \switchScaleAndOffset, act: 1
-        ),
-    ],
-    5: [
-        (
-            info: "TEST goes momentum controlled",
-            message: \n_set,
-            synth: (
-                node: 1040,
-                params: [\ampc, 1]
-            ),
-        ),
-        (
-            message: \n_set,
-            synth: (
-                node: 1041,
-                params: [\ampc, 1]
-            ),
-        ),
-    ],
-    6: [
-        (
-            info: "TEST remove all",
-            message: \action,  params: [\remove, \all]
-        ),
-        (
-            info: "switchScaleAndOffset STOP",
-            message: \task, name: \switchScaleAndOffset, act: 0
-        ),
-    ],
-    // TEST end
-
-    10: [
+    1: [
         (
             info: "AIRY: 2 heavy <probe>\n wait 120s",
             message: \particle,
@@ -263,14 +123,14 @@ scales.do { |c, i|
             message: \task, name: \switchScale, act: 1
         )
     ],
-    15: [
+    2: [
         (
             info: "AIRY: Remove drag force\n wait 120s",
             wait: 120,
             message: \physics, params: [\drag, 0.0]
         ),
     ],
-    20: [
+    3: [
         (
             info: "AIRY: + 2 heavy <cmb>",
             message: \particle,
@@ -283,7 +143,7 @@ scales.do { |c, i|
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
     ],
-    30: [
+    4: [
         (
             message: \action,  params: [\remove, \all]
         ),
@@ -317,7 +177,7 @@ scales.do { |c, i|
             message: \physics, params: [\starMass, 2.8]
         ),
     ],
-    35: [
+    5: [
         (
             info: "AIRY: 2 heavy <melo> controlled",
             message: \action,  params: [\remove, \all]
@@ -352,13 +212,13 @@ scales.do { |c, i|
             message: \physics, params: [\drag, 0.5, \starMass, 1]
         ),
     ],
-    36: [
+    6: [
         (
             info: "TRANS: Graph mode",
             message: \action,  params: [\draw, \graph]
         )
     ],
-    40: [
+    7: [
         (
             info: "BREAKS",
             message: \action,  params: [\remove, \all]
@@ -392,7 +252,7 @@ scales.do { |c, i|
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand) // radio must be on r_hand!
         ),
     ],
-    42: [
+    8: [
         (
             info: "BREAKS",
             message: \action,  params: [\remove, \all]
@@ -409,7 +269,7 @@ scales.do { |c, i|
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         ),
     ],
-    50: [
+    20: [
         (message: \action,  params: [\remove, \all],
             info: "PART II: rm all, init"),
         (message: \physics, params: [
@@ -458,7 +318,7 @@ scales.do { |c, i|
             ),
         ),
     ],
-    51: [
+    21: [
         (
             info: "DARK: 2 heavy <pole>",
             message: \particle,
@@ -507,16 +367,7 @@ scales.do { |c, i|
             )
         ),
     ],
-
-    // // XXX 3d
-    // 51: [
-    //     (
-    //         info: "Cube mode",
-    //         message: \action,  params: [\draw, \cube]
-    //     ),
-    // ],
-
-    55: [
+    22: [
         (
             info: "DARK: <pole> goes \melo",
             message: \n_set,
@@ -556,7 +407,7 @@ scales.do { |c, i|
             particle: (age: inf, mass: 0.9, spring: 1, source: \r_hand)
         ),
     ],
-    60: [
+    23: [
         (
             info: "TRAIN: heavy <bass>",
             message: \particle,
@@ -595,7 +446,7 @@ scales.do { |c, i|
             ),
         ),
     ],
-    63: [
+    24: [
         (
             info: "TRAIN: <wind> goes \LFNoised",
             message: \n_set,
@@ -605,162 +456,310 @@ scales.do { |c, i|
             ),
         ),
     ],
-    64: [
+
+
+
+    // TEST
+    30: [
         (
-            info: "TRAIN: remove <pole>",
-            message: \action, params: [\remove, 1100],
-        ),
-        (
-            message: \action, params: [\remove, 1101],
-        ),
-    ],
-    65: [
-        (
-            info: "TRAIN: 2 heavy <komar> (lower)",
-            message: \particle,
-            synth: (
-                name: "komar",
-                node: 1161,
-                params: [
-                    \attack, 0.5,
-                    \release, 10,
-                    \amp, 0.7,
-                    \freq, 52.08,
-                    \min, -0.83,
-                    \max, 0.87,
-                    \cutoff, \c1, // 19500,
-                    \rq, 0.25,
-                    \maxdelaytime, 0.25,
-                    \delaytime, 0.15,
-                    \decaytime, 1.5,
-                    \amp, 0.2
-                ]
-            ),
-            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
-        ),
-        (
-            message: \particle,
-            synth: (
-                name: "komar",
-                node: 1162,
-                params: [
-                    \attack, 0.5,
-                    \release, 10,
-                    \amp, 0.7,
-                    \freq, 252.08,
-                    \min, -0.83,
-                    \max, 0.87,
-                    \cutoff, \c1, // 19500,
-                    \rq, 0.25,
-                    \maxdelaytime, 0.25,
-                    \delaytime, 0.15,
-                    \decaytime, \c4,
-                    \amp, 0.2
-                ]
-            ),
-            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
-        )
-    ],
-    66: [
-        (
-            info: "Adjust spring params",
-            message: \physics, params: [\springStrength, 2, \springDamp, 0.32]
-        ),
-        (
-            info: "TRAIN: 2 heavy <komar> (higher)",
-            message: \particle,
-            synth: (
-                name: "komar",
-                node: 1163,
-                params: [
-                    \attack, 10,
-                    \release, 10,
-                    \freq, 282.56,
-                    \cutoff, \c1, // 18500,
-                    \rq, 0.35,
-                    \decaytime, \c4,
-                    \amp, 0.12
-                ]
-            ),
-            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
-        ),
-        (
-            message: \particle,
-            synth: (
-                name: "komar",
-                node: 1164,
-                params: [
-                    \attack, 10,
-                    \release, 10,
-                    \freq, 382.56,
-                    \cutoff, 18500,
-                    \rq, 0.35,
-                    \amp, 0.12
-                ]
-            ),
-            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
-        ),
-        (
-            info: "remove <bass>, <wind>",
-            message: \action, params: [\remove, 1120],
-        ),
-        (
-            message: \action, params: [\remove, 1121],
-        ),
-    ],
-    67: [
-        (
-            info: "TRAIN: <komar> go \melo",
+            info: "TEST: <pole> & <bass> fixed freq",
             message: \n_set,
             synth: (
-                node: 1161,
+                node: 1100,
                 params: [
-                    \freq, "d 3".notemidi.midicps,
-                    \bufnum, ~sequence.scales[3].bufnum,
-                    \melo, 1,
+                    \freq, "g 2".notemidi.midicps,
+                    \melo, 0,
                 ]
             ),
         ),
         (
             message: \n_set,
             synth: (
-                node: 1162,
+                node: 1101,
                 params: [
-                    \freq, "c#3".notemidi.midicps,
-                    \bufnum, ~sequence.scales[3].bufnum,
-                    \melo, 1,
+                    \freq, "a 2".notemidi.midicps,
+                    \melo, 0,
                 ]
             ),
         ),
         (
+            info: "attenuate <bass>",
             message: \n_set,
             synth: (
-                node: 1163,
-                params: [
-                    \freq, "e 3".notemidi.midicps,
-                    \bufnum, ~sequence.scales[3].bufnum,
-                    \melo, 1,
-                    \amp, 1,
-                ]
-            ),
-        ),
-        (
-            message: \n_set,
-            synth: (
-                node: 1164,
+                node: 1120,
                 params: [
                     \freq, "f 3".notemidi.midicps,
-                    \bufnum, ~sequence.scales[3].bufnum,
-                    \melo, 1,
-                    \amp, 1,
+                    \amp, 0.86,
                 ]
             ),
         ),
         (
-            info: "Spring params to defaults",
-            message: \physics, params: [\springStrength, 1, \springDamp, \default]
+            info: "introduce <lowe>",
+            message: \particle,
+            synth: (
+                name: "lowe",
+                node: 1043,
+                params: [
+                    \attack, 1,
+                    \freq, 10900,
+                    \amp, 0.86,
+                ]
+            ),
+            particle: (mass: 1, spring: 1, source: \r_hand)
         ),
     ],
+    31: [
+        (
+            info: "TEST: go melo",
+            message: \n_set,
+            synth: (
+                node: 1100,
+                params: [
+                    \bufnum, ~sequence.scales[4].bufnum,
+                    \melo, 1,
+                    \lfreq, \c0,
+                ]
+            ),
+        ),
+        (
+            message: \n_set,
+            synth: (
+                node: 1101,
+                params: [
+                    \bufnum, ~sequence.scales[4].bufnum,
+                    \melo, 1,
+                    \lfreq, \c1,
+                ]
+            ),
+        ),
+        (
+            message: \n_set,
+            synth: (
+                node: 1120,
+                params: [
+                    \bufnum, ~sequence.scales[4].bufnum,
+                    \melo, 1
+                ]
+            ),
+        ),
+        (
+            info: "mute <wind>",
+            message: \n_set,
+            synth: (
+                node: 1121,
+                params: [ \amp, 0]
+            ),
+        ),
+        (
+            info: "TRAIN: remove <lowe>",
+            message: \action, params: [\remove, 1043],
+        ),
+    ],
+    32: [
+        (
+            info: "TEST switchScaleAndOffset",
+            message: \task, name: \switchScaleAndOffset, act: 1
+        ),
+    ],
+    33: [
+        (
+            info: "TEST goes momentum controlled",
+            message: \n_set,
+            synth: (
+                node: 1100,
+                params: [\ampc, 1]
+            ),
+        ),
+        (
+            message: \n_set,
+            synth: (
+                node: 1101,
+                params: [\ampc, 1]
+            ),
+        ),
+        (
+            info: "un-mute <wind>",
+            message: \n_set,
+            synth: (
+                node: 1121,
+                params: [\amp, 0.5, \melo, 0]
+            ),
+        ),
+    ],
+    34: [
+        (
+            info: "TEST remove all",
+            message: \action,  params: [\remove, \all]
+        ),
+        (
+            info: "switchScaleAndOffset STOP",
+            message: \task, name: \switchScaleAndOffset, act: 0
+        ),
+    ],
+    // TEST end
+
+
+    // // XXX: OLD - remove after test
+    // 64: [
+    //     (
+    //         info: "TRAIN: remove <pole>",
+    //         message: \action, params: [\remove, 1100],
+    //     ),
+    //     (
+    //         message: \action, params: [\remove, 1101],
+    //     ),
+    // ],
+    // 65: [
+    //     (
+    //         info: "TRAIN: 2 heavy <komar> (lower)",
+    //         message: \particle,
+    //         synth: (
+    //             name: "komar",
+    //             node: 1161,
+    //             params: [
+    //                 \attack, 0.5,
+    //                 \release, 10,
+    //                 \amp, 0.7,
+    //                 \freq, 52.08,
+    //                 \min, -0.83,
+    //                 \max, 0.87,
+    //                 \cutoff, \c1, // 19500,
+    //                 \rq, 0.25,
+    //                 \maxdelaytime, 0.25,
+    //                 \delaytime, 0.15,
+    //                 \decaytime, 1.5,
+    //                 \amp, 0.2
+    //             ]
+    //         ),
+    //         particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+    //     ),
+    //     (
+    //         message: \particle,
+    //         synth: (
+    //             name: "komar",
+    //             node: 1162,
+    //             params: [
+    //                 \attack, 0.5,
+    //                 \release, 10,
+    //                 \amp, 0.7,
+    //                 \freq, 252.08,
+    //                 \min, -0.83,
+    //                 \max, 0.87,
+    //                 \cutoff, \c1, // 19500,
+    //                 \rq, 0.25,
+    //                 \maxdelaytime, 0.25,
+    //                 \delaytime, 0.15,
+    //                 \decaytime, \c4,
+    //                 \amp, 0.2
+    //             ]
+    //         ),
+    //         particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+    //     )
+    // ],
+    // 66: [
+    //     (
+    //         info: "Adjust spring params",
+    //         message: \physics, params: [\springStrength, 2, \springDamp, 0.32]
+    //     ),
+    //     (
+    //         info: "TRAIN: 2 heavy <komar> (higher)",
+    //         message: \particle,
+    //         synth: (
+    //             name: "komar",
+    //             node: 1163,
+    //             params: [
+    //                 \attack, 10,
+    //                 \release, 10,
+    //                 \freq, 282.56,
+    //                 \cutoff, \c1, // 18500,
+    //                 \rq, 0.35,
+    //                 \decaytime, \c4,
+    //                 \amp, 0.12
+    //             ]
+    //         ),
+    //         particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+    //     ),
+    //     (
+    //         message: \particle,
+    //         synth: (
+    //             name: "komar",
+    //             node: 1164,
+    //             params: [
+    //                 \attack, 10,
+    //                 \release, 10,
+    //                 \freq, 382.56,
+    //                 \cutoff, 18500,
+    //                 \rq, 0.35,
+    //                 \amp, 0.12
+    //             ]
+    //         ),
+    //         particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+    //     ),
+    //     (
+    //         info: "remove <bass>, <wind>",
+    //         message: \action, params: [\remove, 1120],
+    //     ),
+    //     (
+    //         message: \action, params: [\remove, 1121],
+    //     ),
+    // ],
+    // 67: [
+    //     (
+    //         info: "TRAIN: <komar> go \melo",
+    //         message: \n_set,
+    //         synth: (
+    //             node: 1161,
+    //             params: [
+    //                 \freq, "d 3".notemidi.midicps,
+    //                 \bufnum, ~sequence.scales[3].bufnum,
+    //                 \melo, 1,
+    //             ]
+    //         ),
+    //     ),
+    //     (
+    //         message: \n_set,
+    //         synth: (
+    //             node: 1162,
+    //             params: [
+    //                 \freq, "c#3".notemidi.midicps,
+    //                 \bufnum, ~sequence.scales[3].bufnum,
+    //                 \melo, 1,
+    //             ]
+    //         ),
+    //     ),
+    //     (
+    //         message: \n_set,
+    //         synth: (
+    //             node: 1163,
+    //             params: [
+    //                 \freq, "e 3".notemidi.midicps,
+    //                 \bufnum, ~sequence.scales[3].bufnum,
+    //                 \melo, 1,
+    //                 \amp, 1,
+    //             ]
+    //         ),
+    //     ),
+    //     (
+    //         message: \n_set,
+    //         synth: (
+    //             node: 1164,
+    //             params: [
+    //                 \freq, "f 3".notemidi.midicps,
+    //                 \bufnum, ~sequence.scales[3].bufnum,
+    //                 \melo, 1,
+    //                 \amp, 1,
+    //             ]
+    //         ),
+    //     ),
+    //     (
+    //         info: "Spring params to defaults",
+    //         message: \physics, params: [\springStrength, 1, \springDamp, \default]
+    //     ),
+    // ],
+    // // XXX: OLD - remove after test: end
+
+
+
     70: [
         (
             info: "NEURO: 2 heavy <neural>, heavy <bass>",
@@ -1043,7 +1042,7 @@ scales.do { |c, i|
             ~scsynth.sendMsg("/n_set", nil, \bufnum, sca[i % sca.size].bufnum);
             (6..9).choose.wait;
 
-            note = offset[i % offset.size].notemidi + (12* (1..4).choose);
+            note = offset[i % offset.size].notemidi + (12* (0..3).choose);
             postf("DEBUG note % (%:%)\n", note.midinote, note, note.midicps);
             ~scsynth.sendMsg("/n_set", nil, \freq, note.midicps);
             (1..15).choose.wait;

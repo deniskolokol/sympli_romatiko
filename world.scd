@@ -9,7 +9,7 @@ var oscParticle, oscPhysics, oscAction,
     oscSkeletonJoint, oscSkeletonNew, oscSkeletonLost,
     oscGroupTree, reportOSC, reportEvent;
 var drawCalibration, drawSkel, drawSkelJoints, drawSkelParticle,
-    drawCube, drawGraph, drawStrob;
+    drawGraph, drawStrob;
 var initParticle, removeParticle, removeAll,
     registerParticle, unregisterParticle, particleSystem,
     applyAttractions, removeAttraction, handleBoundaryCollisions,
@@ -63,18 +63,6 @@ var waitNextEvent= -1;
 var kwargs;
 var patt = Pn(Pshuf(#[0, 0, 0, 0, 0.1, 0.25, 0.5, 0.75, 1, 1], 8), inf).asStream;
 var tmp; // Warning: use this variable only in drawFunc!
-
-// // XXX 3d
-// var cubes=Dictionary.new;
-// var registerCube = { |particle|
-//     if (particle == star) { color = Color.red } { color = Color.green };
-//     item = Canvas3DItem.cube
-//     .color_(color)
-//     .width_(0.5)
-//     .transform(Canvas3D.mScale(0.1));
-//     canvas.add(item);
-//     cubes[particle] = item
-// };
 
 //
 var prettyPrintDict = { |data, output="", level=0|
@@ -1919,11 +1907,6 @@ drawSkelParticle = {
 };
 
 
-// Animation func for the basic calibration layout (top view).
-drawCube = { |view|
-
-};
-
 // Physics ticks here!
 viewWorld.drawFunc = { |view|
     // Process an event from eventPool before going on with the rest.
@@ -2107,7 +2090,6 @@ viewWorld.drawFunc = { |view|
         \skel, { drawSkel.(view) },
         \skelfull, { drawStrob.(view) },
         \graph, { drawGraph.(view, kwargs: kwargs) },
-        \cube, { drawCube.(view) }, // TODO
         { drawCalibration.(view, kwargs: kwargs) }
     );
 
@@ -2471,9 +2453,6 @@ registerParticle = { |particle, synth|
         synth: synth[\name],
         params: ~fillSynthParams.(synth, ~synths)
     ));
-
-    // // XXX 3d
-    // registerCube.(particle)
 };
 
 unregisterParticle = { |nodeId|
@@ -2504,9 +2483,6 @@ skeletonParticles = { |id, joint, x, y, z|
                 part = initParticle.((mass: world.starMass, x: x, y: y, z: z));
                 part.makeFixed;
                 skeleton[id][joint] = part;
-
-                // // XXX 3d
-                // registerCube.(part)
             };
             skeleton[id][joint].position.set(x, y, z);
             skeleton[id][\update] = Date.getDate.secStamp;
@@ -2760,7 +2736,6 @@ oscAction = OSCFunc({ |msg, time, addr, recvPort|
         },
         \draw, {
             world[\draw] = msg[2].asSymbol;
-            // canvas.visible = (msg[2].asSymbol == \cube) // XXX 3d
         },
         \fullscreen, {
             // bookmark
@@ -2877,51 +2852,9 @@ star = initParticle.((
     mass: world.starMass, x: world.width/2, y: world.height/2, z: world.depth/2
 ));
 applyAttractions.(star, world.mutualAttraction);
-// // XXX 3d
-// registerCube.(star);
-
-// XXX 3d
-// // 3-D CANVAS
-// //
-// canvas = Canvas3D(viewWorld, Rect(0, 0, world[\width], world[\height]))
-// .background_(Color.black)
-// .scale_(200)
-// .perspective_(0.2)
-// .distance_(1);
-// canvas.add(frame = Canvas3DItem.cube
-//     .color_(Color.white)
-//     .width_(0.5)
-// );
 
 // Animate!
 viewWorld.animate = true;
-
-// // XXX 3d
-// if (world[\draw] == \cube) {
-//     canvas.animate = true;
-//     canvas.animate(40) { |t|
-//         canvas.transforms = [ // spin the canvas
-//             Canvas3D.mRotateY(t*transRate*1.0 % 2pi),
-//             Canvas3D.mRotateX(t*transRate*1.5 % 2pi)
-//         ];
-//         frame.transforms = canvas.transforms;
-//         cubes.keysValuesDo { |particle, item|
-//             transX = particle.position.x.linlin(0, world[\width], -1, 1);
-//             transY = particle.position.y.linlin(0, world[\height], -1, 1);
-//             transZ = particle.position.z.linlin(0, world[\depth], -1, 1);
-//             if (particle == b) {transZ.postln};
-//             item.transforms = frame.transforms ++ [
-//                 Canvas3D.mRotateZ(t*transRate*5 % 2pi),
-//                 Canvas3D.mRotateX(t*transRate*2 % 2pi),
-//                 Canvas3D.mTranslate(transX, transY, transZ),
-//                 Canvas3D.mScale(transZ)
-//             ];
-//         }
-//     }
-// } {
-//     canvas.animate = true
-// };
-
 
 { // GLOBAL APP CLOCK. Resolution: 100 milliseconds (0.1 of a second)
     while {win.isClosed.not} {

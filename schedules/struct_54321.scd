@@ -245,27 +245,176 @@ scales.do { |c, i|
             particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
         ),
         (
-            info: "TRAIN: <wind> X <gauss> #1",
-            message: \particle,
-            synth: (
-                name: "gauss",
-                node: 1102,
-                params: [
-                    \attack, 20,
-                    \release, 1,
-                    \ca, 5,
-                    \amp, 0.5
-                ]
-            ),
-            particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
-        ),
-        (
             message: \action, params: [\remove, 1121],
         )
     ],
+    60: [
+        (
+            info: "TRAIN: remove <pole>",
+            message: \action, params: [\remove, 1100],
+        ),
+        (
+            message: \action, params: [\remove, 1101],
+        ),
+        (
+            info: "remove <bass>",
+            message: \action, params: [\remove, 1120],
+        ),
+    ],
     65: [
         (
-            info: "TRAIN: heavy <gauss> #2",
+            info: "TRAIN: 2 heavy <komar> (lower)",
+            message: \particle,
+            synth: (
+                name: "komar",
+                node: 1161,
+                params: [
+                    \attack, 20,
+                    \release, 10,
+                    \amp, 0.7,
+                    \freq, 52.08,
+                    \min, -0.83,
+                    \max, 0.87,
+                    \cutoff, \c1, // 19500,
+                    \rq, 0.25,
+                    \maxdelaytime, 0.25,
+                    \delaytime, 0.15,
+                    \decaytime, 1.5,
+                    \amp, 0.2
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+        (
+            message: \particle,
+            synth: (
+                name: "komar",
+                node: 1162,
+                params: [
+                    \attack, 20,
+                    \release, 10,
+                    \amp, 0.7,
+                    \freq, 252.08,
+                    \min, -0.83,
+                    \max, 0.87,
+                    \cutoff, \c1, // 19500,
+                    \rq, 0.25,
+                    \maxdelaytime, 0.25,
+                    \delaytime, 0.15,
+                    \decaytime, \c4,
+                    \amp, 0.2
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        )
+    ],
+    66: [
+        (
+            info: "Adjust spring params",
+            message: \physics, params: [\springStrength, 2, \springDamp, 0.32]
+        ),
+        (
+            info: "TRAIN: 2 heavy <komar> (higher)",
+            message: \particle,
+            synth: (
+                name: "komar",
+                node: 1163,
+                params: [
+                    \attack, 10,
+                    \release, 10,
+                    \freq, 282.56,
+                    \cutoff, \c1, // 18500,
+                    \rq, 0.35,
+                    \decaytime, \c4,
+                    \amp, 0.12
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
+        ),
+        (
+            message: \particle,
+            synth: (
+                name: "komar",
+                node: 1164,
+                params: [
+                    \attack, 10,
+                    \release, 10,
+                    \freq, 382.56,
+                    \cutoff, 18500,
+                    \rq, 0.35,
+                    \amp, 0.12
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
+        ),
+        (
+            info: "remove <bass>, <wind>",
+            message: \action, params: [\remove, 1120],
+        ),
+        (
+            message: \action, params: [\remove, 1121],
+        ),
+    ],
+    67: [
+        (
+            info: "TRAIN: <komar> go \melo",
+            message: \n_set,
+            synth: (
+                node: 1161,
+                params: [
+                    \freq, "d 3".notemidi.midicps,
+                    \bufnum, ~sequence.scales[3].bufnum,
+                    \melo, 1,
+                ]
+            ),
+        ),
+        (
+            message: \n_set,
+            synth: (
+                node: 1162,
+                params: [
+                    \freq, "c#3".notemidi.midicps,
+                    \bufnum, ~sequence.scales[3].bufnum,
+                    \melo, 1,
+                ]
+            ),
+        ),
+        (
+            message: \n_set,
+            synth: (
+                node: 1163,
+                params: [
+                    \freq, "e 3".notemidi.midicps,
+                    \bufnum, ~sequence.scales[3].bufnum,
+                    \melo, 1,
+                    \amp, 1,
+                ]
+            ),
+        ),
+        (
+            message: \n_set,
+            synth: (
+                node: 1164,
+                params: [
+                    \freq, "f 3".notemidi.midicps,
+                    \bufnum, ~sequence.scales[3].bufnum,
+                    \melo, 1,
+                    \amp, 1,
+                ]
+            ),
+        ),
+        (
+            info: "Spring params to defaults",
+            message: \physics, params: [\springStrength, 1, \springDamp, \default]
+        ),
+    ],
+    68: [
+        (
+            info: "TRAIN: remove all",
+            message: \action,  params: [\remove, \all]
+        ),
+        (
+            info: "heavy <gauss> #2",
             message: \particle,
             synth: (
                 name: "gauss",
@@ -279,10 +428,22 @@ scales.do { |c, i|
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
-            info: "remove <bass>",
-            message: \action, params: [\remove, 1120],
+            info: "TRAIN: <wind> X <gauss> #1",
+            message: \particle,
+            synth: (
+                name: "gauss",
+                node: 1102,
+                params: [
+                    \attack, 2,
+                    \release, 1,
+                    \ca, 5,
+                    \amp, 0.5
+                ]
+            ),
+            particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
         ),
     ],
+
     70: [
         (
             info: "NEURO: 2 heavy <neural>, heavy <bass>",

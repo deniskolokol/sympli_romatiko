@@ -475,9 +475,9 @@ srEnv = Environment.make {
             ~scsynth.listSendMsg(["/g_freeAll", ~rootKr]);
             0.5.wait;
             "INFO: freeing buffers".postln;
-            try { ~sequence.samples.do { |buff| buff.free}};
-            try { ~sequence.voices.do { |buff| buff.free}};
-            try { ~sequence.scales.do { |buff| buff.free}};
+            ~sequence.samples.do { |buff| buff.free};
+            ~sequence.voices.do { |buff| buff.free};
+            ~sequence.scales.do { |buff| buff.free};
             0.5.wait;
             "INFO: done stopping sequence".postln;
         };

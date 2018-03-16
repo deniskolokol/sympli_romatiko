@@ -691,10 +691,10 @@ var makeSynthDefADSR = { |name, outCodeFunc|
     // XXX - in orig synth \freq was a var with default val 400
     SynthDef("lowe__" ++ name, {
         arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
-        gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
-        ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
-        gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
-        depth=5, elevClip=0.01pi;
+            gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+            ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+            gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+            depth=5, elevClip=0.01pi;
         var signal;
         var q=0.1, a=2pi, b=400, c=0, dir=[1, 0], frate=1, xx=(1..5)*20;
         dir = dir.put(1, az.linlin(0, 1, -pi, pi));
@@ -703,11 +703,9 @@ var makeSynthDefADSR = { |name, outCodeFunc|
         a = frate.linlin(0,2, 2pi, 0);
         b = dir[1].hypot(dir[0]) * 400 + 250;
         c = momentum.linlin(0, 1, 100, 150);
-        // signal = SinOsc.ar(c, BPF.ar(BPF.ar(LFSaw.ar(freq * xx, 0, a), b), xx, q), amp);
-        // signal = RLPF.ar(Limiter.ar(Mix.ar(signal)), distance.linlin(0, 2.sqrt, 500, 10000), 0.5);
         signal = SinOsc.ar(c, BPF.ar(BPF.ar(LFSaw.ar(freq * xx, 0, a), b), xx, q));
-        signal = RLPF.ar(Mix.ar(signal), distance.linlin(0, 2.sqrt, 500, 10000), 0.5);
-        signal = Limiter.ar(signal, amp);
+        signal = RLPF.ar(signal, distance.linlin(0, 2.sqrt, 500, 10000), 0.5);
+        signal = Limiter.ar(Mix.ar(signal), amp);
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
             gate, attack, sustain, release, ca, cr, depth, elevClip
@@ -741,7 +739,8 @@ var makeSynthDefADSR = { |name, outCodeFunc|
             ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.1,
             gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
             depth=5, elevClip=0.01pi,
-            voices=10, lfreq=1.5, melo=0, ampc=0;
+            voices=10, lfreq=1.5, melo=0, ampc=0,
+            threshold=0.7, scope=12; // XXX =- move this to LFO synth (modulator with DegreeToKey);
         var rq = momentum.lincurve(0, 1, 0.6, 0.01, 4);
         var mul = momentum.lincurve(0, 1, 400, 2000, 4);
         var add = momentum.lincurve(0, 1, 600, 10000, 4);
@@ -757,7 +756,7 @@ var makeSynthDefADSR = { |name, outCodeFunc|
                 freq,
 
                 // Positive \melo asks for DegreeToKey
-                DegreeToKey.kr(bufnum, az.linlin(0, 1, 0, 12), 12, 1, freq.cpsmidi).midicps
+                DegreeToKey.kr(bufnum, az.linlin(threshold, 1, 0, scope), 12, 1, freq.cpsmidi).midicps
             ]
         )
         + TRand.kr(detune.neg, detune, trig);

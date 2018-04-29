@@ -64,7 +64,7 @@ try { // to load from settings file
     );
     postf("OK\n\n");
 } { |err|
-    postf("WARNING: Problem loading sequences, cannot access file %\n", seqPathsFile);
+    postf("! Problem loading sequences, cannot access file %\n", seqPathsFile);
 };
 seqPaths = seqPaths.asList;
 
@@ -186,6 +186,7 @@ srEnv = Environment.make {
         \moog: ( \type: \gen ),
         \lowe: ( \type: \gen ),
         \wind: ( \type: \gen, \params: [\freq, \detune, \delay, \cutoff, \decaytime, \rq, \rate, \amp] ),
+        \glide: ( \type: \gen ),
         \komar: (\type: \gen, \params: [\freq, \maxdelaytime, \cutoff, \delaytime, \rq, \decaytime, \detune] ),
         \neural: ( \type: \gen ),
         \entro: ( \type: \gen, \params: [\freq, \detune, \min, \cutoff, \max, \rq, \dummy, \amp] ),
@@ -204,6 +205,7 @@ srEnv = Environment.make {
         \unst: ( \type: \gran ),
         \gust: ( \type: \gran ),
         \kick: ( \type: \gen ),
+        \shov: ( \type: \gen ),
     );
     ~lfos = (
         \ksine: ( \type: \gen ),
@@ -344,7 +346,8 @@ srEnv = Environment.make {
 
     // Release all synths from group, wait until released, then remove
     // group node from server.
-    ~groupFree = { |node, release=2|
+    ~groupFree = { |node, release|
+        release = release ? 2;
         Routine({
             [
                 ["/n_set", node, \rel, release, \gate, 0],
@@ -459,7 +462,7 @@ srEnv = Environment.make {
     // Warning! Order matters!
     ~stopSequence = {
         fork {
-            "INFO: stopping / resetting tasks".postln;
+            "-> Caught signal: <stop / reset current task>".postln;
             ~sequence.tasks.keys.do { |taskName|
                 ~sequence.tasks[taskName].stop;
             };
@@ -562,6 +565,25 @@ srEnv = Environment.make {
         };
     };
 
+    ~reportBufLoad = { |buff|
+        var report;
+        report = Task({
+            inf.do { |j|
+                if (buff.numFrames.isNil.not) {
+                    postf("\nloaded %\n", buff);
+                    report.stop;
+                };
+                if (j > 500) {
+                    postf("\n! Loading buffer % failed%!",
+                        buff.bufnum, buff.path ? ""
+                    );
+                    report.stop;
+                };
+                post(".");
+                0.1.wait
+            };
+        }).play
+    };
 
     // Creates a tree out of server message \g_queryTree.reply
     // Copied and re-formatted from Server.queryAllNodes
@@ -614,21 +636,20 @@ srEnv = Environment.make {
 currentEnvironment = srEnv;
 
 CmdPeriod.doOnce({
-    "Freeing buffers...".postln;
-    ~wavetable.do(_.free);
-    ~sequence.samples.do { |buff| buff.free};
-    ~sequence.scales.do { |buff| buff.free};
-    ~sequence.voices.do { |buff| buff.free};
+    "-> Caught signal: <shut down>".postln;
+    ~stopSequence.();
+
+    "INFO: Freeing internal buffers".postln;
     ~defaultBuff.free;
     ~internalBuff.free;
 
-    "Killing audio-through".postln;
+    "INFO: Killing audio-through".postln;
     ~groupFree.(~nodeAudioThrough);
 
-    "Disconnecting from synth server...".postln;
+    "INFO: Disconnecting from synth server...".postln;
     ~scsynth.addr.disconnect;
 
-    "Saving environment conf...".postln;
+    "INFO: Saving environment conf...".postln;
     conf = Dictionary.newFrom(currentEnvironment);
     currentEnvironment.keysValuesDo { |envKey, envVal|
         if (confKeys.includes(envKey).not) {
@@ -648,7 +669,7 @@ CmdPeriod.doOnce({
 
     // Save ~seqPaths to sequences file, omitting the first item ("Load...")
     if (seqPaths.size > 1) {
-        "Saving paths to sequences...".postln;
+        "INFO: Saving paths to sequences...".postln;
         seqPathsFile = File.new(seqPathsFile, "w");
         seqPathsFile.write(cleanPaths.(~seqPaths[1..]));
         seqPathsFile.close;
@@ -681,7 +702,7 @@ initAudioThrough = Task({
         0.5.wait
     };
     if (done.not) {
-        "ERROR: cannot start audio through synth, timeout 10 sec."
+        "! cannot start audio through synth, timeout 10 sec."
     }
 });
 
@@ -716,7 +737,7 @@ loadCommonComponents = {
 loadComponents = {
     loadCommonComponents.();
 
-    "Loading world...".postln;
+    "-> Loading world...".postln;
     if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
         postf("OK\n\n")
     };
@@ -757,7 +778,7 @@ if (isTest) {
                 ~scsynth.queryAllNodes;
                 loadComponents.()
             } { |error|
-                postf("ERROR: server % at % is not running!\n", ~scsynth.name, ~scsynth.addr.ip);
+                postf("! server % at % is not running!\n", ~scsynth.name, ~scsynth.addr.ip);
                 error.postln;
             }
         }.defer(1);
@@ -789,7 +810,6 @@ doTest = {
         UnitTest.new.assert(all {: x[20..], x <-l }.flatten.every(_ == 0), "~initSynth: silent channels after");
         UnitTest.new.assert(all {: x[16..19], x <-l }.flatten.every(_ > 0), "~initSynth: active channels");
     };
-
 
     var test_cleanPaths = {
         var testDir = PathName(thisProcess.nowExecutingPath).pathOnly +/+ "test";

@@ -1,6 +1,5 @@
 (
 var samplesDir;
-var guideBuff; // buffers (sound files and scales)
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 
 //GLOBAL
@@ -25,10 +24,6 @@ PathName.new(samplesDir +/+ "drums").entries.do { |f, i|
 PathName.new(samplesDir +/+ "voices").entries.do { |f, i|
     try { ~sequence.voices.add(Buffer.readChannel(~scsynth, f.fullPath, channels: [0])) }
 };
-guideBuff = Buffer.readChannel(~scsynth,
-    PathName(samplesDir +/+ "drums/drumguide.wav").fullPath, channels: [0]
-);
-
 [
     FloatArray[0, 3, 7, 10], // scales[0] is the main scale
     FloatArray[0, 1, 3, 7, 8], // the rest are specific to sequence's parts
@@ -633,10 +628,5 @@ guideBuff = Buffer.readChannel(~scsynth,
             (30, 32..60).choose.wait;
         }
     }),
-);
-
-CmdPeriod.doOnce({
-    // Free buffers.
-    guideBuff.free;
-});
+)
 )

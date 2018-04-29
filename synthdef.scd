@@ -73,7 +73,34 @@ var makeSynthDefPerc = { |name, outCodeFunc|
         ).softclip;
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
-            gt, att, rel, depth, elevClip
+            gate, attack, release, depth, elevClip
+        );
+    }).add;
+
+
+    // "shovel"
+    SynthDef("shov__" ++ name, {
+        arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+            gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+            ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+            gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+            depth=5, elevClip=0.01pi;
+        var raw, signal;
+        raw = RLPF.ar(
+            (
+                LFSaw.ar(freq)
+                + Impulse.ar(XLine.kr(freq, freq + 100,1.5), 0.0)
+                + WhiteNoise.ar(0.8.rand)
+            ),
+            LFNoise1.kr(1, 38, 115).midicps,
+            0.1
+        );
+        raw = [raw, DelayN.ar(raw, 0.04, 0.04) ];
+        4.do({ raw = AllpassN.ar(raw, 0.05, [0.05.rand, 0.05.rand], 4, amp)});
+        signal = Mix.ar(raw);
+        outCodeFunc.value(
+            signal, out, trigID, azimuth, distance, elevation,
+            gate, attack, release, depth, elevClip
         );
     }).add;
 };
@@ -647,6 +674,37 @@ var makeSynthDefADSR = { |name, outCodeFunc|
     }).add;
 
 
+    SynthDef("glide__" ++ name, {
+        arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
+            gate=1, attack=0.01, sustain=1, release=0.5, ca=3, cr= -3,
+            ax=0.1, ay=0.1, az=0.1, azimuth= -0.5pi, distance=0.1, elevation=0, momentum=0.3,
+            gx=0.1, gy=0.1, gz=0.1, gAzimuth= -0.5pi, gDistance=0.5, gElevation=0.5,
+            depth=5, elevClip=0.01pi;
+        var signal;
+        var baseFreq = distance.linexp(0, 1, 10, 40).lag(0.01);
+        var shift = ((momentum * 30) ** 3).lag(0.01);
+        var raw = RLPF.ar(
+            (
+                Impulse.ar(
+                    XLine.kr(freq, freq + 100,1.5),
+                    0.0,
+                    0.7.rand
+                )
+                + WhiteNoise.ar(0.8.rand)
+            ),
+            LFNoise1.kr(1, 38, 115).midicps,
+            0.1
+        );
+        raw = [raw, DelayN.ar(raw, 0.04, 0.04) ];
+        4.do({raw = AllpassN.ar(raw, 0.05, [0.05.rand, 0.05.rand], 4, amp)});
+        signal = Mix.ar(raw);
+        outCodeFunc.value(
+            signal, out, trigID, azimuth, distance, elevation,
+            gate, attack, sustain, release, ca, cr, depth, elevClip
+        );
+    }).add;
+
+
     // XXX - former \sr__e__noisy
     SynthDef("wind__" ++ name, {
         arg bufnum=0, in=30, out=0, trigID=80, freq=432, amp=1.0,
@@ -928,7 +986,9 @@ spatialConf.keysValuesDo { |name, conf|
             distance.linlin(0, 2.sqrt, 10000, 1000),
             0.5
         ) * EnvGen.kr(
-            Env.perc(attack, release), gate:gate
+            Env.perc(attack, release),
+            gate: gate,
+            doneAction: 2
         );
         // report (single channel after effects before spatialisation)
         SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(output));

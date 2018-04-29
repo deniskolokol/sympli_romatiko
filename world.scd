@@ -1322,7 +1322,7 @@ panel = compViewFlow.(viewRight, scaleW: 0.2, scaleH: tmp);
 listView.(
     panel,
     items: ~lfos.keys.asArray,
-    action: { |lv| lv.items.at(lv.value).postln }
+    action: { |lv| lv.items.at(lv.value) }
 );
 
 
@@ -2457,12 +2457,15 @@ registerParticle = { |particle, synth|
 
 unregisterParticle = { |nodeId|
     // Removes particle record from the dictionary.
-    var particle;
+    var particle, release;
     particles.keysValuesDo { |part, dict|
-        if (dict[\node] == nodeId) { particle = part }
+        if (dict[\node] == nodeId) {
+            particle = part;
+            try { release = dict[\params][\release] };
+        }
     };
     particles.removeAt(particle);
-    ~groupFree.(nodeId);
+    ~groupFree.(nodeId, release);
     particle
 };
 

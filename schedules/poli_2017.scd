@@ -1,7 +1,7 @@
 (
 var samplesDir;
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
-var scales;
+var scales, buf;
 
 ~sequence[\title] = "Sympli Romatiko: kraut Traer World";
 
@@ -20,7 +20,11 @@ dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 samplesDir = "~/Music/MOON2/samples/";
 PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
     try {
-        ~sequence.samples.add(Buffer.readChannel(~scsynth, f.fullPath, channels: [0]))
+        buf = Buffer.readChannel(~scsynth, f.fullPath, channels: [0]);
+        ~reportBufLoad.(buf);
+        ~sequence.samples.add(buf);
+    } { |err|
+        postf("ERROR: %\n", err);
     };
 };
 scales = [
@@ -31,7 +35,9 @@ scales = [
     FloatArray[0, 4, 5, 7, 11 ] //["c# 3", "d 3", "f# 3", "g 3", "a 3"].notemidi
 ];
 scales.do { |c, i|
-    ~sequence.scales.add(Buffer.sendCollection(~scsynth, c));
+    buf = Buffer.sendCollection(~scsynth, c);
+    ~reportBufLoad.(buf);
+    ~sequence.scales.add(buf);
 };
 
 ~sequence.events = (
@@ -88,7 +94,8 @@ scales.do { |c, i|
             ),
         ),
     ],
-    1: [
+
+    3: [
         (
             info: "AIRY: 2 heavy <probe>\n wait 120s",
             message: \particle,
@@ -123,14 +130,14 @@ scales.do { |c, i|
             message: \task, name: \switchScale, act: 1
         )
     ],
-    2: [
+    4: [
         (
             info: "AIRY: Remove drag force\n wait 120s",
             wait: 120,
             message: \physics, params: [\drag, 0.0]
         ),
     ],
-    3: [
+    5: [
         (
             info: "AIRY: + 2 heavy <cmb>",
             message: \particle,
@@ -143,7 +150,7 @@ scales.do { |c, i|
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
     ],
-    4: [
+    6: [
         (
             message: \action,  params: [\remove, \all]
         ),
@@ -177,7 +184,7 @@ scales.do { |c, i|
             message: \physics, params: [\starMass, 2.8]
         ),
     ],
-    5: [
+    7: [
         (
             info: "AIRY: 2 heavy <melo> controlled",
             message: \action,  params: [\remove, \all]
@@ -212,13 +219,13 @@ scales.do { |c, i|
             message: \physics, params: [\drag, 0.5, \starMass, 1]
         ),
     ],
-    6: [
+    8: [
         (
             info: "TRANS: Graph mode",
             message: \action,  params: [\draw, \graph]
         )
     ],
-    7: [
+    10: [
         (
             info: "BREAKS",
             message: \action,  params: [\remove, \all]
@@ -252,7 +259,7 @@ scales.do { |c, i|
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand) // radio must be on r_hand!
         ),
     ],
-    8: [
+    15: [
         (
             info: "BREAKS",
             message: \action,  params: [\remove, \all]
@@ -385,7 +392,7 @@ scales.do { |c, i|
                 params: [
                     \freq, "e 3".notemidi,
                     \bufnum, ~sequence.scales[4].bufnum,
-                    \threshold, 0.7,
+                    \threshold, 0.5,
                     \melo, 1
                 ]
             ),
@@ -396,13 +403,13 @@ scales.do { |c, i|
             info: "TRAIN: transition heavy <bass>",
             message: \particle,
             synth: (
-                name: "lowe",
+                name: "bass",
                 node: 1110,
                 params: [
                     \attack, 0.1,
                     \release, 2,
-                    \freq, "g 1".notemidi.midicps,
-                    \amp, 0.62,
+                    \freq, "a 2".notemidi.midicps,
+                    \amp, 0.5,
                 ]
             ),
             particle: (age: inf, mass: 0.9, spring: 0, x: 300, y: 300, z: 150)
@@ -520,12 +527,8 @@ scales.do { |c, i|
     ],
     31: [
         (
-            info: "TRAIN: mute <wind>",
-            message: \n_set,
-            synth: (
-                node: 1121,
-                params: [ \amp, 0]
-            ),
+            info: "TRAIN: remove <wind>",
+            message: \action, params: [\remove, 1121],
         ),
     ],
     32: [
@@ -567,18 +570,8 @@ scales.do { |c, i|
     ],
     33: [
         (
-            info: "TEST switchScaleAndOffset",
+            info: "TRAIN switchScaleAndOffset",
             message: \task, name: \switchScaleAndOffset, act: 1
-        ),
-    ],
-    34: [
-        (
-            info: "TRAIN: un-mute <wind>",
-            message: \n_set,
-            synth: (
-                node: 1121,
-                params: [\amp, 0.5, \melo, 0]
-            ),
         ),
     ],
     70: [
@@ -621,11 +614,8 @@ scales.do { |c, i|
     ],
     76: [
         (
-            info: "NEURO: avant (2) - <buzz> stream 2",
-            message: \task, name: \buzzStream2, act: 1
-        ),
-        (
-            message: \task, name: \buzzStream1, act: 0
+            info: "NEURO: avant (2) - stream <bgMarkovProcess>",
+            message: \task, name: \bgMarkovProcess, act: 1
         ),
     ],
     80: [
@@ -665,6 +655,12 @@ scales.do { |c, i|
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
+        (
+            message: \task, name: \buzzStream1, act: 0
+        ),
+        (
+            message: \task, name: \bgMarkovProcess, act: 0
+        ),
     ],
     82: [
         (
@@ -687,9 +683,6 @@ scales.do { |c, i|
         (
             info: "Skel mode, stop <buzz> stream 2, remove <melo>",
             message: \action,  params: [\draw, \skelfull]
-        ),
-        (
-            message: \task, name: \buzzStream2, act: 0
         ),
         (
             message: \action,  params: [\remove, 1180]
@@ -753,23 +746,31 @@ scales.do { |c, i|
         (
             info: "2 heavy <buzz>",
             message: \particle,
-            synth: (name: "buzz", params: [
-                \att, 1,
-                \bufnum,  ~sequence.scales[3].bufnum,
-                \offset, 26+24,
-                \amp, 0.1,
-                \freq, 622.25396744416
+            synth: (
+                name: "buzz",
+                node: 1190,
+                params: [
+                    \attack, 1,
+                    \release, 120,
+                    \bufnum,  ~sequence.scales[3].bufnum,
+                    \offset, 26+24,
+                    \amp, 0.1,
+                    \freq, 622.25396744416
             ]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: "buzz", params: [
-                \att, 1,
-                \bufnum, ~sequence.scales[3].bufnum,
-                \offset, 26+24,
-                \amp, 0.1,
-                \freq, 740
+            synth: (
+                name: "buzz",
+                node: 1191,
+                params: [
+                    \attack, 1,
+                    \release, 120,
+                    \bufnum, ~sequence.scales[3].bufnum,
+                    \offset, 26+24,
+                    \amp, 0.1,
+                    \freq, 740
             ]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
@@ -840,10 +841,50 @@ scales.do { |c, i|
             message: \action,  params: [\remove, 1188]
         )
     ],
+
+    // + na ulice
+    96: [
+        (
+            info: "GROOVE",
+            message: \action,  params: [\remove, 1190]
+        ),
+        (
+            message: \action,  params: [\remove, 1191]
+        ),
+        (
+            message: \action,  params: [\draw, \skel]
+        ),
+        (
+            info: "two heavy <gauss>",
+            message: \particle,
+            synth: (name: "gauss", params: [\attack, 60, \release, 3, \ca, 5]),
+            particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
+        ),
+        (
+            message: \particle,
+            synth: (name: "gauss", params: [\attack, 60, \release, 3, \ca, 5]),
+            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
+        )
+    ],
+    97: [
+        (
+            info: "GROOVE - draw strob",
+            message: \action,  params: [\draw, \skelfull]
+        ),
+    ],
+    97: [
+        (
+            info: "GROOVE - draw skel",
+            message: \action,  params: [\draw, \skel]
+        ),
+    ],
     99: [
         (
             info: "FIN: remove all",
             message: \action,  params: [\remove, \all]
+        ),
+        (
+            message: \action,  params: [\draw, \graph]
         ),
         (
             message: \action,  params: [\draw, \calibration]
@@ -862,12 +903,14 @@ scales.do { |c, i|
         ];
         var note;
         inf.do{ |i|
-            postf("DEBUG scale %\n", scales[i % sca.size]);
+            postf("? switchScaleAndOffset: scale %\n", scales[i % sca.size]);
             ~scsynth.sendMsg("/n_set", nil, \bufnum, sca[i % sca.size].bufnum);
             (6..9).choose.wait;
 
             note = offset[i % offset.size].notemidi + (12* (0..3).choose);
-            postf("DEBUG note % (%:%)\n", note.midinote, note, note.midicps);
+            postf("? switchScaleAndOffset: note % (%: %)\n",
+                note.midinote, note, note.midicps.round(0.0001)
+            );
             ~scsynth.sendMsg("/n_set", nil, \freq, note.midicps);
             (1..15).choose.wait;
         }
@@ -920,25 +963,76 @@ scales.do { |c, i|
             (quant*16).wait;
         }
     }),
-    buzzStream2: Task({
-        var quant=60/135;
-        inf.do { |j|
-            x = ~worldSize * [0.3, 0.7].choose;
-            #y, z = ~worldSize * 0.3 ! 2;
-            ~sendParticle.(
-                particle: (x:x, y:z, z:z, age: quant*4, mass: 0.9, spring: 0),
-                synth: (
-                    name: "buzz",
-                    params: [
-                        \attack, 0.01,
-                        \release, 1,
-                        \amp, 0.5,
-                        \freq: \c2
-                    ]
-                )
+    bgMarkovProcess: Task({
+        var msetWait= MarkovSet([ // markov set for waiting time (1st order)
+            [\ss, [1, 1.5, 2, 2.5, 3]], // super short
+            [\s, [2.5, 3.5, 4, 4.5, 5, 5.5]], // short
+            [\a, [5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 10, 12]], // ave
+            [\l, [20, 25, 27, 32, 40, 45, 55, 60, 90, 120], // long
+                [6, 7, 4, 4, 3, 3, 2, 2, 1, 1].normalizeSum
+            ]
+        ]);
+        var msetKey= MarkovSet([ // markov set for number of msetWait use (2nd order)
+            [\n,
+                [2, 5, 10, 12, 15, 25, 40], // number of repeats
+                [6, 12, 9, 3, 2, 0.5, 0.1].normalizeSum // longer sequences are less probable
+            ]
+        ]);
+        var keySteps, key, waitKey, wait, midinote, flytime, x, y, z;
+        inf.do({ |i|
+            key= msetWait.dict.keys.asArray.choose;
+            keySteps= msetKey.next(\n);
+            postf("\n? TASK:bgMarkovProcess:\n\tkey: %\n\tsteps: %\n\n",
+                key, keySteps
             );
-            (quant*16).wait;
-        }
+            keySteps.do({ |j|
+                waitKey = msetWait.next(key);
+                wait = rrand(waitKey * 0.75, waitKey).max(0.01);
+                // the shorter dur, the higher the note
+                midinote = wait.linlin(0.5, 120, 10, 80);
+                // flying time varies but depends on the current duration
+                flytime = key.switch(
+                    \ss, {0.1},
+                    \s, {rrand(0.5, 2)},
+                    \a, {rrand(2, 3)},
+                    \l, {rrand(1, 10)}
+                );
+                postf(
+                    "\n? TASK:bgMarkovProcess %:%\n\twait time: %\n\tflying time: %\n\tmidinote: % (%)\n\n",
+                    i, j, wait.round(0.001), flytime, midinote.round(0.001), midinote.midinote
+                );
+                x = ~worldSize * [0.3, 0.7].choose;
+                #y, z = ~worldSize * 0.3 ! 2;
+                ~sendParticle.(
+                    particle: (x:x, y:z, z:z, age: 0.5, mass: 0.9, spring: 0),
+                    synth: (
+                        name: "bass",
+                        params: [
+                            \attack, 0.01,
+                            \release, 0.01,
+                            \amp, 0.3,
+                            \freq, "d 6".notemidi.midicps,
+                        ]
+                    )
+                );
+                0.5.wait;
+                ~sendParticle.(
+                    particle: (x:x, y:z, z:z, age: flytime, mass: 0.9, spring: 1),
+                    synth: (
+                        name: "glide",
+                        params: [
+                            \attack, 0.1,
+                            \release, 1,
+                            \freq, rrand(24, 240),
+                            \amp, 0.6
+                        ]
+                    )
+                );
+                flytime.wait;
+                ~initSynth.("shov", params: [\freq, midinote.midicps, \amp, 0.7]);
+                (wait-flytime).max(0.1).wait;
+            });
+        });
     }),
 );
 )

@@ -43,6 +43,43 @@ var currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
 var seqPathsFile = currentDir +/+ "conf/sequences.conf";
 var seqPaths = ["Load..."];
 var confFile = currentDir +/+ "conf/envi.conf";
+var emptySequence = {
+    // Default empty sequence.
+    (
+        title: "<none>",
+
+        // step marks (numbered) and time marks (entitled)
+        // (
+        //     0: [(event0), (event1), ...],
+        //     1: [(eventN), (eventN+1), ...],
+        //     foo: [...]
+        // )
+        events: Dictionary.new,
+
+        // connector of time and time marks
+        // (
+        //     0_00: \foo,
+        //     1_12_354: \gee
+        // )
+        marks: Dictionary.new,
+
+        // descriptions of tasks
+        // (
+        //     taskX: Task({...}),
+        //     taskY: Task({...}),
+        // )
+        tasks: Dictionary.new,
+
+        // list of buffers
+        samples: List.new,
+
+        // list of buffers for voice samples
+        voices: List.new,
+
+        // list of buffers for scales
+        scales: List.new,
+    )
+};
 
 if (isTest) {
     confFile = confFile.replace("envi.conf", "envi_test.conf");
@@ -103,40 +140,7 @@ srEnv = Environment.make {
         }
     );
 
-    ~sequence = ( // default empty sequence
-        title: "<none>",
-
-        // step marks (numbered) and time marks (entitled)
-        // (
-        //     0: [(event0), (event1), ...],
-        //     1: [(eventN), (eventN+1), ...],
-        //     foo: [...]
-        // )
-        events: Dictionary.new,
-
-        // connector of time and time marks
-        // (
-        //     0_00: \foo,
-        //     1_12_354: \gee
-        // )
-        marks: Dictionary.new,
-
-        // descriptions of tasks
-        // (
-        //     taskX: Task({...}),
-        //     taskY: Task({...}),
-        // )
-        tasks: Dictionary.new,
-
-        // list of buffers
-        samples: List.new,
-
-        // list of buffers for voice samples
-        voices: List.new,
-
-        // list of buffers for scales
-        scales: List.new,
-    );
+    ~sequence = emptySequence.();
     ~specs = Dictionary[
         \freq -> \freq.asSpec,
         \cutoff -> \freq.asSpec,
@@ -490,6 +494,7 @@ srEnv = Environment.make {
     // Loads sequence from file.
     ~loadSequence = { |path|
         var index = 0;
+        ~sequence = emptySequence.();
         // if no path is given, load the top one
         if (path.isNil) { path = ~seqPaths[1] };
         postf("Loading sequence %...\n", PathName.new(path).fileName);

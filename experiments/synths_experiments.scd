@@ -335,6 +335,35 @@ SynthDef(\sr__e__probe, {
     SendTrig.kr(Impulse.kr(30), trigID, Amplitude.kr(out));
     Out.ar(route, Pan2.ar(out));
 }).add;
+
+// make more interesting and standardize!
+SynthDef(\sr__e__blurps, {
+    arg fre1=150, fre2=155, amp=0.2, maxdelaytime=0.05, delaystep=1.4;
+    var sen1, sen2;
+    var a = (2..8);
+    var b = (22..29);
+    var signal;
+    var mindelaytime=0.01;
+    var delaytime = LFNoise1.kr(
+        freq: delaystep,
+        mul: (maxdelaytime - mindelaytime)/2,
+        add: (maxdelaytime - mindelaytime)/2 + mindelaytime
+    );
+    sen1 = LFSaw.ar(
+        fre1 * Saw.ar(30/b).round,
+        Saw.ar(1/b).round
+    ) / b.size;
+    sen2 = LFSaw.ar(
+        fre2-a.round,
+        Saw.ar(1/a).round
+    ) / a.size;
+    signal = (sen1+sen2).tanh;
+	6.do({
+		signal = AllpassN.ar(signal, maxdelaytime, delaytime, 0.1)
+	});
+    signal = Mix.ar(signal) * amp;
+    Out.ar(0, Pan2.ar(signal));
+}).add
 )
 
 (

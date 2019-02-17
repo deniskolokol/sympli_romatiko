@@ -159,7 +159,7 @@ currentScale = ~sequence.scales[3];
             };
             current = groups[i % groups.size];
             scale = ~sequence.scales.choose.bufnum;
-            node = ~groupInit.(
+            node = ~initSynth.(
                 synth:current[\synth],
                 bufnum:scale,
                 params:[

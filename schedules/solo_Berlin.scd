@@ -42,7 +42,7 @@ dictObjSeq = (
 msetObjSeq = MarkovSetN([], 2);
 dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 
-samplesDir = "~/Music/Sympli_Romatiko/samples/";
+samplesDir = "~/Music/MOON2/samples/";
 PathName.new(samplesDir +/+ "drums").entries.do { |f, i|
     try { ~sequence.samples.add(Buffer.readChannel(~scsynth, f.fullPath, channels: [0])) }
 };

@@ -2,7 +2,8 @@
 // module: World
 // ---------------
 (
-var skel, physics, springs, particles, particle, star;
+//var physics;
+var skel, springs, particles, particle, star;
 var world, center, canvas, frame, item, color;
 var miscParams, event, updateWorldParm;
 var oscParticle, oscPhysics, oscAction,

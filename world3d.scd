@@ -352,7 +352,7 @@ physics.particles.do { |particle|
 ~speakers.items.do { |speaker, i|
     // speaker cube
     item = Canvas3DItem.cube
-    .color_(Color.blue)
+    .color_(Color.cyan)
     .width_(0.5)
     .transform(Canvas3D.mScale(0.1));
     canvas.canvas.add(item);
@@ -362,7 +362,7 @@ physics.particles.do { |particle|
     #x, y, z = ade2xyz.(speaker, ~speakers.maxDist);
     postf("==> speaker %: %, %, %\n", i, x, y, z);
     item = Canvas3DItem()
-    .color_(Color.blue)
+    .color_(Color.cyan)
     .width_(0.5)
     .transform(Canvas3D.mScale(0.1));
     item.paths = [
@@ -534,6 +534,8 @@ globalParams[\skelsimul][\gui] = buttonCheckbox.(panel, "skel",
     bgColor:Color.black, scaleW:0.19, scaleH:0.05
 ).action_({ |bt|
     bt.value.postln;
+
+    // bookmark
     // XXX finish it!
     // if (bt.value.booleanValue) {
     //     if (skelData.isNil) {loadSkelData.()};

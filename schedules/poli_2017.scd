@@ -170,7 +170,7 @@ scales.do { |c, i|
         (
             message: \particle,
             synth: (name: "melo",
-            params: [
+                params: [
                     \attack, 1.0,
                     \release, 8,
                     \bufnum, ~sequence.scales[1].bufnum,
@@ -214,25 +214,56 @@ scales.do { |c, i|
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
+
+        // XXX - try it with the band!
+        (
+            info: "WARNING! elbows!",
+            message: \particle,
+            synth: (name: "melo",
+                params: [
+                    \attack, 1.0,
+                    \release, 8,
+                    \bufnum, ~sequence.scales[1].bufnum,
+                    \cutoff, \c0
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_elbow)
+        ),
+        (
+            message: \particle,
+            synth: (name: "melo",
+                params: [
+                    \attack, 1.0,
+                    \release, 8,
+                    \bufnum, ~sequence.scales[1].bufnum,
+                    \cutoff, \c1
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_elbow)
+        ),
+
         (
             info: "AIRY: Adjust drag and starMass",
             message: \physics, params: [\drag, 0.5, \starMass, 1]
         ),
     ],
-    8: [
-        (
-            info: "TRANS: Graph mode",
-            message: \action,  params: [\draw, \graph]
-        )
-    ],
+
+    // XXX
+    // 8: [
+    //     (
+    //         info: "TRANS: Graph mode",
+    //         message: \action,  params: [\draw, \graph]
+    //     )
+    // ],
     10: [
         (
             info: "BREAKS",
             message: \action,  params: [\remove, \all]
         ),
-        (
-            message: \action,  params: [\draw, \skel]
-        ),
+        // XXX
+        // (
+        //     message: \action,  params: [\draw, \skel]
+        // ),
         ( // IMPORTANT! switchScale sends scales as buffers to all nodes
             // It should be stopped before starting granWave to prevent
             // sending scales instead of samples.
@@ -251,18 +282,25 @@ scales.do { |c, i|
         (
             message: \particle,
             synth: (name: "komar", params: [\freq, 53.39, \cutoff, 11932.07, \rq, 0.07, \amp, 0.25]),
-            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand) // radio must be on r_hand!
+            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         ),
         (
             message: \particle,
             synth: (name: "komar", params: [\freq, 291.16, \amp, 0.25]),
-            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand) // radio must be on r_hand!
+            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         ),
     ],
     15: [
         (
             info: "BREAKS",
             message: \action,  params: [\remove, \all]
+        ),
+        (
+            message: \physics,
+            params: [
+                \drag, 0.23,
+                \starMass, 1.5,
+            ]
         ),
         (
             info: "2 heavy <entro>",
@@ -275,8 +313,16 @@ scales.do { |c, i|
             synth: (name: "entro"),
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         ),
+        (
+            info: "1 heavy <buzz>",
+            message: \particle,
+            synth: (
+                name: "buzz",
+                params: [\attack, 10, \release, 1, \freq, 79.62, \amp, 0.45]
+            ),
+            particle: (age: inf, mass: 1, spring: 0)
+        ),
     ],
-
     20: [
         (message: \action,  params: [\remove, \all],
             info: "PART II: rm all, init"),
@@ -286,9 +332,11 @@ scales.do { |c, i|
             \springDamp, \default,
             \mutualAttraction, \default,
         ]),
-        (
-            message: \action,  params: [\draw, \calibration]
-        ),
+        // XXX
+        //
+        // (
+        //     message: \action,  params: [\draw, \calibration]
+        // ),
         (
             info: "LFOs <ksine>, <keyscale>, <klfno0>",
             message: \lfo,
@@ -333,7 +381,7 @@ scales.do { |c, i|
             synth: (name: "pole",
                 node: 1100,
                 params: [
-                    \attack, 10, // 120, // XXX
+                    \attack, 120,
                     \ca, 2,
                     \release, 5,
                     \freq, "d 3".notemidi.midicps,
@@ -354,7 +402,7 @@ scales.do { |c, i|
                 name: "pole",
                 node: 1101,
                 params: [
-                    \attack, 10, // 120, // XXX
+                    \attack, 120,
                     \ca, 2,
                     \release, 5,
                     \freq, "a#2".notemidi.midicps,
@@ -680,10 +728,10 @@ scales.do { |c, i|
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
-        (
-            info: "Skel mode, stop <buzz> stream 2, remove <melo>",
-            message: \action,  params: [\draw, \skelfull]
-        ),
+        // (
+        //     info: "Skel mode, stop <buzz> stream 2, remove <melo>",
+        //     message: \action,  params: [\draw, \skelfull]
+        // ),
         (
             message: \action,  params: [\remove, 1180]
         ),
@@ -715,9 +763,9 @@ scales.do { |c, i|
                 ]
             ),
         ),
-        (
-            message: \action,  params: [\draw, \skel]
-        ),
+        // (
+        //     message: \action,  params: [\draw, \skel]
+        // ),
     ],
     84: [
         (
@@ -774,9 +822,9 @@ scales.do { |c, i|
             ]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
-        (
-            message: \action,  params: [\draw, \skelfull]
-        ),
+        // (
+        //     message: \action,  params: [\draw, \skelfull]
+        // ),
     ],
     86: [
         (
@@ -786,10 +834,11 @@ scales.do { |c, i|
         (
             message: \action,  params: [\remove, 1183]
         ),
-        (
-            info: "Graph mode",
-            message: \action,  params: [\draw, \graph]
-        ),
+        // XXX
+        // (
+        //     info: "Graph mode",
+        //     message: \action,  params: [\draw, \graph]
+        // ),
     ],
     87: [
         (
@@ -851,9 +900,9 @@ scales.do { |c, i|
         (
             message: \action,  params: [\remove, 1191]
         ),
-        (
-            message: \action,  params: [\draw, \skel]
-        ),
+        // (
+        //     message: \action,  params: [\draw, \skel]
+        // ),
         (
             info: "two heavy <gauss>",
             message: \particle,
@@ -866,29 +915,28 @@ scales.do { |c, i|
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         )
     ],
-    97: [
-        (
-            info: "GROOVE - draw strob",
-            message: \action,  params: [\draw, \skelfull]
-        ),
-    ],
-    97: [
-        (
-            info: "GROOVE - draw skel",
-            message: \action,  params: [\draw, \skel]
-        ),
-    ],
+    // XXX
+    // 97: [
+    //     (
+    //         info: "GROOVE - draw strob",
+    //         message: \action,  params: [\draw, \skelfull]
+    //     ),
+    // ],
+    // 98: [
+    //     (
+    //         info: "GROOVE - draw skel",
+    //         message: \action,  params: [\draw, \skel]
+    //     ),
+    // ],
     99: [
         (
             info: "FIN: remove all",
             message: \action,  params: [\remove, \all]
         ),
-        (
-            message: \action,  params: [\draw, \graph]
-        ),
-        (
-            message: \action,  params: [\draw, \calibration]
-        ),
+        // XXX
+        // (
+        //     message: \action,  params: [\draw, \calibration]
+        // ),
     ]
 );
 

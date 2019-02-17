@@ -3,6 +3,15 @@
 // -------------------
 // connecting together World, Scheduler and SynthDefs
 //
+
+
+// XXX - WARNING!
+// Visual server communication (RPI)
+// ~vis = Server("vis", NetAddr.new("192.168.1.106", 7110));
+// ~vis.sendMsg("/run");
+// ~vis.sendMsg("/stop");
+// ~vis.free
+
 (
 var srEnv;
 var loadComponents, loadCommonComponents;
@@ -744,6 +753,7 @@ loadComponents = {
 
     "-> Loading world...".postln;
     if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
+        // if (this.executeFile(~currentDir +/+ "world3d.scd").isNil.not) {
         postf("OK\n\n")
     };
 };

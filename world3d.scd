@@ -4,9 +4,13 @@ var width=Window.screenBounds.width;
 var height=Window.screenBounds.height;
 var depth=Window.screenBounds.height;
 var rate=0.005;
+var tick=0;
 var item, frame, clean;
 var panel, palette;
-var meterView;
+var oscGroupTree;
+var meterView, logLeft, logRight;
+var logMsg, postColors=List.new;
+var fileContent; // XXX - temp?
 var fontFace = "Andale Mono"; // "Monaco"
 var transparent=Color.red(alpha:0.01),
     techColor=Color.green(0.5),
@@ -40,7 +44,7 @@ var canvas = (
         ),
         rotate: (
             label: "R",
-            val: false
+            val: true
         ),
     ),
     setter: { |self, parm, key, val| self.params[parm][key] = val },
@@ -75,6 +79,82 @@ var panelRight = compViewFlow.(view, scaleW: 0.2, scaleH: 0.94);
 var panelBottom = compViewFlow.(view, scaleH: 0.02);
 
 // ctrl elements
+var sText = { |par, string, stringColor, stringFont, align, scaleH, scaleW=0.5|
+    var st, height;
+    if (scaleH.isNil) {
+        // height = st.sizeHint.height.max(20); // XXX - how to do that before creation of StaticText?
+        height = 20;
+    } {
+        height = paneHeight.(par, scaleH);
+    };
+    StaticText(par, paneWidth.(par, scaleW)@height)
+    .string_(string)
+    .font_(stringFont ? font)
+    .stringColor_(stringColor ? fontColor)
+    .align_(align ? \left)
+};
+
+var lvMeter = { |par, data, layout=\horz, scale=1|
+    var unit, flow, num, text, indicator, scaleW, scaleH;
+    if (layout == \horz) {
+        scaleW = scale;
+        scaleH = 20/par.bounds.height;
+    } {
+        scaleW = 20/par.bounds.width;
+        scaleH = scale;
+    };
+    flow = compViewFlow.(
+        par,
+        Color.clear,
+        gap:5,
+        scaleW:scaleW,
+        scaleH:scaleH
+    );
+    text = sText.(
+        flow,
+        data[\label],
+        fontColor,
+        fontSmall,
+        align:\right,
+        scaleH:0.8,
+        scaleW:0.25
+    );
+    indicator = LevelIndicator(
+        flow,
+        (flow.bounds.width*0.55)@(flow.bounds.height*0.8)
+    )
+    .value_(data.spec.unmap(data.spec.default))
+    .style_(\led)
+    .warning_(1)
+    .critical_(1)
+    .numSteps_(80)
+    .meterColor_(Color.grey())
+    .background_(Color.clear);
+    num = NumberBox(
+        flow,
+        (flow.bounds.width*0.15)@(flow.bounds.height*0.8)
+    )
+    .value_(data.spec.default)
+    .font_(fontSmall)
+    .normalColor_(fontColor)
+    .stringColor_(fontColor)
+    .background_(Color.clear);
+    (
+        val: data.spec.default,
+        num: num,
+        text: text,
+        indicator: indicator,
+        setVal: { |self, val|
+            self.val = val;
+            self.updateElements;
+        },
+        updateElements: { |self|
+            self.num.value = self.val;
+            self.indicator.value = data.spec.map(self.val);
+        }
+    );
+};
+
 var slider = { |par, name, val, layout=\horz, scale=1|
     var ezs, bounds;
     bounds = paneWidth.(par, min(scale, 0.98))@20;
@@ -105,7 +185,7 @@ var sliderWorld = { |par, name, val, layout=\horz, scale=1|
         ez.value.postln;
         // XXX - finish it!
         // eventPool.append((
-        //     message: \physics,
+        //     message: \~physics,
         //     params: [name, updateWorldParm.(name, ez.value)]
         // ));
     };
@@ -125,32 +205,18 @@ var buttonCheckbox = { |par, label, labelColor, bgColor, scaleH=1, scaleW=1|
     .font_(fontMedium)
     .canFocus_(false)
 };
-var sText = { |par, string, stringColor, stringFont, scaleH, scaleW=0.5|
-    var st, height;
-    if (scaleH.isNil) {
-        // height = st.sizeHint.height.max(20); // XXX - how to do that before creation of StaticText?
-        height = 20;
-    } {
-        height = paneHeight.(par, scaleH);
-    };
-    st = StaticText(par, paneWidth.(par, scaleW)@height);
-    st.string = string;
-    st.font = stringFont ? font;
-    st.stringColor = stringColor ? fontColor;
-    st
-};
 
 // WORLD
 var world = (
     particles: ( ),
     params: (
         drag: (
+            label: "drag",
             spec: ControlSpec(0.000, 0.500, \lin, 0.001, 0.001),
-            midicc: 24,
         ),
         repulsion: (
+            label: "repulsion",
             spec: ControlSpec(1, 100, \lin, 5, 100),
-            midicc: 25,
         ),
         maxVel: (
             label: "max vel",
@@ -159,56 +225,46 @@ var world = (
         starMass: (
             label: "star mass",
             spec: ControlSpec(0.1, 5, \lin, 0.1, 1),
-            midicc: 26,
         ),
         gravX: (
             label: "grav X",
             spec: ControlSpec(-2.1, 2.0, \lin, 0.01, 0),
-            midicc: 27,
         ),
         gravY: (
             label: "grav Y",
             spec: ControlSpec(-2.1, 2.0, \lin, 0.01, 0),
-            midicc: 28,
         ),
         gravZ: (
             label: "grav Z",
             spec: ControlSpec(-2.1, 2.0, \lin, 0.01, 0),
-            midicc: 29,
         ),
         // springs
         springDamp: (
             label: "spr damp",
             spec: ControlSpec(0.1, 2, \lin, 0.1, 2),
-            midicc: 33,
         ),
         springRestLen: (
             label: "rest len",
             spec: ControlSpec(1, 15, \lin, 1, 2),
-            midicc: 31,
         ),
         springStrength: (
             label: "strength",
             spec: ControlSpec(0.1, 2, \lin,  0.1, 1),
-            midicc: 32,
         ),
         // particle system
         particleSystem: (
             label: "particl",
             default: false,
-            midinote: 45,
             hint: "run particle system",
         ),
         partSigmoidRatio: (
             label: "sigmoid",
             spec: ControlSpec(0.3, 0.9, \lin, 0.1, 0.7),
-            midicc: 34,
             hint: "steepness of sigmoid function determiming probability of particle being born",
         ),
         partAgeThresh: (
             label: "part age",
             spec: ControlSpec(0.1, 2, \lin, 0.01, 0.84),
-            midicc: 36,
             hint: "maximum particle age in cycles (sec)",
         ),
         partInitAccel: (
@@ -223,7 +279,6 @@ var world = (
         partFreq: (
             label: "part freq",
             spec: ControlSpec(0.02, 0.9, \lin, 0.01, 0.8),
-            midicc: 35,
             hint: "generate new particle \partFreq times per second",
         ),
         partSynth: (
@@ -233,29 +288,26 @@ var world = (
         mutualAttraction: (
             label: "mutual",
             default: true,
-            midinote: 44,
         ),
     )
 );
 var globalParams = (
     serverVolume: (
         label: "MASTER",
-        midicc: 12,
-        spec: \db.asSpec
+        spec: ControlSpec(-inf, 0.0, 'db', 0.0, 0.0, " dB")
     ),
     maxDist: (
-        midicc: 14,
+        label: "max dist",
         spec: ControlSpec(0.5, 30.0, \lin, 0.1, ~speakers.maxDist),
         ),
     depth: (
-        midicc: 15,
+        label: "depth",
         spec: ControlSpec(1, 10, \lin, 0.1, ~depth),
         ),
     skelSimulSpeed: ( // XXX - rename it to sthn like skelSimulInertia OR
                       //       change processing algo reversing this value to get `.wait`
         label: "simul vel",
         spec: ControlSpec(0.001, 0.005, \lin, 0.001, 0.002),
-        midicc: 34,
         hint: "speed of skeleton simulation",
     ),
     internalBuf: (
@@ -322,15 +374,8 @@ var ade2xyz = { |position, maxDist|
 };
 
 
-var physics = TraerParticleSystem.new;
-var mouse = physics.makeParticle(1, 0, 0, 0);
-var b = physics.makeParticle(1, width.rand, height.rand, depth.rand);
-var c = physics.makeParticle(1, width.rand, height.rand, depth.rand);
+var physics = ~physics; // TraerParticleSystem.new;
 
-mouse.makeFixed;
-physics.makeAttraction(mouse, b, 10000, 10);
-physics.makeAttraction(mouse, c, 10000, 10);
-physics.makeAttraction(b, c, -10000, 5);
 
 // The World is the frame.
 canvas.canvas.add(frame = Canvas3DItem.cube
@@ -341,7 +386,12 @@ canvas.canvas.add(frame = Canvas3DItem.cube
 // Add particles to canvas.
 physics.particles.do { |particle|
     item = Canvas3DItem.cube
-    .color_(if (particle == mouse) { Color.red } { Color.green })
+    .color_(
+        case
+        {particle == ~star} {colorStar}
+        {{: ~skel[joint], joint <- ~skel.keys}.contains(particle)} {colorJoint} // XXX check it!
+        {colorParticle}
+    )
     .width_(1)
     .transform(Canvas3D.mScale(0.05));
     canvas.canvas.add(item);
@@ -358,9 +408,8 @@ physics.particles.do { |particle|
     canvas.canvas.add(item);
     speaker.put(\cube, item);
 
-    // XXX - speaker stand
+    // Speaker stand
     #x, y, z = ade2xyz.(speaker, ~speakers.maxDist);
-    postf("==> speaker %: %, %, %\n", i, x, y, z);
     item = Canvas3DItem()
     .color_(Color.cyan)
     .width_(0.5)
@@ -404,23 +453,6 @@ canvas.canvas.animate(40) { |t|
     physics.tick;
 };
 
-canvas.canvas.mouseDownAction= { |v, x, y|
-    mouse.position.set(x, y, 0);
-};
-canvas.canvas.mouseMoveAction = canvas.canvas.mouseDownAction;
-
-// XXX
-// // add slider for canvas spin (instead of mouse move)
-// canvas.mouseMoveAction = { |v, x, y|
-//     mouse.position.set(x, y, 0);
-//     canvas.transforms = [
-//         Canvas3D.mRotateY(x / -200 % 2pi),
-//         Canvas3D.mRotateX(y / 200 % 2pi)
-//     ];
-//     canvas.refresh;
-// };
-// canvas.mouseMoveAction = canvas.mouseDownAction;
-// canvas.mouseMoveAction.value(nil, 50, 50); // initial rotation
 
 win.view.keyDownAction = { arg view, char, modifiers, unicode, keycode;
     [char, modifiers, unicode, keycode].postln;
@@ -472,12 +504,19 @@ palette = QPalette.dark;
 palette.setColor(Color.black, \window);
 panel.palette = palette;
 meterView = EntroServerMeterView(~scsynth, panel, 0@0, 210);
+// GUI: log left side
+panel = compViewFlow.(panelLeft, scaleH: 0.8);
+logLeft = TextView(panel, (panel.bounds.width*0.99)@(panel.bounds.height*0.97))
+    .editable_(false)
+    .font_(fontSmall)
+    .stringColor_(Color.new255(11, 96, 224))
+    .background_(transparent)
+    .hasVerticalScroller_(false)
+    .canFocus_(false);
 
 // GUI: slider controllers for physics and global params
-panel = compViewFlow.(panelLeft, scaleH:0.56);
-globalParams[\serverVolume][\gui] = slider.(panel, "s.vol", globalParams[\serverVolume])
-    .action_({ |sl| ~scsynth.volume.volume = sl.value})
-    .value_(1);
+panel = compViewFlow.(panelRight, scaleH:0.5);
+globalParams[\serverVolume][\gui] = lvMeter.value(panel, globalParams[\serverVolume]);
 compViewFlow.(panel, scaleH:0.02); // gap
 [
     \drag, \repulsion, \starMass,
@@ -486,7 +525,7 @@ compViewFlow.(panel, scaleH:0.02); // gap
     \maxVel, \partInitAccel, \partFreq,
     \partDefaultMass, \partAgeThresh,
 ].do { |key, n|
-    world.params[key][\gui] = sliderWorld.(panel, key, world.params[key]);
+    world.params[key][\gui] = lvMeter.value(panel, world.params[key]);
     // make a gap after every 3rd slider
     if ((n+1) % 3 == 0) {
         compViewFlow.(panel, scaleH:0.02)
@@ -495,21 +534,9 @@ compViewFlow.(panel, scaleH:0.02); // gap
 
 // GUI: slider controllers for global params
 compViewFlow.(panel, scaleH:0.02); // gap
-globalParams[\skelSimulSpeed][\gui] = slider.(panel, "skel simul",
-    globalParams[\skelSimulSpeed])
-    .action_({ |sl| globalParams[\skelSimulSpeed] = sl.value})
-    .value_(1);
-globalParams[\maxDist][\gui] = slider.(panel, "maxDist",
-    globalParams[\maxDist])
-    .action_({ |sl| ~speakers.maxDist = sl.value })
-    .value_(~speakers.maxDist);
-globalParams[\depth][\gui] = slider.(panel, "maxDist",
-    globalParams[\depth])
-    .action_({ |ez|
-        ~depth = ez.value;
-        ~sendMessage.('/audio', [\depth, ~depth])
-    })
-    .value_(~depth);
+globalParams[\skelSimulSpeed][\gui] = lvMeter.value(panel, globalParams[\skelSimulSpeed]);
+globalParams[\maxDist][\gui] = lvMeter.value(panel, globalParams[\maxDist]);
+globalParams[\depth][\gui] = lvMeter.value(panel, globalParams[\depth]);
 
 // GUI: button based misc params
 compViewFlow.(panel, scaleH:0.02); // gap
@@ -563,6 +590,16 @@ sText.(panel, " ", stringFont:fontSmall, scaleH:0.5, scaleW:0.05); // gap
         // ))
     })
 };
+// GUI log right
+panel = compViewFlow.(panelRight, scaleH: 0.5);
+logRight = TextView(panel, (panel.bounds.width*0.99)@(panel.bounds.height*0.96))
+    .editable_(false)
+    .font_(fontSmall)
+    .stringColor_(Color.new255(11, 96, 224))
+    .background_(transparent)
+    .hasVerticalScroller_(false)
+    .canFocus_(false);
+
 
 // GUI: canvas sliders
 panel = compViewFlow.(panelCenter, scaleW:0.95); // gap
@@ -585,13 +622,106 @@ canvas.applyGui(\rotate,
     .value_(canvas.val(\rotate))
 );
 
+
+// Post messages to a given GUI element (must be TextView)
+logMsg = { |msg, txtView|
+    var start, color, line, logMaxSize=5000;
+    // Updates post colors when postView size shrinks.
+    var updatePostColors = { |colors, start|
+        colors.size.do { |i|
+            colors[i][\start] = colors[i][\start] - start
+        };
+        all {: k, k <-colors, k[\start] > 0 };
+    };
+
+    msg = msg.asString;
+    line = msg.split($\n)[0];
+    if (msg.endsWith("\n").not) { msg = msg ++ "\n" };
+
+    // XXX - less colors! more highlights..
+    color = case
+    { line.beginsWith("INFO") || line.beginsWith("->") } { techColor }
+    { line.beginsWith("DEBUG") || line.beginsWith("$>") } { techColor }
+    { line.beginsWith("WARNING") } { Color.white }
+    { line.beginsWith("ERROR") } { Color.new255(158, 33, 33) }
+    { fontColor };
+
+    {
+        // do not grow too long
+        if (txtView.string.size > logMaxSize) {
+            start = txtView.string.size - logMaxSize;
+            txtView.string = txtView.string[start..];
+            postColors = updatePostColors.(postColors, start);
+        };
+        postColors.add((start: txtView.string.size, num: line.size, color: color));
+        postColors.add((start: txtView.string.size+line.size, num: msg.size-line.size, color: fontColor));
+        txtView.string = txtView.string ++ msg;
+        postColors.do { |c|
+            txtView.setStringColor(c[\color], c[\start], c[\num]);
+        };
+        txtView.select(txtView.string.size, 1); // autoscroll
+    }.defer;
+};
+
+
+
+// Parses /g_queryTree.reply:
+// [ /g_queryTree.reply, 0, 1008, 2, 1014, -1, bass__a2, 1010, 2, 1012, -1, atru__a2, ... ]
+// and fills out synth name for a particle as well as formats server tree
+oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
+    var name, part;
+    logMsg.(
+        format("%:%: %\n", addr.ip, addr.port, msg),
+        logLeft
+    );
+    // fill out srv tree
+    if (msg[2] == 0) {
+        logMsg.(
+            format("-> /g_queryTree.reply (%:%)\n%\n", addr.ip, addr.port, ~formatSrvTree.(msg)),
+            logLeft
+        );
+    };
+}, '/g_queryTree.reply');
+
+
 // Animate and display
 canvas.canvas.animate = true;
+{ // GLOBAL APP CLOCK. Resolution: 100 milliseconds (0.1 of a second)
+    while {win.isClosed.not} {
+        // report nodes every now and then
+        tick = tick + 1;
+        if (tick % 20 == 0) {
+            ~scsynth.sendMsg("/g_queryTree", 0);
+        };
+
+        if (tick % [3, 5, 10, 20, 50].choose == 0) {
+            logMsg.(
+                msg: File(
+                    ~currentDir +/+ "experiments/" +/+
+                    [
+                        "transparent_window.scd",
+                        "skel_simulation.scd",
+                        "remote_srv__.scd",
+                        "skelsimulator_pseudoclass.scd"
+                    ].choose, "r"
+                ).readAllString,
+                txtView: [logLeft, logRight].choose
+            );
+        };
+
+        if (tick >= 20000) {
+            tick = 0;
+        };
+        0.1.wait;
+    }
+}.fork(AppClock);
+
 win.front;
 
 clean = {
     // stop meter view explicitly to remove synths for internal levels
     meterView.stop;
+    oscGroupTree.free;
     win.close;
 };
 

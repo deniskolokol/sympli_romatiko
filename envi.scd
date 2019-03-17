@@ -4,8 +4,23 @@
 // connecting together World, Scheduler and SynthDefs
 //
 
-
-// XXX - WARNING!
+// To get it up and running
+//
+// start OSCeleton:
+// $ ~/Documents/run/Kinect/OSCeleton/osceleton -p 57120 -oz -0.3
+//
+// manipulate -oz to obtain ~3m from the sensor and to stay
+// in the center of a calibration layout
+//
+// run glview and adjust tilt
+// $ /usr/local/Cellar/libfreenect/0.5.7/bin/freenect-glview
+//
+// start OSCeleton again
+//
+// RPI (192.168.1.131 for eth0, 192.168.1.106 for wlan)
+// ssh to RPI:
+// $ ssh pi@192.168.1.131
+//
 // Visual server communication (RPI)
 // ~vis = Server("vis", NetAddr.new("192.168.1.106", 7110));
 // ~vis.sendMsg("/run");

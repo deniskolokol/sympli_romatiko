@@ -3,7 +3,7 @@ var samplesDir;
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 var scales, buf;
 
-~sequence[\title] = "Sympli Romatiko: kraut Traer World";
+~sequence[\title] = "Sympli Romatiko: poli 2017";
 
 // INITIAL
 //
@@ -94,7 +94,6 @@ scales.do { |c, i|
             ),
         ),
     ],
-
     3: [
         (
             info: "AIRY: 2 heavy <probe>\n wait 120s",
@@ -215,7 +214,7 @@ scales.do { |c, i|
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
 
-        // XXX - try it with the band!
+        // XXX - check why elbows switch to hands
         (
             info: "WARNING! elbows!",
             message: \particle,
@@ -247,23 +246,20 @@ scales.do { |c, i|
             message: \physics, params: [\drag, 0.5, \starMass, 1]
         ),
     ],
-
-    // XXX
-    // 8: [
-    //     (
-    //         info: "TRANS: Graph mode",
-    //         message: \action,  params: [\draw, \graph]
-    //     )
-    // ],
+    8: [
+        (
+            info: "TRANS: Graph mode",
+            message: \action,  params: [\draw, \graph]
+        )
+    ],
     10: [
         (
             info: "BREAKS",
             message: \action,  params: [\remove, \all]
         ),
-        // XXX
-        // (
-        //     message: \action,  params: [\draw, \skel]
-        // ),
+        (
+            message: \action,  params: [\draw, \skel]
+        ),
         ( // IMPORTANT! switchScale sends scales as buffers to all nodes
             // It should be stopped before starting granWave to prevent
             // sending scales instead of samples.
@@ -276,7 +272,7 @@ scales.do { |c, i|
         (
             info: "heavy <entro> + 2x<komar>",
             message: \particle,
-            synth: (name: "entro"),
+            synth: (name: "entro", params: [\amp, 0.7]),
             particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
         ),
         (
@@ -305,12 +301,12 @@ scales.do { |c, i|
         (
             info: "2 heavy <entro>",
             message: \particle,
-            synth: (name: "entro"),
+            synth: (name: "entro", params: [\amp, 0.7]),
             particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
         ),
         (
             message: \particle,
-            synth: (name: "entro"),
+            synth: (name: "entro", params: [\amp, 0.7]),
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         ),
         (
@@ -332,11 +328,9 @@ scales.do { |c, i|
             \springDamp, \default,
             \mutualAttraction, \default,
         ]),
-        // XXX
-        //
-        // (
-        //     message: \action,  params: [\draw, \calibration]
-        // ),
+        (
+            message: \action,  params: [\draw, \calibration]
+        ),
         (
             info: "LFOs <ksine>, <keyscale>, <klfno0>",
             message: \lfo,
@@ -632,12 +626,12 @@ scales.do { |c, i|
         ),
         (
             message: \particle,
-            synth: (name: "neural", params: [\attack, 1, \cutoff, 1, \amp, 1]),
+            synth: (name: "neural", params: [\attack, 1, \cutoff, 1, \amp, 0.8]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
         (
             message: \particle,
-            synth: (name: "neural", params: [\attack, 1, \cutoff, 1, \amp, 1]),
+            synth: (name: "neural", params: [\attack, 1, \cutoff, 1, \amp, 0.8]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
         (
@@ -704,6 +698,43 @@ scales.do { |c, i|
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
         (
+            info: "2 heavy <komar> - /elbows",
+            message: \particle,
+            synth: (
+                name: "komar",
+                node: 1195,
+                params: [
+                    \attack, 1,
+                    \release, 10,
+                    \freq, 3041,
+                    \maxdelaytime, 1.33,
+                    \decaytime, 1,
+                    \cutoff, 1690.92,
+                    \rq, 0.71,
+                    \amp, 0.18
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \r_elbow)
+        ),
+        (
+            message: \particle,
+            synth: (
+                name: "komar",
+                node: 1196,
+                params: [
+                    \attack, 1,
+                    \release, 10,
+                    \freq, 3041,
+                    \maxdelaytime, 1.33,
+                    \decaytime, 1,
+                    \cutoff, 1690.92,
+                    \rq, 0.71,
+                    \amp, 0.18
+                ]
+            ),
+            particle: (age: inf, mass: 1, spring: 1, source: \l_elbow)
+        ),
+        (
             message: \task, name: \buzzStream1, act: 0
         ),
         (
@@ -717,6 +748,7 @@ scales.do { |c, i|
             synth: (
                 name: "entro",
                 node: 1182,
+                params: [\amp, 0.7]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
@@ -725,13 +757,14 @@ scales.do { |c, i|
             synth: (
                 name: "entro",
                 node: 1183,
+                params: [\amp, 0.7]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
-        // (
-        //     info: "Skel mode, stop <buzz> stream 2, remove <melo>",
-        //     message: \action,  params: [\draw, \skelfull]
-        // ),
+        (
+            info: "Skel mode, stop <buzz> stream 2, remove <melo>",
+            message: \action,  params: [\draw, \skelfull]
+        ),
         (
             message: \action,  params: [\remove, 1180]
         ),
@@ -763,9 +796,9 @@ scales.do { |c, i|
                 ]
             ),
         ),
-        // (
-        //     message: \action,  params: [\draw, \skel]
-        // ),
+        (
+            message: \action,  params: [\draw, \skel]
+        ),
     ],
     84: [
         (
@@ -802,7 +835,7 @@ scales.do { |c, i|
                     \release, 120,
                     \bufnum,  ~sequence.scales[3].bufnum,
                     \offset, 26+24,
-                    \amp, 0.1,
+                    \amp, 0.3,
                     \freq, 622.25396744416
             ]),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
@@ -817,14 +850,14 @@ scales.do { |c, i|
                     \release, 120,
                     \bufnum, ~sequence.scales[3].bufnum,
                     \offset, 26+24,
-                    \amp, 0.1,
+                    \amp, 0.3,
                     \freq, 740
             ]),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
-        // (
-        //     message: \action,  params: [\draw, \skelfull]
-        // ),
+        (
+            message: \action,  params: [\draw, \skelfull]
+        ),
     ],
     86: [
         (
@@ -834,11 +867,10 @@ scales.do { |c, i|
         (
             message: \action,  params: [\remove, 1183]
         ),
-        // XXX
-        // (
-        //     info: "Graph mode",
-        //     message: \action,  params: [\draw, \graph]
-        // ),
+        (
+            info: "Graph mode",
+            message: \action,  params: [\draw, \graph]
+        ),
     ],
     87: [
         (
@@ -884,15 +916,22 @@ scales.do { |c, i|
             message: \action,  params: [\remove, 1187]
         )
     ],
-    95: [
+    92: [
         (
             info: "MATH: remove voice 2,\n leave buzz alone",
             message: \action,  params: [\remove, 1188]
-        )
+        ),
+        (
+            info: "remove <komar>",
+            message: \action, params: [\remove, 1195],
+        ),
+        (
+            message: \action, params: [\remove, 1196],
+        ),
     ],
 
     // + na ulice
-    96: [
+    93: [
         (
             info: "GROOVE",
             message: \action,  params: [\remove, 1190]
@@ -900,43 +939,100 @@ scales.do { |c, i|
         (
             message: \action,  params: [\remove, 1191]
         ),
-        // (
-        //     message: \action,  params: [\draw, \skel]
-        // ),
+        (
+            message: \action,  params: [\draw, \skel]
+        ),
         (
             info: "two heavy <gauss>",
             message: \particle,
-            synth: (name: "gauss", params: [\attack, 60, \release, 3, \ca, 5]),
+            synth: (name: "gauss", params: [
+                \attack, 10, // 60,
+                \release, 3,
+                \ca, 5
+            ]),
             particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
         ),
         (
             message: \particle,
-            synth: (name: "gauss", params: [\attack, 60, \release, 3, \ca, 5]),
+            synth: (name: "gauss", params: [
+                \attack, 10, // 60,
+                \release, 3,
+                \ca, 5
+            ]),
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         )
     ],
-    // XXX
-    // 97: [
-    //     (
-    //         info: "GROOVE - draw strob",
-    //         message: \action,  params: [\draw, \skelfull]
-    //     ),
-    // ],
-    // 98: [
-    //     (
-    //         info: "GROOVE - draw skel",
-    //         message: \action,  params: [\draw, \skel]
-    //     ),
-    // ],
+    94: [
+        (
+            info: "GROOVE - draw strob",
+            message: \action,  params: [\draw, \skelfull]
+        ),
+    ],
+    95: [
+        (
+            info: "GROOVE - draw skel",
+            message: \action,  params: [\draw, \skel]
+        ),
+    ],
     99: [
         (
             info: "FIN: remove all",
             message: \action,  params: [\remove, \all]
         ),
-        // XXX
-        // (
-        //     message: \action,  params: [\draw, \calibration]
-        // ),
+        (
+            message: \func,
+            name: \finWin,
+            run: {
+                var tw, cursorTask, cnt=0;
+                var visHost = NetAddr("192.168.1.131", 7110);
+                var win = Window("FIN",
+                    Rect(590, Window.screenBounds.height-~worldSize, Window.screenBounds.width, Window.screenBounds.height),
+                    border: false
+                );
+                win.background = Color.black;
+                win.view.keyDownAction = { |view, char, modifiers, unicode, keycode|
+                    case
+                    { keycode == 8 } { // C
+                        if (modifiers == 262144) { // Ctrl + C
+                            win.close;
+                        }
+                    }
+                };
+                tw = TextView(win.asView, bounds: Rect(0, 0, win.bounds.width, win.bounds.height))
+                .font_(Font("Courier", 16))
+                .background_(Color.grey(alpha:0.01))
+                .string_("\n  [exited]\n  pi@deko-rpi-1:~/ ▓");
+                tw.setStringColor(Color.white, 0, 12);
+                tw.setStringColor(Color.green, 13, 14);
+                tw.setStringColor(Color.white, 27, 1);
+                tw.setStringColor(Color.blue, 28, 3);
+                tw.select(tw.string.size, 1); // autoscroll
+                cursorTask = Task({
+                    inf.do {
+                        {
+                            if (win.isClosed.not) {
+                                if (cnt % 5 == 0) { tw.setStringColor(Color.white, 30, 3) };
+                                if (cnt % 10 == 0) { tw.setStringColor(Color.grey(alpha:0.001), 30, 3) };
+                            } {
+                                cursorTask.stop
+                            }
+                        }.defer;
+                        cnt = cnt + 1;
+                        0.1.wait
+                    };
+                }).play;
+
+                win.front;
+                win.fullScreen;
+                win.onClose = { cursorTask.stop };
+
+                // also send kill signal to visualisation host
+                visHost.sendMsg("/user", "kill");
+            }
+        ),
+        (
+            message: \action,  params: [\draw, \calibration]
+        ),
     ]
 );
 
@@ -1013,9 +1109,8 @@ scales.do { |c, i|
     }),
     bgMarkovProcess: Task({
         var msetWait= MarkovSet([ // markov set for waiting time (1st order)
-            [\ss, [1, 1.5, 2, 2.5, 3]], // super short
-            [\s, [2.5, 3.5, 4, 4.5, 5, 5.5]], // short
-            [\a, [5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 10, 12]], // ave
+            [\s, [4, 4.5, 5, 5.5]], // short
+            [\a, [6, 6.5, 7, 7.5, 8, 8.5, 9, 10, 12]], // ave
             [\l, [20, 25, 27, 32, 40, 45, 55, 60, 90, 120], // long
                 [6, 7, 4, 4, 3, 3, 2, 2, 1, 1].normalizeSum
             ]
@@ -1081,6 +1176,6 @@ scales.do { |c, i|
                 (wait-flytime).max(0.1).wait;
             });
         });
-    }),
+    })
 );
 )

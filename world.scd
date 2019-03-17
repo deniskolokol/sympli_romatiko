@@ -2,8 +2,7 @@
 // module: World
 // ---------------
 (
-//var physics;
-var skel, springs, particles, particle, star;
+var skel, physics, springs, particles, particle, star;
 var world, center, canvas, frame, item, color;
 var miscParams, event, updateWorldParm;
 var oscParticle, oscPhysics, oscAction,
@@ -212,21 +211,21 @@ var worldParams = (
         minval: -2.1,
         maxval: 2.0,
         default: 0,
-        midicc: 27,
+        // midicc: 27,
     ),
     gravY: (
         label: "grav Y",
         minval: -2.1,
         maxval: 2.0,
         default: 0,
-        midicc: 28,
+        // midicc: 28,
     ),
     gravZ: (
         label: "grav Z",
         minval: -2.1,
         maxval: 2.0,
         default: 0,
-        midicc: 29,
+        // midicc: 29,
     ),
     // springs
     springRestLen: (
@@ -370,7 +369,8 @@ world = (width: ~worldSize, height: ~worldSize, depth: ~worldSize);
 worldParams.keysValuesDo { |k, v| world[k] = v[\default]};
 
 // skeletons
-skel = (waitBeforeRemove: 5, limit: 1);
+~skel = (waitBeforeRemove: 5, limit: 1);
+skel = ~skel;
 skeleton = Dictionary.new;
 jointVisible = [ // visualize only these joints
     \l_hand, \l_elbow, \l_shoulder, \neck, \head, \neck, \r_shoulder, \r_elbow, \r_hand
@@ -612,6 +612,7 @@ processEvents = { |num|
             \n_set, { sendNSet.(data) },
             \g_new, { groupNew.(data) },
             \g_free, { groupRemove.(data) },
+            \func, { data[\run].value },
             { ~sendMessage.(data[\message], data[\params]) }
         )
     }
@@ -913,7 +914,7 @@ miscParams[\serverVolume] = (
 );
 tmp = [0.5, 30.0, \lin, 0.1, ~speakers.maxDist].asSpec;
 miscParams[\maxDist] = (
-    midicc: 14,
+    // midicc: 14, // XXX
     spec: tmp,
     gui: slider.(panel, "maxDist", (
         label: "max dist", minval: tmp.minval, maxval: tmp.maxval,
@@ -2652,7 +2653,6 @@ postMsg = { |msg|
     }.defer;
 };
 
-
 //
 reportOSC = { |msg, time, addr, recvPort|
     postMsg.(format(
@@ -2847,14 +2847,19 @@ oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|
 
 // PHYSICS
 //
-physics = TraerParticleSystem.new;
-particles = IdentityDictionary.new;
-springs = IdentityDictionary.new;
+// Environment variables anbd their local counterparts.
+~physics = TraerParticleSystem.new;
+~particles = IdentityDictionary.new;
+~springs = IdentityDictionary.new;
+physics = ~physics;
+particles = ~particles;
+springs = ~springs;
 
 // Star is in the center.
 star = initParticle.((
     mass: world.starMass, x: world.width/2, y: world.height/2, z: world.depth/2
 ));
+~star = star;
 applyAttractions.(star, world.mutualAttraction);
 
 // Animate!

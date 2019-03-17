@@ -842,10 +842,10 @@ var makeSynthDefADSR = { |name, outCodeFunc|
                 amp,
 
                 // Positive \ampc switches amp control to momentum
-                (amp * momentum).scurve
+                (amp * momentum).scurve.max(1)
             ]
         );
-        signal = Limiter.ar(Mix.ar(signal), ampli);
+        signal = Mix.ar(signal) * ampli;
         outCodeFunc.value(
             signal, out, trigID, azimuth, distance, elevation,
             gate, attack, sustain, release, ca, cr, depth, elevClip

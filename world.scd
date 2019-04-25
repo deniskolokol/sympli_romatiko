@@ -36,12 +36,11 @@ var win, viewTop, viewSeqList, viewTopCenter, viewSeqTime,
     sText, dropdown, listView, slider, knob, button, buttonCheckbox,
     scrollInfo;
 var winSrv, palette, meterView;
-var postView, postMaxSize=1500;
 var scale, translate, focal;
 var paramsChanged;
 var cleanExit;
 var fileNames;
-var postMsg, updatePostColors, getMsgColor, postColors=List.new;
+var postView, postMsg, postColors=List.new;
 var eventInfo, switchEvent, processEvents, getKey;
 var groupNew, groupRemove, sendSNew, sendNSet, taskPlay;
 var animateSeq, shade, current, next, count=0, blinked=0, tick=0;
@@ -2611,40 +2610,37 @@ xyz = { |position|
 };
 
 
-// Updates post colors when postView size shrinks.
-updatePostColors = { |colors, start|
-    colors.size.do { |i|
-        colors[i][\start] = colors[i][\start] - start
-    };
-    all {: k, k <-colors, k[\start] > 0 };
-};
-
-
-//
-getMsgColor = { |msg|
-    case
-    { msg.beginsWith("INFO") || msg.beginsWith("->") } { Color.new255(11, 96, 224) }
-    { msg.beginsWith("DEBUG") || msg.beginsWith("$>") } { Color.new255(55, 157, 0) }
-    { msg.beginsWith("WARNING") } { Color.white }
-    { msg.beginsWith("ERROR") } { Color.new255(158, 33, 33) }
-    { fontColor };
-};
-
-
 // Posts message to local listener.
 postMsg = { |msg|
-    var msgColor, start, color;
+    var start, color, line, logMaxSize=5000;
+    // Updates post colors when postView size shrinks.
+    var updatePostColors = { |colors, start|
+        colors.size.do { |i|
+            colors[i][\start] = colors[i][\start] - start
+        };
+        all {: k, k <-colors, k[\start] > 0 };
+    };
+
     msg = msg.asString;
+    line = msg.split($\n)[0];
     if (msg.endsWith("\n").not) { msg = msg ++ "\n" };
-    msgColor = getMsgColor.(msg);
+
+    color = case
+    { line.beginsWith("INFO") || line.beginsWith("->") } { Color.new255(11, 96, 224) }
+    { line.beginsWith("DEBUG") || line.beginsWith("$>") } { Color.new255(55, 157, 0) }
+    { line.beginsWith("WARNING") } { Color.white }
+    { line.beginsWith("ERROR") } { Color.new255(158, 33, 33) }
+    { fontColor };
+
     {
         // do not grow too long
-        if (postView.string.size > postMaxSize) {
-            start = postView.string.size - postMaxSize;
+        if (postView.string.size > logMaxSize) {
+            start = postView.string.size - logMaxSize;
             postView.string = postView.string[start..];
             postColors = updatePostColors.(postColors, start);
         };
-        postColors.add((start: postView.string.size, num: msg.size, color: msgColor));
+        postColors.add((start: postView.string.size, num: line.size, color: color));
+        postColors.add((start: postView.string.size+line.size, num: msg.size-line.size, color: fontColor));
         postView.string = postView.string ++ msg;
         postColors.do { |c|
             postView.setStringColor(c[\color], c[\start], c[\num]);

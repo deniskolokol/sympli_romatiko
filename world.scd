@@ -737,6 +737,7 @@ winSrv = Window.new(
     Rect(0, Window.screenBounds.height-200, 590, 660),
     resizable: false, border: false
 );
+
 winSrv.view.decorator = FlowLayout(winSrv.view.bounds, 1@1, 1@1);
 palette = QPalette.dark;
 palette.setColor(Color.black, \window);
@@ -750,8 +751,8 @@ meterView = EntroServerMeterView(~scsynth, panel, 0@0, 210);
 // GUI: sequence panel
 panelSrvRight = compViewFlow.(winSrv, scaleW:0.43);
 viewSeqList = compViewFlow.(panelSrvRight, scaleH:0.1, scaleW:0.65);
-viewSeqTime = compViewFlow.(panelSrvRight, margin:5@5, gap:5@5, scaleH:0.1, scaleW:0.35);
-viewSeqEvents = compViewFlow.(panelSrvRight, gap:8@4, scaleH:0.86);
+viewSeqTime = compViewFlow.(panelSrvRight, scaleH:0.1, scaleW:0.35); // margin:5@5, gap:5@5
+viewSeqEvents = compViewFlow.(panelSrvRight, scaleH:0.86); // gap:8@4
 // time elapsed since the start
 timeLabel = sText.(viewSeqTime, ~convertTime.(0), stringFont:fontLarge1, scaleW:1, scaleH:0.7);
 timeLabel.align = \center;
@@ -2612,7 +2613,7 @@ xyz = { |position|
 
 // Posts message to local listener.
 postMsg = { |msg|
-    var start, color, line, logMaxSize=5000;
+    var start, color, line, logMaxSize=500;
     // Updates post colors when postView size shrinks.
     var updatePostColors = { |colors, start|
         colors.size.do { |i|
@@ -2797,23 +2798,31 @@ oscSkeletonNew = OSCFunc({ |msg, time, addr, recvPort|
 
 oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
     var id, joint, x, y, z;
-    // postf("from % received %\n", addr, msg);
+	// postf("from % received %\n", addr, msg);
     id = msg[2].asInteger;
     joint = msg[1];
 
-    // // XXX front view
-    // #x, y, z = [
-    //     msg[3].linlin(0.0, 1.0, 0, world.width),
-    //     msg[4].linlin(0.0, 1.0, 0, world.height),
-    //     msg[5].linlin(0.65, 2.8, 0, world.depth)
-    // ];
+	// // XXX front view
+	// #x, y, z = [
+	// 	msg[3].linlin(0.0, 1.0, 0, world.width),
+	// 	msg[4].linlin(0.0, 1.0, 0, world.height),
+	// 	msg[5].linlin(-1.0, 1.0, 0, world.depth)
+	// 	// msg[5].linlin(0.65, 2.8, 0, world.depth)
+	// ];
 
-    // XXX top view
-    #x, y, z = [
-        msg[3].linlin(0.0, 1.0, 0, world.width),
-        msg[5].linlin(0.65, 2.8, 0, world.height),
-        msg[4].linlin(0.0, 1.0, 0, world.depth)
-    ];
+	// XXX top view
+	#x, y, z = [
+		msg[3].linlin(0.0, 1.0, 0, world.width),
+		msg[5].linlin(-1.0, 1.0, 0, world.height),
+		msg[4].linlin(0.0, 2.0, 0, world.depth)
+	];
+
+	// // XXX top view
+	// #x, y, z = [
+	// 	msg[3].linlin(0.0, 1.0, 0, world.width),
+	// 	msg[5].linlin(0.65, 2.8, 0, world.height),
+	// 	msg[4].linlin(0.0, 1.0, 0, world.depth)
+	// ];
     skeletonParticles.(id, joint, x, y, z);
 }, '/joint');
 

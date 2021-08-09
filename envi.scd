@@ -64,7 +64,9 @@ var loadPaths = { |lines|
 
 var isTest = thisProcess.argv.includesEqual("test");
 var currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
-var seqPathsFile = currentDir +/+ "conf/sequences.conf";
+// var seqPathsFile = currentDir +/+ "conf/sequences.conf";
+var seqPathsFile = "/Users/deko/Documents/dev_music/sympli_romatiko/conf/sequences.conf";
+
 var seqPaths = ["Load..."];
 var confFile = currentDir +/+ "conf/envi.conf";
 var emptySequence = {
@@ -768,7 +770,7 @@ loadComponents = {
 
     "-> Loading world...".postln;
     if (this.executeFile(~currentDir +/+ "world.scd").isNil.not) {
-        // if (this.executeFile(~currentDir +/+ "world3d.scd").isNil.not) {
+    // if (this.executeFile(~currentDir +/+ "world3d.scd").isNil.not) {
         postf("OK\n\n")
     };
 };

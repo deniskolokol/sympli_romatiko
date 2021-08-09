@@ -3,7 +3,7 @@ var samplesDir;
 var dictObjSeq, msetObjSeq; // Markov chains creating sequences and obtaining objects' birthtime
 var scales, buf;
 
-~sequence[\title] = "Sympli Romatiko: poli 2017";
+~sequence[\title] = "MOON2: supernova (Part II of poli_2017)";
 
 // INITIAL
 //
@@ -17,7 +17,7 @@ dictObjSeq = (
 msetObjSeq = MarkovSetN([], 2);
 dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 
-samplesDir = "/media/Vayu/Music/MOON2/samples/";
+samplesDir = "/run/media/deko/Vayu/Music/MOON2/samples/";
 PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
     try {
         buf = Buffer.readChannel(~scsynth, f.fullPath, channels: [0]);
@@ -41,294 +41,25 @@ scales.do { |c, i|
 };
 
 ~sequence.events = (
-
     0: [
-        (
-            info: "PART I:\n Remove all, initial settings",
-            message: \action,  params: [\remove, \all]
-        ),
-        (
-            message: \action,  params: [\draw, \calibration]
-        ),
-        (
-            message: \physics,
-            params: [
-                \gravX, \default,
-                \gravY, \default,
-                \gravZ, \default,
-                \drag, 0.15,
-                \repulsion, 10,
-                \starMass, \default,
-                \particleSystem, \default,
-                \springRestLen, 3,
-                \springStrength, 0.5,
-                \springDamp, 2,
-                \maxVel, 150,
-            ]
-        ),
-        (
-            info: "LFO \kstepno, \klfno2",
-            message: \lfo,
-            synth: (
-                name: "kstepno",
-                node: 1205,
-                params: [
-                    \lfreq, 0.2,
-                    \min, 1800,
-                    \max, 18000,
-                    \out, 0
-                ]
-            ),
-        ),
-        (
-            message: \lfo,
-            synth: (
-                name: "klfno2",
-                node: 1206,
-                params: [
-                    \lfreq, 0.3,
-                    \min, 1233,
-                    \max, 12330,
-                    \out, 1
-                ]
-            ),
-        ),
-    ],
-    3: [
-        (
-            info: "AIRY: 2 heavy <probe>\n wait 120s",
-            message: \particle,
-            synth: (name: "probe",
-                params: [\attack, 2+1.0.rand2, \release, 60, // very long release for xfade
-                    \bufnum, ~sequence.scales[0].bufnum]),
-            particle: (
-                age: inf,
-                mass: 0.9,
-                spring: 1,
-                x: 50, y: 350, z: 350
-            )
-        ),
-        (
-            message: \particle,
-            synth: (name: "probe",
-                params: [\attack, 2+1.0.rand2, \release, 60, // very long release for xfade
-                    \bufnum, ~sequence.scales[0].bufnum]),
-            particle: (
-                age: inf,
-                mass: 0.9,
-                spring: 1,
-                x: 550, y: 100, z: 150
-            ),
-        ),
-        (
-            wait: 120,
-            info: "Schedule <cmb>, <melo>, global scale switch",
-            message: \task, name: \randomCMBMelo, act: 1
-        ),
-        (
-            message: \task, name: \switchScale, act: 1
-        )
-    ],
-    4: [
-        (
-            info: "AIRY: Remove drag force\n wait 120s",
-            wait: 120,
-            message: \physics, params: [\drag, 0.0]
-        ),
-    ],
-    5: [
-        (
-            info: "AIRY: + 2 heavy <cmb>",
-            message: \particle,
-            synth: (name: "cmb", params: [\attack, 30, \release, 20]),
-            particle: (age: inf, mass: 1, spring: 1, source: \l_hand),
-        ),
-        (
-            message: \particle,
-            synth: (name: "cmb", params: [\attack, 30, \release, 20]),
-            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
-        ),
-    ],
-    6: [
-        (
-            message: \action,  params: [\remove, \all]
-        ),
-        (
-            info: "AIRY: 2 heavy <melo> floating",
-            message: \particle,
-            synth: (name: "melo",
-                params: [
-                    \attack, 1.0,
-                    \release, 8,
-                    \bufnum, ~sequence.scales[1].bufnum,
-                    \cutoff, \c1,
-                ]
-            ),
-            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
-        ),
-        (
-            message: \particle,
-            synth: (name: "melo",
-                params: [
-                    \attack, 1.0,
-                    \release, 8,
-                    \bufnum, ~sequence.scales[1].bufnum,
-                    \cutoff, \c0,
-                ]
-            ),
-            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
-        ),
-        (
-            info: "Set starMass to 2.8",
-            message: \physics, params: [\starMass, 2.8]
-        ),
-    ],
-    7: [
-        (
-            info: "AIRY: 2 heavy <melo> controlled",
-            message: \action,  params: [\remove, \all]
-        ),
-        (
-            info: "WARNING! start skel tracking!",
-            message: \particle,
-            synth: (name: "melo",
-                params: [
-                    \attack, 1.0,
-                    \release, 8,
-                    \bufnum, ~sequence.scales[1].bufnum,
-                    \cutoff, \c0
-                ]
-            ),
-            particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
-        ),
-        (
-            message: \particle,
-            synth: (name: "melo",
-                params: [
-                    \attack, 1.0,
-                    \release, 8,
-                    \bufnum, ~sequence.scales[1].bufnum,
-                    \cutoff, \c1
-                ]
-            ),
-            particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
-        ),
-
-        // XXX - check why elbows switch to hands
-        (
-            info: "WARNING! elbows!",
-            message: \particle,
-            synth: (name: "melo",
-                params: [
-                    \attack, 1.0,
-                    \release, 8,
-                    \bufnum, ~sequence.scales[1].bufnum,
-                    \cutoff, \c0
-                ]
-            ),
-            particle: (age: inf, mass: 1, spring: 1, source: \r_elbow)
-        ),
-        (
-            message: \particle,
-            synth: (name: "melo",
-                params: [
-                    \attack, 1.0,
-                    \release, 8,
-                    \bufnum, ~sequence.scales[1].bufnum,
-                    \cutoff, \c1
-                ]
-            ),
-            particle: (age: inf, mass: 1, spring: 1, source: \r_elbow)
-        ),
-
-        (
-            info: "AIRY: Adjust drag and starMass",
-            message: \physics, params: [\drag, 0.5, \starMass, 1]
-        ),
-    ],
-    8: [
-        (
-            info: "TRANS: Graph mode",
-            message: \action,  params: [\draw, \graph]
-        )
-    ],
-    10: [
-        (
-            info: "BREAKS",
-            message: \action,  params: [\remove, \all]
-        ),
-        (
-            message: \action,  params: [\draw, \skel]
-        ),
-        ( // IMPORTANT! switchScale sends scales as buffers to all nodes
-            // It should be stopped before starting granWave to prevent
-            // sending scales instead of samples.
-            info: "Stop all schedules",
-            message: \task, name: \switchScale, act: 0
-        ),
-        (
-            message: \task, name: \randomCMBMelo, act: 0
-        ),
-        (
-            info: "heavy <entro> + 2x<komar>",
-            message: \particle,
-            synth: (name: "entro", params: [\amp, 0.7]),
-            particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
-        ),
-        (
-            message: \particle,
-            synth: (name: "komar", params: [\freq, 53.39, \cutoff, 11932.07, \rq, 0.07, \amp, 0.25]),
-            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
-        ),
-        (
-            message: \particle,
-            synth: (name: "komar", params: [\freq, 291.16, \amp, 0.25]),
-            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
-        ),
-    ],
-    15: [
-        (
-            info: "BREAKS",
-            message: \action,  params: [\remove, \all]
-        ),
-        (
-            message: \physics,
-            params: [
-                \drag, 0.23,
-                \starMass, 1.5,
-            ]
-        ),
-        (
-            info: "2 heavy <entro>",
-            message: \particle,
-            synth: (name: "entro", params: [\amp, 0.7]),
-            particle: (spring: 1, age: inf, mass: 0.9, source: \l_hand)
-        ),
-        (
-            message: \particle,
-            synth: (name: "entro", params: [\amp, 0.7]),
-            particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
-        ),
-        (
-            info: "1 heavy <buzz>",
-            message: \particle,
-            synth: (
-                name: "buzz",
-                params: [\attack, 10, \release, 1, \freq, 79.62, \amp, 0.45]
-            ),
-            particle: (age: inf, mass: 1, spring: 0)
-        ),
-    ],
-    20: [
         (message: \action,  params: [\remove, \all],
-            info: "PART II: rm all, init"),
+            info: "INTRO: rm all, init"),
         (message: \physics, params: [
+			\gravX, \default,
+			\gravY, \default,
+			\gravZ, \default,
+			\drag, 0.23,
+			\starMass, 1.5,
+			\repulsion, 10,
+			\particleSystem, \default,
+			\maxVel, 150,
             \springRestLen, \default,
             \springStrength, 1,
             \springDamp, \default,
             \mutualAttraction, \default,
         ]),
         (
+            info: "calibration mode",
             message: \action,  params: [\draw, \calibration]
         ),
         (
@@ -368,7 +99,7 @@ scales.do { |c, i|
             ),
         ),
     ],
-    21: [
+    1: [
         (
             info: "DARK: 2 heavy <pole>",
             message: \particle,
@@ -413,7 +144,7 @@ scales.do { |c, i|
             )
         ),
     ],
-    22: [
+    2: [
         (
             info: "DARK: <pole> goes \melo",
             message: \n_set,
@@ -439,8 +170,11 @@ scales.do { |c, i|
                 ]
             ),
         ),
+        (
+            message: \action,  params: [\draw, \skel]
+        ),
     ],
-    23: [
+    3: [
         (
             info: "TRAIN: transition heavy <bass>",
             message: \particle,
@@ -487,7 +221,7 @@ scales.do { |c, i|
             ),
         ),
     ],
-    25: [
+    5: [
         (
             info: "TRAIN: <wind> goes \LFNoised",
             message: \n_set,
@@ -531,7 +265,7 @@ scales.do { |c, i|
             message: \action, params: [\remove, 1110],
         ),
     ],
-    30: [
+    10: [
         (
             info: "TRAIN: <pole> & <bass> fixed freq, continuous",
             message: \n_set,
@@ -567,13 +301,13 @@ scales.do { |c, i|
             ),
         ),
     ],
-    31: [
+    11: [
         (
             info: "TRAIN: remove <wind>",
             message: \action, params: [\remove, 1121],
         ),
     ],
-    32: [
+    12: [
         (
             info: "TRAIN: go melo",
             message: \n_set,
@@ -610,13 +344,13 @@ scales.do { |c, i|
             ),
         ),
     ],
-    33: [
+    13: [
         (
             info: "TRAIN switchScaleAndOffset",
             message: \task, name: \switchScaleAndOffset, act: 1
         ),
     ],
-    70: [
+    20: [
         (
             info: "NEURO: 2 heavy <neural>, heavy <bass>",
             message: \action,  params: [\remove, \all]
@@ -647,20 +381,23 @@ scales.do { |c, i|
             ),
             particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
         ),
+        (
+            message: \action,  params: [\draw, \calibration]
+        ),
     ],
-    75: [
+    25: [
         (
             info: "NEURO: avant (1) - <buzz> stream 1",
             message: \task, name: \buzzStream1, act: 1
         ),
     ],
-    76: [
+    26: [
         (
             info: "NEURO: avant (2) - stream <bgMarkovProcess>",
             message: \task, name: \bgMarkovProcess, act: 1
         ),
     ],
-    80: [
+    30: [
         (
             message: \action,  params: [\remove, \all]
         ),
@@ -740,8 +477,11 @@ scales.do { |c, i|
         (
             message: \task, name: \bgMarkovProcess, act: 0
         ),
+        (
+            message: \action,  params: [\draw, \skel]
+        )
     ],
-    82: [
+    32: [
         (
             info: "PATA: 2 heavy <entro>",
             message: \particle,
@@ -762,7 +502,7 @@ scales.do { |c, i|
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
         (
-            info: "Skel mode, stop <buzz> stream 2, remove <melo>",
+            info: "Vis mode, stop <buzz> stream 2, remove <melo>",
             message: \action,  params: [\draw, \skelfull]
         ),
         (
@@ -772,7 +512,7 @@ scales.do { |c, i|
             message: \action,  params: [\remove, 1181]
         ),
     ],
-    83: [
+    33: [
         (
             info: "PATA: <entro> go high",
             message: \n_set,
@@ -797,10 +537,10 @@ scales.do { |c, i|
             ),
         ),
         (
-            message: \action,  params: [\draw, \skel]
+            message: \action,  params: [\draw, \graph]
         ),
     ],
-    84: [
+    34: [
         (
             info: "PATA: <entro> go back low",
             message: \n_set,
@@ -859,7 +599,7 @@ scales.do { |c, i|
             message: \action,  params: [\draw, \skelfull]
         ),
     ],
-    86: [
+    36: [
         (
             info: "MATH: remove <entro>",
             message: \action,  params: [\remove, 1182]
@@ -872,7 +612,7 @@ scales.do { |c, i|
             message: \action,  params: [\draw, \graph]
         ),
     ],
-    87: [
+    37: [
         (
             info: "MATH: voice 1",
             message: \particle,
@@ -888,7 +628,7 @@ scales.do { |c, i|
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
     ],
-    88: [
+    38: [
         (
             info: "MATH: voice 2",
             message: \particle,
@@ -906,7 +646,7 @@ scales.do { |c, i|
         ),
 
     ],
-    90: [
+    40: [
         (
             info: "MATH: remove voice 1 effect",
             message: \action,  params: [\remove, 1189]
@@ -916,7 +656,7 @@ scales.do { |c, i|
             message: \action,  params: [\remove, 1187]
         )
     ],
-    92: [
+    41: [
         (
             info: "MATH: remove voice 2,\n leave buzz alone",
             message: \action,  params: [\remove, 1188]
@@ -931,16 +671,16 @@ scales.do { |c, i|
     ],
 
     // + na ulice
-    93: [
+    50: [
         (
-            info: "GROOVE",
+            info: "NA ULI",
             message: \action,  params: [\remove, 1190]
         ),
         (
             message: \action,  params: [\remove, 1191]
         ),
         (
-            message: \action,  params: [\draw, \skel]
+            message: \action,  params: [\draw, \calibration]
         ),
         (
             info: "two heavy <gauss>",
@@ -962,15 +702,21 @@ scales.do { |c, i|
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         )
     ],
-    94: [
+    53: [
         (
-            info: "GROOVE - draw strob",
+            info: "NA ULI - draw skel",
+            message: \action,  params: [\draw, \skel]
+        ),
+    ],
+    54: [
+        (
+            info: "NA ULI - draw strob",
             message: \action,  params: [\draw, \skelfull]
         ),
     ],
-    95: [
+    55: [
         (
-            info: "GROOVE - draw skel",
+            info: "NA ULI - draw skel",
             message: \action,  params: [\draw, \skel]
         ),
     ],
@@ -1057,38 +803,6 @@ scales.do { |c, i|
             );
             ~scsynth.sendMsg("/n_set", nil, \freq, note.midicps);
             (1..15).choose.wait;
-        }
-    }),
-    randomCMBMelo: Task({
-        var x, y, z, synthName = ["cmb", "melo"];
-        inf.do { |j|
-            x = ~worldSize * [0.2, 0.8].choose;
-            #y, z = ~worldSize * 0.2 ! 2;
-            // Occasionally send a light "wind" with an age
-            // insufficient to make a big difference in audio.
-            // Serves more to create bigger entropy than for the sake of sound.
-            if (0.3.coin) {
-                ~sendParticle.(
-                    particle: (x:x, y:z, z:z, age: rrand(1, 3), mass: 0.9, spring: 1),
-                    synth: (name: "wind", params: [\attack, 1, \release, 3, \amp, 0.3])
-                );
-                (rrand(3, 5)).wait;
-            };
-            // Main particle
-            ~sendParticle.(
-                particle: (x:x, y:z, z:z, age: rrand(3, 6), mass: 0.9, spring: 1),
-                synth: (name: synthName[j % synthName.size] , params: [\attack, 1.5, \release, 3])
-            );
-            (20 * rrand(0.8, 1.3)).wait;
-        }
-    }),
-    switchScale: Task({
-        var sca = ~sequence.scales[0..2];
-        inf.do{ |i|
-            ~scsynth.sendMsg("/n_set", nil, \bufnum, sca[i % sca.size].bufnum);
-            (6..9).choose.wait;
-            ~scsynth.sendMsg("/n_set", nil, \bufnum, nil);
-            (30, 32..60).choose.wait;
         }
     }),
     buzzStream1: Task({

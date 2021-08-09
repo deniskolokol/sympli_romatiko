@@ -48,12 +48,12 @@ var ddSequence, btCurrNum, stCurrInfo, btNextNum, stNextInfo, timeLabel;
 var updateGui, updateGuiElement;
 var transparent=Color.grey(alpha:0.01),
     techColor=Color.green(0.5),
-    font=Font("Monaco", 14),
-    fontSmall=Font("Monaco", 10),
-    fontMedium=Font("Monaco", 12),
-    fontLarge=Font("Monaco", 14),
-    fontLarge1=Font("Monaco", 18),
-    fontGiant=Font("Monaco", 24),
+    font=Font("Nimbus Mono PS", 14),
+    fontSmall=Font("Nimbus Mono PS", 10),
+    fontMedium=Font("Nimbus Mono PS", 12),
+    fontLarge=Font("Nimbus Mono PS", 14),
+    fontLarge1=Font("Nimbus Mono PS", 18),
+    fontGiant=Font("Nimbus Mono PS", 24),
     fontColor=Color.gray(0.7),
     colorStar=Color.red,
     colorJoint=Color.new255(173, 58, 0),
@@ -297,15 +297,79 @@ var worldParams = (
         label: "part synth",
         default: "pulse",
     ),
-    // misc
+	// skelSimul
+    mX: (
+        label: "skel mX",
+        minval: 0.1,
+        maxval: 2.0,
+        default: 1,
+        midicc: 34,
+    ),
+    mY: (
+        label: "skel mY",
+        minval: 0.1,
+        maxval: 2.0,
+        default: 1,
+        midicc: 35,
+    ),
+    mZ: (
+        label: "skel mZ",
+        minval: 0.1,
+        maxval: 2.0,
+        default: 1,
+        midicc: 36,
+    ),
+    oX: (
+        label: "skel oX",
+        minval: -1.0,
+        maxval: 1.0,
+        default: 0.0,
+        midicc: 31,
+    ),
+    oY: (
+        label: "skel oY",
+        minval: -1.0,
+        maxval: 1.0,
+        default: 0.0,
+        midicc: 32,
+    ),
+    oZ: (
+        label: "skel oZ",
+        minval: -1.0,
+        maxval: 1.0,
+        default: 0.0,
+        midicc: 33,
+    ),
     skelSimulSpeed: (
         label: "simul vel",
         minval: 0.001,
-        maxval: 0.005,
+        maxval: 0.05,
         default: 0.002,
-        midicc: 34,
+		warp: \exp,
+        midicc: 20,
         hint: "speed of skeleton simulation",
     ),
+    skelSimul: (
+        label: "skel",
+        default: false,
+        midinote: 69,
+    ),
+    skelPause: (
+        label: "||",
+        default: false,
+        midinote: 59,
+    ),
+    skelRev: (
+        label: "<< ",
+        default: false,
+        midinote: 56,
+    ),
+    skelForw: (
+        label: ">>",
+        default: true,
+        midinote: 57,
+    ),
+    // misc
     mutualAttraction: (
         label: "mutual",
         default: true,
@@ -351,13 +415,19 @@ var loadSkelData = {
     skelData = File(~currentDir +/+ "experiments/joints.log", "r").readAllString.interpret;
 };
 var skelSimul = Task({
-    var i=0, coords;
+    var i=0, inc=1, coords;
     inf.do {
         // process
-        if (i == skelData.size) {i = 0};
+		if (world.skelRev) {
+			if (i == -1) {i = skelData.size-1};
+			inc = -1;
+		} {
+			if (i == skelData.size) {i = 0};
+			inc = 1;
+		};
         coords = skelData[i][1..];
         ~sendMessage.(\joint, [skelData[i][0], 1] ++ coords);
-        i = i + 1;
+        i = i + inc;
         world.skelSimulSpeed.wait;
     }
 });
@@ -895,13 +965,70 @@ panel = compViewFlow.(panelSrvLeft, scaleH:0.56);
 [
     \drag, \repulsion, \starMass,
     \gravX, \gravY, \gravZ,
-    \springRestLen, \springStrength, \springDamp,
-    \maxVel, \partInitAccel, \partFreq,
-    \partDefaultMass, \partAgeThresh, \skelSimulSpeed
+
+	\mX, \mY, \mZ,
+	\oX, \oY, \oZ,
+	// XXX - do we need those?
+	//
+	// \springRestLen, \springStrength, \springDamp,
+	// \maxVel, \partInitAccel, \partFreq,
+	// \partDefaultMass, \partAgeThresh,
+	\skelSimulSpeed
 ].do { |key, n|
     worldParams[key][\gui] = slider.(panel, key, worldParams[key]);
     if ((n+1) % 3 == 0) { compViewFlow.(panel, scaleH:0.04)} // gap after every 3rd slider
 };
+sText.(panel, " ", stringFont:fontSmall, scaleH:0.02, scaleW: 0.8); // gap
+worldParams.skelSimul[\gui] = buttonCheckbox.(panel,
+	worldParams.skelSimul[\label], bgColor:Color.black, scaleW:0.25, scaleH:0.1
+)
+.value_(worldParams.skelSimul[\default])
+.action_({ |bt|
+	if (bt.value.booleanValue) {
+		if (skelData.isNil) {loadSkelData.()};
+		skelSimul.start
+	} {
+		skelSimul.stop
+	}
+});
+
+// Skeleton simulation direction (forward or reverse) could
+// be realized with only one control (Rev={true, false}), but
+// two are used here for natural interaction with GUI and MIDI.
+[\skelRev, \skelForw].do { |param|
+	worldParams[param][\gui] = buttonCheckbox.(
+		panel,
+		worldParams[param][\label],
+		bgColor:Color.black, scaleW:0.15, scaleH:0.1
+	)
+	.value_(world[param]);
+};
+worldParams[\skelRev][\gui].action_({ |bt|
+	world.skelRev = bt.value.booleanValue;
+	world.skelForw = bt.value.booleanValue.not;
+	worldParams[\skelForw][\gui].value = bt.value.booleanValue.not;
+});
+worldParams[\skelForw][\gui].action_({ |bt|
+	world.skelForw = bt.value.booleanValue;
+	world.skelRev = bt.value.booleanValue.not;
+	worldParams[\skelRev][\gui].value = bt.value.booleanValue.not;
+});
+
+// To keep simulated skeleton in the world, fake the pause: do not
+// pause task, but increase waiting time instead.
+worldParams.skelPause[\gui] = buttonCheckbox.(panel,
+	worldParams.skelPause[\label], bgColor:Color.black, scaleW:0.25, scaleH:0.1
+)
+.value_(worldParams.skelPause[\default])
+.action_({ |bt|
+	if (bt.value.booleanValue) {
+		// save current waiting time for later
+		worldParams.skelSimulSpeed[\default] = world.skelSimulSpeed;
+		world.skelSimulSpeed = 2
+	} {
+		world.skelSimulSpeed = worldParams.skelSimulSpeed[\default];
+	}
+});
 
 // slider controllers for misc params
 panel = compViewFlow.(panelSrvLeft, scaleH:0.1);
@@ -942,7 +1069,7 @@ panel = compViewFlow.(panelSrvLeft, margin:5@5, gap:5@5, scaleH:0.1);
 miscParams[\removeall] = (
     midinote: 70,
     gui: button.(panel,
-        "X", bgColor:Color.black, scaleW:0.19, scaleH:0.7
+        "X", bgColor:Color.black, scaleW:0.1, scaleH:0.7
     ).action_({ |bt| removeAll.() })
 );
 // reset physics params to defaults
@@ -955,18 +1082,6 @@ miscParams[\reset] = (
             if (element.keys.includes(\midicc) && element[\gui].isNil.not) {
                 element[\gui].valueAction_(element[\default])
             }
-        }
-    })
-);
-miscParams[\skelsimul] = (
-    gui: buttonCheckbox.(panel,
-        "skel", bgColor:Color.black, scaleW:0.19, scaleH:0.7
-    ).action_({ |bt|
-        if (bt.value.booleanValue) {
-            if (skelData.isNil) {loadSkelData.()};
-            skelSimul.start
-        } {
-            skelSimul.stop
         }
     })
 );
@@ -2797,6 +2912,7 @@ oscSkeletonNew = OSCFunc({ |msg, time, addr, recvPort|
 }, '/new_skel');
 
 oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
+<<<<<<< HEAD
     var id, joint, x, y, z;
 	// postf("from % received %\n", addr, msg);
     id = msg[2].asInteger;
@@ -2824,6 +2940,23 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
 	// 	msg[4].linlin(0.0, 1.0, 0, world.depth)
 	// ];
     skeletonParticles.(id, joint, x, y, z);
+=======
+    var minX=0.0, maxX=1.0, minY=0.0, maxY=1pi, minZ=0.0, maxZ=1.0;
+	var joint, x, y, z;
+    // postf("from % received %\n", addr, msg);
+    joint = msg[1];
+	#x, y, z = [msg[3], msg[5], msg[4]]; // top view
+	// #x, y, z = [msg[3..5]; // front view
+
+	// x = (x + world.oX).linlin(minX, maxX, -1, 1) * world.mX;
+	x = (x + world.oX).linlin(minX, maxX, 1, -1) * world.mX; // XXX mirror
+	y = (y + world.oY).linlin(minY, maxY, -1, 1) * world.mY;
+	z = (z + world.oZ).linlin(minZ, maxZ, -1, 1) * world.mZ;
+	x = x.linlin(-1, 1, 0, world.width);
+	y = y.linlin(-1, 1, 0, world.height);
+	z = z.linlin(-1, 1, 0, world.depth);
+    skeletonParticles.(msg[2].asInteger, joint, x, y, z);
+>>>>>>> f3033ad (updated for linux)
 }, '/joint');
 
 oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|

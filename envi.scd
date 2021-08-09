@@ -6,6 +6,13 @@
 
 // To get it up and running
 //
+// If on Linux, start QjackCtl
+// $ jack_control start
+// check:
+// $ jack_control status
+// to stop:
+// $ jack_control stop
+//
 // start OSCeleton:
 // $ ~/Documents/run/Kinect/OSCeleton/osceleton -p 57120 -oz -0.3
 //

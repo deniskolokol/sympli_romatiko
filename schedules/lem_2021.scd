@@ -255,7 +255,7 @@ scales.do { |c, i|
             synth: (name: "pole",
                 node: 1100,
                 params: [
-                    \attack, 120,
+                    \attack, 2,
                     \ca, 2,
                     \release, 5,
                     \freq, "d 3".notemidi.midicps,
@@ -276,7 +276,7 @@ scales.do { |c, i|
                 name: "pole",
                 node: 1101,
                 params: [
-                    \attack, 120,
+                    \attack, 2,
                     \ca, 2,
                     \release, 5,
                     \freq, "a#2".notemidi.midicps,

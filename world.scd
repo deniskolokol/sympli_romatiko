@@ -120,35 +120,35 @@ var randomize = { |n, dev, factor=0.25|
 var visCount=0;
 var paths = [
     [
-        [\head, \neck],
+        [\l_ear, \head, \r_ear],
         [\l_hand, \l_elbow, \l_shoulder, \l_hip, \l_knee, \l_foot],
         [\r_hand, \r_elbow, \r_shoulder, \r_hip, \r_knee, \r_foot],
         [\r_shoulder, \l_shoulder],
         [\r_hip, \l_hip],
     ],
     [
-        [\head, \neck, \torso],
-        [\l_hand, \l_elbow, \l_shoulder, \neck, \r_shoulder, \r_elbow, \r_hand],
-        [\l_shoulder, \torso, \r_shoulder],
-        [\l_foot, \l_knee, \l_hip, \torso, \r_hip, \r_knee, \r_foot]
+        [\l_ear, \head, \r_ear],
+        [\l_hand, \l_elbow, \l_shoulder, \r_shoulder, \r_elbow, \r_hand],
+        [\l_shoulder, \l_hip, \r_hip, \r_shoulder],
+        [\l_foot, \l_knee, \l_hip, \r_hip, \r_knee, \r_foot]
     ],
     [
-        [\head, \neck, \torso],
+        [\l_ear, \head, \r_ear],
         [\l_hand, \l_elbow, \l_shoulder, \r_hip, \r_knee, \r_foot],
         [\r_hand, \r_elbow, \r_shoulder, \l_hip, \l_knee, \l_foot],
     ],
     [
-        [\head, \neck, \torso],
+        [\l_ear, \head, \r_ear],
         [\l_hand, \l_elbow, \l_shoulder, \l_hip, \l_knee, \l_foot],
         [\r_hand, \r_elbow, \r_shoulder, \r_hip, \r_knee, \r_foot],
     ],
     [
-        [\head, \neck, \torso],
+        [\l_ear, \head, \r_ear],
         [\l_hand, \l_elbow, \l_shoulder, \r_shoulder, \r_elbow, \r_hand],
         [\l_foot, \l_knee, \l_hip, \r_hip, \r_knee, \r_foot],
     ],
     [
-        [\head, \neck, \torso],
+        [\l_ear, \head, \r_ear],
         [\l_hand, \l_elbow, \l_shoulder, \l_hip, \l_knee, \l_foot],
         [\r_hand, \r_elbow, \r_shoulder, \r_hip, \r_knee, \r_foot],
         [\l_hand, \r_hand],
@@ -442,7 +442,7 @@ worldParams.keysValuesDo { |k, v| world[k] = v[\default]};
 skel = ~skel;
 skeleton = Dictionary.new;
 jointVisible = [ // visualize only these joints
-    \l_hand, \l_elbow, \l_shoulder, \neck, \head, \neck, \r_shoulder, \r_elbow, \r_hand
+    \l_hand, \l_elbow, \l_shoulder, \head, \r_shoulder, \r_elbow, \r_hand
 ];
 springSrcSkel = #[\r_hand, \l_hand]; // joints that springs can be attached to
 listenerPos = ( // as default - center of the world
@@ -2912,51 +2912,23 @@ oscSkeletonNew = OSCFunc({ |msg, time, addr, recvPort|
 }, '/new_skel');
 
 oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
-<<<<<<< HEAD
-    var id, joint, x, y, z;
-	// postf("from % received %\n", addr, msg);
-    id = msg[2].asInteger;
-    joint = msg[1];
+    // postf("from % received %\n", addr, msg);
 
 	// // XXX front view
 	// #x, y, z = [
 	// 	msg[3].linlin(0.0, 1.0, 0, world.width),
 	// 	msg[4].linlin(0.0, 1.0, 0, world.height),
-	// 	msg[5].linlin(-1.0, 1.0, 0, world.depth)
-	// 	// msg[5].linlin(0.65, 2.8, 0, world.depth)
+	// 	msg[5].linlin(0.65, 2.8, 0, world.depth)
 	// ];
 
 	// XXX top view
-	#x, y, z = [
-		msg[3].linlin(0.0, 1.0, 0, world.width),
-		msg[5].linlin(-1.0, 1.0, 0, world.height),
-		msg[4].linlin(0.0, 2.0, 0, world.depth)
-	];
-
-	// // XXX top view
-	// #x, y, z = [
-	// 	msg[3].linlin(0.0, 1.0, 0, world.width),
-	// 	msg[5].linlin(0.65, 2.8, 0, world.height),
-	// 	msg[4].linlin(0.0, 1.0, 0, world.depth)
-	// ];
-    skeletonParticles.(id, joint, x, y, z);
-=======
-    var minX=0.0, maxX=1.0, minY=0.0, maxY=1pi, minZ=0.0, maxZ=1.0;
-	var joint, x, y, z;
-    // postf("from % received %\n", addr, msg);
-    joint = msg[1];
-	#x, y, z = [msg[3], msg[5], msg[4]]; // top view
-	// #x, y, z = [msg[3..5]; // front view
-
-	// x = (x + world.oX).linlin(minX, maxX, -1, 1) * world.mX;
-	x = (x + world.oX).linlin(minX, maxX, 1, -1) * world.mX; // XXX mirror
-	y = (y + world.oY).linlin(minY, maxY, -1, 1) * world.mY;
-	z = (z + world.oZ).linlin(minZ, maxZ, -1, 1) * world.mZ;
-	x = x.linlin(-1, 1, 0, world.width);
-	y = y.linlin(-1, 1, 0, world.height);
-	z = z.linlin(-1, 1, 0, world.depth);
-    skeletonParticles.(msg[2].asInteger, joint, x, y, z);
->>>>>>> f3033ad (updated for linux)
+    skeletonParticles.(
+		id:msg[2].asInteger,
+		joint:msg[1],
+		x:msg[3].linlin(0.0, 1.0, 0, world.width),
+		y:msg[5].linlin(-1, 1, 0, world.height),
+		z:msg[4].linlin(0.0, 1.0, 0, world.depth)
+	);
 }, '/joint');
 
 oscGroupTree = OSCFunc({ |msg, time, addr, recvPort|

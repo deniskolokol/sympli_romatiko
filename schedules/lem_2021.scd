@@ -17,7 +17,7 @@ dictObjSeq = (
 msetObjSeq = MarkovSetN([], 2);
 dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 
-samplesDir = "~/Music/MOON2/samples/";
+samplesDir = "/run/media/deko/Vayu/Music/MOON2/samples/";
 PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
     try {
         buf = Buffer.readChannel(~scsynth, f.fullPath, channels: [0]);

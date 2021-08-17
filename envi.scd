@@ -47,6 +47,9 @@ var confKeys = [ // keys to save to conf file
 ];
 var harmonics, numHarmonics=1024, numWavetables = 8;
 
+var opts = ServerOptions.new;
+var scsynth;
+
 var cleanPaths = { |paths|
     // Converts each element from `paths` to absolute path,
     // and returns unique paths.
@@ -71,8 +74,8 @@ var loadPaths = { |lines|
 
 var isTest = thisProcess.argv.includesEqual("test");
 var currentDir = PathName(thisProcess.nowExecutingPath).pathOnly;
-// var seqPathsFile = currentDir +/+ "conf/sequences.conf";
-var seqPathsFile = "/Users/deko/Documents/dev_music/sympli_romatiko/conf/sequences.conf";
+var seqPathsFile = currentDir +/+ "conf/sequences.conf";
+// var seqPathsFile = "/Users/deko/Documents/dev_music/sympli_romatiko/conf/sequences.conf";
 
 var seqPaths = ["Load..."];
 var confFile = currentDir +/+ "conf/envi.conf";
@@ -138,13 +141,20 @@ try { // to load from settings file
 };
 seqPaths = seqPaths.asList;
 
+// -- bookmark --
+
+// // Remote synth
+// opts.maxLogins = 2;
+// scsynth = Server.remote(\remote, NetAddr("192.168.1.19", 57110), opts);
+// Internal synth
+scsynth = Server.internal;
+
 srEnv = Environment.make {
     ~currentDir = currentDir;
     ~seqPaths = seqPaths;
     // assume the World is a cube
     ~worldSize = (Window.screenBounds.height*0.623).floor;
-    // ~scsynth = Server("scsynth", NetAddr.new("192.168.1.106", 57110));
-    ~scsynth = Server.internal;
+	~scsynth = scsynth;
     ~surround = conf.atFail(\surround, {"ambisonic"});
     ~depth = conf.atFail(\depth, {3.5});
     ~inbus = conf.atFail(\inbus, {4});

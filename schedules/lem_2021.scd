@@ -17,7 +17,7 @@ dictObjSeq = (
 msetObjSeq = MarkovSetN([], 2);
 dictObjSeq.keysValuesDo{|k, v| msetObjSeq[k] = v[1]};
 
-samplesDir = "/run/media/deko/Vayu/Music/MOON2/samples/";
+samplesDir = "~/Music/MOON2/samples/";
 PathName.new(samplesDir +/+ "kraut_traer").entries.do { |f, i|
     try {
         buf = Buffer.readChannel(~scsynth, f.fullPath, channels: [0]);
@@ -47,7 +47,7 @@ scales.do { |c, i|
 
     0: [
         (message: \action,  params: [\remove, \all],
-            info: "Remove all before start\n Apply initial settings"),
+            info: "INTRO, rm all, init settings, LFOs"),
         (message: \physics, params: [
             \gravX, \default,
             \gravY, \default,
@@ -65,7 +65,6 @@ scales.do { |c, i|
             message: \action,  params: [\draw, \calibration]
         ),
         (
-            info: "LFOs <ksine>, <keyscale>, <klfno0>",
             message: \lfo,
             synth: (name: "ksine",
                 node: 1251,
@@ -99,13 +98,12 @@ scales.do { |c, i|
                     \out, 4
                 ]
             ),
-        ),
-    ],
-
-    5: [
+        )
+	],
+	2: [
         (
             wait: 120,
-            info: "INTRO, no objects, only .kr buses",
+            info: ".kr buses",
             message: \g_new,
             id: \intro_bundle,
             params: [ // Keywords \next_node_id & \group_id are to be substituted by real IDs.
@@ -247,15 +245,13 @@ scales.do { |c, i|
             \springDamp, \default,
             \mutualAttraction, \default,
         ]),
-    ],
-    21: [
         (
             info: "DARK: 2 heavy <pole>",
             message: \particle,
             synth: (name: "pole",
                 node: 1100,
                 params: [
-                    \attack, 2,
+                    \attack, 3,
                     \ca, 2,
                     \release, 5,
                     \freq, "d 3".notemidi.midicps,
@@ -276,7 +272,7 @@ scales.do { |c, i|
                 name: "pole",
                 node: 1101,
                 params: [
-                    \attack, 2,
+                    \attack, 3,
                     \ca, 2,
                     \release, 5,
                     \freq, "a#2".notemidi.midicps,
@@ -490,13 +486,13 @@ scales.do { |c, i|
             ),
         ),
     ],
-    33: [
+    35: [
         (
             info: "TRAIN switchScaleAndOffset",
             message: \task, name: \switchScaleAndOffset, act: 1
         ),
     ],
-    70: [
+    40: [
         (
             info: "NEURO: 2 heavy <neural>, heavy <bass>",
             message: \action,  params: [\remove, \all]
@@ -528,19 +524,19 @@ scales.do { |c, i|
             particle: (age: inf, mass: 0.9, spring: 1, source: \l_hand)
         ),
     ],
-    75: [
+    45: [
         (
             info: "NEURO: avant (1) - <buzz> stream 1",
             message: \task, name: \buzzStream1, act: 1
         ),
     ],
-    76: [
+    46: [
         (
             info: "NEURO: avant (2) - stream <bgMarkovProcess>",
             message: \task, name: \bgMarkovProcess, act: 1
         ),
     ],
-    80: [
+    50: [
         (
             message: \action,  params: [\remove, \all]
         ),
@@ -621,14 +617,14 @@ scales.do { |c, i|
             message: \task, name: \bgMarkovProcess, act: 0
         ),
     ],
-    82: [
+    52: [
         (
             info: "PATA: 2 heavy <entro>",
             message: \particle,
             synth: (
                 name: "entro",
                 node: 1182,
-                params: [\amp, 0.7]
+                params: [\amp, 0.7, \cutoff, 10000, \rq, 0.5]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
@@ -637,7 +633,7 @@ scales.do { |c, i|
             synth: (
                 name: "entro",
                 node: 1183,
-                params: [\amp, 0.7]
+                params: [\amp, 0.7, \cutoff, 10000, \rq, 0.5]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
@@ -652,7 +648,7 @@ scales.do { |c, i|
             message: \action,  params: [\remove, 1181]
         ),
     ],
-    83: [
+    53: [
         (
             info: "PATA: <entro> go high",
             message: \n_set,
@@ -680,7 +676,7 @@ scales.do { |c, i|
             message: \action,  params: [\draw, \skel]
         ),
     ],
-    84: [
+    54: [
         (
             info: "PATA: <entro> go back low",
             message: \n_set,
@@ -739,7 +735,7 @@ scales.do { |c, i|
             message: \action,  params: [\draw, \skelfull]
         ),
     ],
-    86: [
+    60: [
         (
             info: "MATH: remove <entro>",
             message: \action,  params: [\remove, 1182]
@@ -752,7 +748,7 @@ scales.do { |c, i|
             message: \action,  params: [\draw, \graph]
         ),
     ],
-    87: [
+    65: [
         (
             info: "MATH: voice 1",
             message: \particle,
@@ -762,13 +758,13 @@ scales.do { |c, i|
                 params: [
                     \att, 1,
                     \bufnum, ~sequence.samples[0].bufnum,
-                    \amp, 0.5,
+                    \amp, 0.3,
                 ]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \r_hand)
         ),
     ],
-    88: [
+    66: [
         (
             info: "MATH: voice 2",
             message: \particle,
@@ -779,14 +775,14 @@ scales.do { |c, i|
                     \attack, 1,
                     \release, 10,
                     \bufnum, ~sequence.samples[1].bufnum,
-                    \amp, 0.5,
+                    \amp, 0.3,
                 ]
             ),
             particle: (age: inf, mass: 1, spring: 1, source: \l_hand)
         ),
 
     ],
-    90: [
+    67: [
         (
             info: "MATH: remove voice 1 effect",
             message: \action,  params: [\remove, 1189]
@@ -796,7 +792,7 @@ scales.do { |c, i|
             message: \action,  params: [\remove, 1187]
         )
     ],
-    92: [
+    68: [
         (
             info: "MATH: remove voice 2,\n leave buzz alone",
             message: \action,  params: [\remove, 1188]
@@ -811,7 +807,7 @@ scales.do { |c, i|
     ],
 
     // + na ulice
-    93: [
+    70: [
         (
             info: "GROOVE",
             message: \action,  params: [\remove, 1190]
@@ -842,19 +838,19 @@ scales.do { |c, i|
             particle: (spring: 1, age: inf, mass: 0.9, source: \r_hand)
         )
     ],
-    94: [
+    72: [
         (
             info: "GROOVE - draw strob",
             message: \action,  params: [\draw, \skelfull]
         ),
     ],
-    95: [
+    75: [
         (
             info: "GROOVE - draw skel",
             message: \action,  params: [\draw, \skel]
         ),
     ],
-    99: [
+    79: [
         (
             info: "FIN: remove all",
             message: \action,  params: [\remove, \all]
@@ -969,12 +965,12 @@ scales.do { |c, i|
         var key, next;
         var params = [ // list of acceptable configurations
             [\partSynth, "wind",  \partSigmoidRatio, 0.3, \partAgeThresh, 1.67, \partInitAccel, 10 ],
-            [                     \partSigmoidRatio, 0.7, \partAgeThresh, 0.20, \partInitAccel, 30 ],
             [\partSynth, "melo",  \partSigmoidRatio, 0.7, \partAgeThresh, 0.78, \partInitAccel, 2.0],
             [\partSynth, "cmb",   \partSigmoidRatio, 0.4, \partAgeThresh, 0.20, \partInitAccel, 30 ],
             [\partSynth, "wind",  \partSigmoidRatio, 0.7, \partAgeThresh, 1.08, \partInitAccel, 8.0],
             [\partSynth, "pulse", \partSigmoidRatio, 0.2, \partAgeThresh, 1.03, \partInitAccel, 20 ],
             [\partSynth, "wind",  \partSigmoidRatio, 0.2, \partAgeThresh, 1.67, \partInitAccel, 1.0],
+            [\partSynth, "cmb",   \partSigmoidRatio, 0.7, \partAgeThresh, 0.30, \partInitAccel, 10 ],
         ];
         inf.do { |i|
             2.do { |j|
@@ -1040,12 +1036,12 @@ scales.do { |c, i|
             ~sendParticle.(
                 particle: (mass:0.6, age:rrand(3, 4),
                     x: [0.3, 0.7].choose * ~worldSize,
-                    y: ~worldSize*0.25,
+                    y: ~worldSize*0.45,
                     z: ~worldSize*0.6
                 ),
                 synth: (
                     name: "moog",
-                    params:[\cutoff, -1, \attack, 0.2, \release, rrand(4, 6), \amp, 0.2]
+                    params:[\cutoff, -1, \attack, 0.2, \release, rrand(4, 6), \amp, 0.5]
                 )
             );
             (10 + 2.0.rand2).wait;

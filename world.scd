@@ -385,6 +385,16 @@ var worldParams = (
         default: \calibration,
         hint: "drawing mode description",
     ),
+	tick: (
+        label: "tick",
+        minval: 0.001,
+        maxval: 2.0,
+        default: 1,
+		warp: \lin,
+		// midicc: 20, // ?
+        hint: "physics simulation speed",
+    ),
+
 );
 
 var reshape = { |src|
@@ -973,7 +983,7 @@ panel = compViewFlow.(panelSrvLeft, scaleH:0.56);
 	// \springRestLen, \springStrength, \springDamp,
 	// \maxVel, \partInitAccel, \partFreq,
 	// \partDefaultMass, \partAgeThresh,
-	\skelSimulSpeed
+	\skelSimulSpeed, \tick
 ].do { |key, n|
     worldParams[key][\gui] = slider.(panel, key, worldParams[key]);
     if ((n+1) % 3 == 0) { compViewFlow.(panel, scaleH:0.04)} // gap after every 3rd slider
@@ -2210,7 +2220,7 @@ viewWorld.drawFunc = { |view|
         { drawCalibration.(view, kwargs: kwargs) }
     );
 
-    physics.tick;
+	physics.tick(worldParams[\tick][\gui].value);
 };
 
 
@@ -2912,7 +2922,7 @@ oscSkeletonNew = OSCFunc({ |msg, time, addr, recvPort|
 }, '/new_skel');
 
 oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
-    // postf("from % received %\n", addr, msg);
+	// postf("from % received %\n", addr, msg);
 
 	// // XXX front view
 	// #x, y, z = [
@@ -2922,11 +2932,12 @@ oscSkeletonJoint = OSCFunc({ |msg, time, addr, recvPort|
 	// ];
 
 	// XXX top view
+	// x:msg[3].linlin(0.0, 1.0, 0, world.width),
     skeletonParticles.(
 		id:msg[2].asInteger,
 		joint:msg[1],
 		x:msg[3].linlin(0.0, 1.0, 0, world.width),
-		y:msg[5].linlin(-1, 1, 0, world.height),
+		y:msg[5].linlin(-1.0, 1.0, 0, world.height),
 		z:msg[4].linlin(0.0, 1.0, 0, world.depth)
 	);
 }, '/joint');

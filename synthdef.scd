@@ -1183,49 +1183,47 @@ SynthDef(\buffloop, { // continuous recording into buffer
 // a.set(\freq, 432)
 // (
 // r = {
-//     (0, 0.05..1).do { |i|
-//         (12,18..72).do { |f|
-//             [i, f].postln;
-//             c.set(
-//                 \momentum, i,
-//                 \freq, f.midicps
-//             );
-//             0.5.wait;
-//         };
-//         "...".postln;
-//         0.5.wait;
-//     }
+// 	(0, 0.05..1).do { |i|
+// 		(12,18..72).do { |f|
+// 			[i, f].postln;
+// 			c.set(
+// 				\momentum, i,
+// 				\freq, f.midicps
+// 			);
+// 			0.5.wait;
+// 		};
+// 		"...".postln;
+// 		0.5.wait;
+// 	}
 // }.fork
 // )
 // r.stop
 // c.set(\gate, 0)
-
-
-// TEST with nodeId
+//
+//
+// // TEST with nodeId
 // (
 // r = {
-//     (380..800).do { |i|
-//         i.postln;
-//         s.sendMsg("/n_set", 1006, \freq, i);
-//         0.5.wait;
-//     }
+// 	(380..800).do { |i|
+// 		i.postln;
+// 		s.sendMsg("/n_set", 1006, \freq, i);
+// 		0.5.wait;
+// 	}
 // }.fork
 // )
 // r.stop
 
-//
-//
-// // TEST: intro \gro2
+// TEST: intro \gro2
 // (
 // k = Pbind(
-//     \attack, Pseq([60, 0.5, Pxrand(#[1, 0.5, 0.3], 3)]),
-//     \degree, Pseq([8, 11, Pxrand(#[0, 3, 7, 10]+8, 3)]),
-//     \octave, 3,
-//     \momentum, Pseq([0.5, Pwhite(0.0, 1.0)]).round(0.001),
-//     \dur, Pseq([80, 2, Pxrand(#[10, 30, 5], 3)]),
-//     \legato, Pseq([1, 0.5, Pxrand(#[1, 0.5, 0.3], 3)]),
-//     \instrument, \pole__a2,
-//     \bufnum, b.bufnum
+// 	\attack, Pseq([60, 0.5, Pxrand(#[1, 0.5, 0.3], 3)]),
+// 	\degree, Pseq([8, 11, Pxrand(#[0, 3, 7, 10]+8, 3)]),
+// 	\octave, 3,
+// 	\momentum, Pseq([0.5, Pwhite(0.0, 1.0)]).round(0.001),
+// 	\dur, Pseq([80, 2, Pxrand(#[10, 30, 5], 3)]),
+// 	\legato, Pseq([1, 0.5, Pxrand(#[1, 0.5, 0.3], 3)]),
+// 	\instrument, \pole__a2,
+// 	\bufnum, b.bufnum
 // ).trace;
 // f = k.play
 // )
@@ -1234,17 +1232,17 @@ SynthDef(\buffloop, { // continuous recording into buffer
 // // TEST: slow bass \prc2
 // (
 // p = Pbind(
-//     \degree, Pseq(
-//         [ Pseries(0, 3, 3), Pseq([ \ ], 3)], inf
-//     ),
-//     \octave, 3,
-//     \dur, Pseq([1/8, 1/2, 1/8, 1/2, 1/2, 1/2], inf),
-//     \instrument, \perc__a2,
-//     \sustain, Pseq(
-//         [ Pseq([0.5, Pwhite(0.2, 0.8)]), Pseq([ \ ], 4)], inf
-//     ),
-//     \amp, 0.8,
-//     \bufnum, b.bufnum,
+// 	\degree, Pseq(
+// 		[ Pseries(0, 3, 3), Pseq([ \ ], 3)], inf
+// 	),
+// 	\octave, 3,
+// 	\dur, Pseq([1/8, 1/2, 1/8, 1/2, 1/2, 1/2], inf),
+// 	\instrument, \perc__a2,
+// 	\sustain, Pseq(
+// 		[ Pseq([0.5, Pwhite(0.2, 0.8)]), Pseq([ \ ], 4)], inf
+// 	),
+// 	\amp, 0.8,
+// 	\bufnum, b.bufnum,
 // ).trace;
 // e = p.play(TempoClock(16/60))
 // )
